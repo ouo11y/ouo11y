@@ -166,7 +166,7 @@ test("each rule fails on the request that breaks it", () => {
 
 test("telemetry: JSON and protobuf, gzip or not; event and span names are recorded", () => {
   const c = createCollector();
-  const logs = { resourceLogs: [{ scopeLogs: [{ scope: { name: "@ouo11y/react-native" }, logRecords: [{ eventName: "session.start", attributes: [] }, { attributes: [{ key: "event.name", value: { stringValue: "navigation" } }] }] }] }] };
+  const logs = { resourceLogs: [{ scopeLogs: [{ scope: { name: "@ouo11y/react-native" }, logRecords: [{ eventName: "session.start", attributes: [{ key: "session.id", value: { stringValue: "s1" } }] }, { attributes: [{ key: "event.name", value: { stringValue: "navigation" } }] }] }] }] };
   c.accept("/v1/logs", { "content-type": "application/json" }, Buffer.from(JSON.stringify(logs)));
   c.accept("/v1/logs", { "content-type": "application/json", "content-encoding": "gzip" }, gzipSync(Buffer.from(JSON.stringify(logs))));
   c.accept("/v1/logs", PROTO, request("ouo.rum", [{ event: "exception", attributes: { "session.id": "x" } }]));
@@ -178,6 +178,9 @@ test("telemetry: JSON and protobuf, gzip or not; event and span names are record
   const r = c.report();
   assert.deepEqual(r.telemetry.events, { "session.start": 2, navigation: 2, exception: 1 });
   assert.deepEqual(r.telemetry.spans, { "HTTP GET": 1, "HTTP POST": 1 });
+  // session.id of telemetry records, to compare with the replay's (record attribute first)
+  assert.deepEqual(r.telemetry.sessions, { s1: 2, x: 1 });
+  assert.match(formatReport(r), /telemetry session\.id: s1=2, x=1/);
   assert.equal(r.verdict, "nothing_to_check");
 });
 
@@ -201,6 +204,9 @@ test("over HTTP: fault injection, then 200; /__report", async () => {
     assert.equal((await fetch(`${base}/nope`, { method: "POST" })).status, 404);
     const report = await (await fetch(`${base}/__report`)).json();
     assert.equal(report.faultsInjected, 2);
+    // each faulted replay request is matched with its retry, byte for byte
+    assert.deepEqual(report.faultedReplay.map((f) => [f.request, f.retried]), [["ouo.replay.chunk a 0", "same_bytes"], ["ouo.replay.chunk a 0", "same_bytes"]]);
+    assert.match(formatReport(report), /faulted replay request ouo\.replay\.chunk a 0: retried same_bytes/);
     assert.equal(report.streams[0].chunks, 1);
     assert.equal(report.rules.sequence.result, "pass");
   } finally {

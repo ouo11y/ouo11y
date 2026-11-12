@@ -1,0 +1,19 @@
+Run 4: --status 400 on every request (seq 3, 4 rejected), then a fresh collector answering 200 (missing 0-4 is expected: 0-2 went to run 3, 3-4 were dropped); 70 s background and resume
+
+verdict: FAIL
+requests: 6 (faults injected: 0; accepted logs 6, traces 0)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (3 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (2 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (2 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (2 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (2 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (4 checked)
+  [FAIL] sequence: per stream the sequences are 0, 1, 2, ... with no gap (2 checked)
+         stream 3ae2479b94aa603312d622420f618721: missing sequence 0, 1, 2, 3, 4 (highest 5)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (2 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (1 checked)
+  stream 3ae2479b94aa603312d622420f618721: 1 chunk(s), highest sequence 5, 10481 bytes, 0 duplicate(s), ended: partial/session_end/last=5
+  stream 0d062452e707bd828fe241134530f8a9: 1 chunk(s), highest sequence 0, 10463 bytes, 0 duplicate(s), ended: no
+  telemetry events: navigation=1, ouo.screen.display=2, app.jank=2, app.lifecycle=2, ouo.stall=1, session.end=1, session.start=1
+  telemetry session.id: 23b63577-b620-4e1c-9715-c019c9266420=8, c17f0b53-49d6-4e0a-bc34-b4ec3d5ac6b6=2
+  spans: none

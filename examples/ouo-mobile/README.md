@@ -104,6 +104,14 @@ adb shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --
 background timeout, and `OUO_NOTE` lines in logcat. The Product screen shows an image so the suite can
 check that images are masked.
 
+`scripts/journey-android.sh [--serial <adb serial>]` is the Android twin of `scripts/journey.sh` (it needs
+the `--conformance` build). It drives the app through several screens and types into the masked promo field
+with `adb shell input`. It then sends the app to the background, force-stops it and launches it again, so the
+next run ends the stream the last one left open. With `scripts/fake-collector.mjs --out <dir>` running and the
+app built with `EXPO_PUBLIC_OTLP_ENDPOINT=http://10.0.2.2:<port>`, `GET /__report` gives the verdict on the
+replay rules of spec section 11. The verdict also lists the telemetry `session.id` values, to compare with the
+replay's, and whether each faulted replay request was retried with the same bytes.
+
 ## Configuration
 
 `app.config.ts`:
