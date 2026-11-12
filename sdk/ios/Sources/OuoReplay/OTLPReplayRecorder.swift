@@ -363,6 +363,8 @@ final class OTLPReplayRecorder: ReplayRecording {
         // Cuts the open segment; it still reaches the stream (`ship`).
         if isRecording { video?.pause() }
         isRecording = false
+        // The scroll views stop being sampled on every run-loop pass.
+        ScrollMotion.stop()
     }
 
     /// The stream ended on its own (the store refused a chunk, or too many errors): stop looking.
@@ -475,7 +477,8 @@ final class OTLPReplayRecorder: ReplayRecording {
         let start = EpochMillis((segment.start.timeIntervalSince1970 * 1000).rounded())
         let end = EpochMillis((segment.end.timeIntervalSince1970 * 1000).rounded())
         let touches: [Touch] = touchLock.withLock {
-            let taken = pendingTouches.filter { $0.ts < end }
+            // [start, end) (docs/specs/mobile-replay.md): a touch before the segment is dropped.
+            let taken = pendingTouches.filter { $0.ts >= start && $0.ts < end }
             pendingTouches.removeAll { $0.ts < end }
             return taken
         }

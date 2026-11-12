@@ -226,6 +226,7 @@ final class ReplayRecorder: ReplayRecording {
         wakeTimer?.invalidate()
         wakeTimer = nil
         isRecording = false
+        ScrollMotion.stop()
     }
 
     private func tick() {

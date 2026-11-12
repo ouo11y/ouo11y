@@ -55,12 +55,17 @@ enum ViewTreeBuilder {
     /// Content types that hold a secret whether or not the field hides its characters.
     private static let secretContentTypes: Set<UITextContentType> = [.password, .newPassword, .oneTimeCode, .creditCardNumber]
 
-    /// The React tag of a React Native view: Paper keeps it in `reactTag`, Fabric in `tag`.
-    private static func reactTag(of view: UIView, className: String) -> Int? {
+    /// The React tag of a React Native view: Paper keeps it in `reactTag`, Fabric in `tag`. Under
+    /// Fabric every component view descends from `RCTViewComponentView`, also those whose own class
+    /// is not `RCT…` (Expo module views, react-native-svg, WebView), so the class chain decides,
+    /// not the name: a host's `mask(ref)` on such a view masks it as on Android. A plain UIKit
+    /// view's `tag` is the app's own number, not a React tag, and is not read.
+    private static func reactTag(of view: UIView, names: (name: String, superclasses: [String])) -> Int? {
         if view.responds(to: reactTagSelector), let n = view.perform(reactTagSelector)?.takeUnretainedValue() as? NSNumber {
             return n.intValue
         }
-        return view.tag > 0 && className.hasPrefix("RCT") ? view.tag : nil
+        guard view.tag > 0 else { return nil }
+        return names.name.hasPrefix("RCT") || names.superclasses.contains(where: { $0.hasPrefix("RCT") }) ? view.tag : nil
     }
 
     /// The text field or text view behind an input node (React Native's Fabric input wraps it), and
@@ -89,7 +94,7 @@ enum ViewTreeBuilder {
         if let detail {
             let names = names(of: type(of: view))
             secure = input(of: view, names: names)?.secure ?? false
-            maskOverride = detail.masks.override(reactTag: reactTag(of: view, className: names.name), accessibilityIdentifier: view.accessibilityIdentifier)
+            maskOverride = detail.masks.override(reactTag: reactTag(of: view, names: names), accessibilityIdentifier: view.accessibilityIdentifier)
         }
         let frame = view.convert(view.bounds, to: nil)
         let names = names(of: type(of: view))
@@ -172,7 +177,20 @@ enum ScrollMotion {
         lastOffset.setObject(NSValue(cgPoint: offset), forKey: scroll)
     }
 
-    /// One observer for the process; the table is weak, so a gone scroll view costs nothing.
+    /// Removes the run-loop observer and forgets every scroll view: capture stopped, nothing samples
+    /// them until the next walk installs it again.
+    static func stop() {
+        if let observer {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+            self.observer = nil
+        }
+        watched.removeAllObjects()
+        lastOffset.removeAllObjects()
+        changedAt.removeAllObjects()
+    }
+
+    /// One observer while capture runs (`stop()` removes it); the tables are weak, so a gone scroll
+    /// view costs nothing.
     private static func installIfNeeded() {
         guard observer == nil else { return }
         let o = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, 0) { _, _ in
