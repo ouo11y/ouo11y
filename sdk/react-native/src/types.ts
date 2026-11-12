@@ -183,6 +183,24 @@ export interface BeforeSendRecord {
  */
 export type BeforeSend = (record: BeforeSendRecord) => BeforeSendRecord | null | false | void;
 
+export interface ConsentOptions {
+  /**
+   * Start with consent pending (spec PRV-1): until `setConsent` the SDK sends nothing, writes
+   * nothing to persistent storage and starts no replay. What it records meanwhile waits in
+   * memory (bounded) and is sent on grant, discarded on denial. Default false: consent is taken
+   * as given.
+   */
+  required?: boolean;
+}
+
+/** `setConsent`: the two categories are separate (spec PRV-3); a field left out is unchanged. */
+export interface Consent {
+  /** Events, logs, errors, spans. */
+  telemetry?: boolean;
+  /** Session replay. Recording also needs telemetry consent: a replay belongs to a session. */
+  replay?: boolean;
+}
+
 export interface PrivacyOptions {
   /** Query keys whose values are kept in recorded URLs; every other query value becomes `REDACTED` (spec PRV-10). Default none. */
   urlQueryAllow?: string[];
@@ -399,6 +417,7 @@ export interface RUMOptions {
   /** Change or drop records before they are kept or sent. */
   beforeSend?: BeforeSend;
   privacy?: PrivacyOptions;
+  consent?: ConsentOptions;
   /**
    * Runs on every URL the SDK records (`url.full`, URLs in stack traces) after its own
    * sanitising: credentials and query values are already `REDACTED` and the fragment is gone.
@@ -471,6 +490,13 @@ export interface RUM {
    * The id is kept across launches until it is cleared.
    */
   setUser(user: UserOptions | string | null): void;
+  /**
+   * Update consent (spec PRV-1 to PRV-4). Granting sends what was held while pending. Denying
+   * or withdrawing a category stops its capture, deletes its unsent data (the offline store, the
+   * persisted session) and, for telemetry, forgets the session: a later grant starts a new one
+   * without `session.previous_id`.
+   */
+  setConsent(consent: Consent): void;
   /** Attributes for every later record (spans and log records). Replaces the previous set; `{}` clears it. */
   setGlobalAttributes(attributes: Attrs): void;
   /**

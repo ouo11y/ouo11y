@@ -120,6 +120,7 @@ function publicCalls(rum: RUMInternal): Array<[string, (...a: unknown[]) => unkn
   const log = rum.log as unknown as Record<string, (...a: unknown[]) => unknown> & ((...a: unknown[]) => unknown);
   return [
     ["setUser", r["setUser"]!, 1],
+    ["setConsent", r["setConsent"]!, 1],
     ["setGlobalAttributes", r["setGlobalAttributes"]!, 1],
     ["recordException", r["recordException"]!, 2],
     ["captureError", r["captureError"]!, 2],
@@ -209,6 +210,7 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
       for (const v of MALFORMED) {
         expect(() => {
           sdk.setUser(v as never);
+          sdk.setConsent(v as never);
           sdk.setGlobalAttributes(v as never);
           sdk.recordEvent(v as never, v as never, v as never);
           sdk.recordException(v, v as never);

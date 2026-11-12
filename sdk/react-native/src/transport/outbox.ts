@@ -107,6 +107,8 @@ export class Outbox {
   private failures = 0;
   private retryTimer: TimerHandle | null = null;
   private stopped = false;
+  /** Consent pending or withdrawn: requests are kept, none is sent. */
+  private paused = false;
   /** False when the stored index could not be read: nothing is written or removed in storage. */
   private persistent = true;
 
@@ -149,7 +151,7 @@ export class Outbox {
     if (this.persistent) await this.guard(() => this.storage.setItem(bodyKey(item.id), body));
     // Memory only (spec TRN-15): the request is still sent, but a kill now loses it. Counted.
     else this.count(item, "persistence_failed");
-    if (this.retryTimer === null) void this.drain();
+    if (this.retryTimer === null && !this.paused) void this.drain();
   }
 
   /**
@@ -174,12 +176,41 @@ export class Outbox {
     this.cancelRetry();
   }
 
+  /** Consent (spec PRV-1): while paused nothing is sent; requests wait within the bounds. */
+  pause(): void {
+    this.paused = true;
+    this.cancelRetry();
+  }
+
+  resume(): void {
+    this.paused = false;
+  }
+
+  /** The storage keys this outbox uses now: the index and one per waiting request. */
+  keys(): string[] {
+    return [OUTBOX_KEY, ...this.index.items.map((i) => bodyKey(i.id))];
+  }
+
+  /**
+   * Consent withdrawn (PRV-4): forgets every waiting request, in memory. Not counted as drops
+   * (spec TRN-13). The caller deletes `keys()` from the persistent storage first.
+   */
+  async clear(): Promise<void> {
+    await this.loaded;
+    this.cancelRetry();
+    this.failures = 0;
+    this.index.items = [];
+    this.bodies.clear();
+    this.persistIndex();
+  }
+
   // ---- internals ----
 
   private async run(): Promise<void> {
     await this.loaded;
+    if (this.paused) return;
     this.cancelRetry();
-    while (!this.stopped) {
+    while (!this.stopped && !this.paused) {
       const head = this.index.items[0];
       if (!head) {
         this.failures = 0;

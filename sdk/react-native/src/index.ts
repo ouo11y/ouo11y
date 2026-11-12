@@ -13,6 +13,7 @@ import { AppState } from "react-native";
 import { installAppStateListener } from "./appstate";
 import { appAttributes, isReservedName, primitiveAttributes } from "./attributes";
 import { normalizeOptions } from "./config";
+import { ConsentStorage } from "./consent";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes, type NativeCrashModule } from "./crash";
 import { DROP_EVENT, DropCounter } from "./drops";
 import { exceptionAttributes, serializeError } from "./errors/classify";
@@ -37,11 +38,11 @@ import { activeRoutePath, createNavigationTracker, type NavigationStateLike } fr
 import { gestureOf, type Gesture, type TouchEventLike, type TouchedComponent } from "./taps";
 import { basicAuthorization, ingestHeaders } from "./endpoints";
 import { installFetchInstrumentation, installXhrInstrumentation } from "./network";
-import { createReplayController, loadNativeReplayModule } from "./replay";
+import { createReplayController, loadNativeReplayModule, REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY } from "./replay";
 import { SampledLogProcessor, SampledSpanProcessor } from "./sampling";
 import { guardedClock } from "./session/clock";
 import { uuidv4 } from "./session/ids";
-import { SessionManager } from "./session/manager";
+import { CRASH_STORAGE_KEY, SESSION_STORAGE_KEY, SessionManager, USER_STORAGE_KEY } from "./session/manager";
 import { MemoryAsyncStorage, safeStorage, withTimeout } from "./session/storage";
 import { sdkContext } from "./telemetry/context";
 import { SessionLogProcessor, SessionSpanProcessor } from "./telemetry/correlation";
@@ -54,7 +55,7 @@ import { createLogExporter, createTraceExporter } from "./transport/exporter";
 import { Outbox } from "./transport/outbox";
 import { createSend, type NativeOtlpPost } from "./transport/send";
 import { createLogApi, createSpanApi, noopSpan, TraceLinker } from "./tracing";
-import type { AsyncKeyValueStorage, Attrs, RUM, RUMLog, RUMOptions, SpanOptions, UserOptions } from "./types";
+import type { AsyncKeyValueStorage, Attrs, Consent, RUM, RUMLog, RUMOptions, SpanOptions, UserOptions } from "./types";
 import { escapeRegExp } from "./url";
 import { createVitals, type NativeVitalsModule } from "./vitals";
 import { SDK_NAME, SDK_VERSION } from "./version";
@@ -109,6 +110,7 @@ function noopRUM(): RUMInternal {
   const nothing = (): void => {};
   const log = Object.assign(nothing as unknown as RUMLog, { trace: nothing, debug: nothing, info: nothing, warn: nothing, error: nothing, fatal: nothing });
   return {
+    setConsent: nothing,
     setUser: nothing,
     setGlobalAttributes: nothing,
     recordException: nothing,
@@ -224,7 +226,13 @@ function build(
   const validStorage = (s: unknown): s is AsyncKeyValueStorage =>
     !!s && typeof (s as AsyncKeyValueStorage).getItem === "function" && typeof (s as AsyncKeyValueStorage).setItem === "function" && typeof (s as AsyncKeyValueStorage).removeItem === "function";
   if (options.storage !== undefined && !validStorage(options.storage)) logger.warn("storage is not an AsyncStorage-like object: using the default");
-  const rawStorage: AsyncKeyValueStorage = validStorage(options.storage) ? options.storage : AsyncStorage;
+  // Consent (PRV-1): while it is pending or denied, writes are held in memory by this wrapper.
+  const consentStorage = new ConsentStorage(validStorage(options.storage) ? options.storage : AsyncStorage, !config.consentRequired);
+  const rawStorage: AsyncKeyValueStorage = consentStorage;
+  // undefined: pending. Telemetry and replay are separate (PRV-3).
+  const consent: { telemetry: boolean | undefined; replay: boolean | undefined } = config.consentRequired ? { telemetry: undefined, replay: undefined } : { telemetry: true, replay: true };
+  const telemetryAllowed = (): boolean => consent.telemetry !== false;
+  const replayAllowed = (): boolean => consent.telemetry === true && consent.replay === true;
   const storage = safeStorage(rawStorage, (err) => logger.warn("storage error", err));
 
   // PRV-10: every URL the SDK records goes through this first.
@@ -253,6 +261,7 @@ function build(
     drops,
     ...(maxBytes !== undefined ? { maxBytes } : {}),
   });
+  if (consent.telemetry !== true) outbox.pause();
 
   // ---- replay (native, ADR-0006; chunks go to the collector's replay receiver with the Basic credential, ADR-0007) ----
   const sessionSampleRate = config.session.sampleRate;
@@ -265,6 +274,7 @@ function build(
     sessionSampleRate,
     native: nativeModule ?? null,
     storage,
+    allowed: replayAllowed(),
     // The gap in the replay, on the session's timeline (the frame chunks have no event channel).
     onHidden: (reason) => events.emit("ouo.replay.hidden", { "ouo.replay.hidden_reason": reason }),
     logger,
@@ -303,6 +313,7 @@ function build(
   const sessionDecision = (id: string): boolean | undefined => session.sampledFor(id);
   // LIF-13: a background launch (a push, a background fetch) starts no session and no replay.
   const foreground = AppState.currentState !== "background";
+  const foregroundNow = (): boolean => AppState.currentState !== "background";
 
   const resource = buildResource(config.service, options.device && typeof options.device === "object" ? options.device : {}, primitiveAttributes(options.resource));
   // `setGlobalAttributes`: on every later span and log record.
@@ -351,6 +362,7 @@ function build(
           ),
         ], sanitizeUrl),
         () => drops.count("log", "self_disabled"),
+        telemetryAllowed,
       ),
     ],
   });
@@ -400,6 +412,7 @@ function build(
           sanitizeUrl,
         ),
         () => drops.count("span", "self_disabled"),
+        telemetryAllowed,
       ),
     ],
   });
@@ -672,7 +685,48 @@ function build(
     if (getRUM() === rum) setRUM(undefined);
   };
 
+  // ---- consent (PRV-1 to PRV-4) ----
+  const SDK_KEYS = [SESSION_STORAGE_KEY, CRASH_STORAGE_KEY, USER_STORAGE_KEY, CONTEXT_STORAGE_KEY, REPLAY_ERRORS_KEY, REPLAY_FEEDBACK_KEY];
+  const setConsent = (next: Consent): void => {
+    if (!next || typeof next !== "object") return;
+    const before = { ...consent };
+    if (typeof next.telemetry === "boolean") consent.telemetry = next.telemetry;
+    if (typeof next.replay === "boolean") consent.replay = next.replay;
+    if (consent.telemetry !== before.telemetry) {
+      if (consent.telemetry) {
+        // Granted. After a denial the session starts anew, without a previous id (PRV-4); what
+        // was held while pending is written out and sent.
+        if (before.telemetry === false) {
+          session.forget();
+          if (foregroundNow()) session.touch();
+        }
+        outbox.resume();
+        void guard.run("consent.grant", () => consentStorage.allow().then(() => outbox.drain()), RESOLVED);
+      } else {
+        // Denied or withdrawn: nothing further is recorded (the processors stop at once), what is
+        // queued in memory and on the device is deleted, and the session is forgotten.
+        outbox.pause();
+        session.forget();
+        void guard.run(
+          "consent.withdraw",
+          async () => {
+            // The batch queues hand over what they hold, so it can be discarded with the rest.
+            await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush()]).catch(() => undefined);
+            const keys = [...SDK_KEYS, ...outbox.keys()];
+            consentStorage.hold();
+            await outbox.clear();
+            await consentStorage.purge(keys);
+          },
+          RESOLVED,
+        );
+      }
+    }
+    replay.setAllowed(replayAllowed());
+    logger.log("consent", { telemetry: consent.telemetry ?? "pending", replay: consent.replay ?? "pending" });
+  };
+
   const rum: RUMInternal = {
+    setConsent: api("setConsent", setConsent),
     setUser: api("setUser", (user: UserOptions | string | null): void => {
       if (user === null) {
         session.clearUser();
@@ -806,6 +860,8 @@ export const getSessionId = (): string | undefined => forward((r) => r.getSessio
 export const restartSession = (): void => forward((r) => r.restartSession(), undefined);
 /** Set the user id, or clear it with `null`. */
 export const setUser = (user: UserOptions | string | null): void => forward((r) => r.setUser(user), undefined);
+/** Update consent: `setConsent({ telemetry: true, replay: false })`. */
+export const setConsent = (consent: Consent): void => forward((r) => r.setConsent(consent), undefined);
 /** Attributes for every later record. */
 export const setGlobalAttributes = (attributes: Attrs): void => forward((r) => r.setGlobalAttributes(attributes), undefined);
 /** A custom event. */

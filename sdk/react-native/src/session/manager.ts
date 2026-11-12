@@ -276,6 +276,20 @@ export class SessionManager {
     this.clearTimer();
   }
 
+  /**
+   * Consent withdrawn (spec PRV-4): the session is forgotten without a `session.end`, and so is
+   * the last ended one, so the session a later grant starts has no `session.previous_id`. The
+   * caller deletes the persisted record.
+   */
+  forget(): void {
+    this.clearTimer();
+    this.current = null;
+    this.lastEnded = null;
+    this.pendingStart = null;
+    this.orphanId = undefined;
+    delete this.process.record;
+  }
+
   /** Activity rule: refresh lastActivity, persist throttled, detect expiry first. */
   touch(): void {
     const now = this.clock.now();

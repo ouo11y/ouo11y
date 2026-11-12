@@ -148,7 +148,7 @@ export class SpanGate implements SpanProcessor {
  * A processor whose every method runs inside the guard (ERR-1): a throw is counted and the
  * record is lost, the app is not. Once the SDK disabled itself records stop here and are counted.
  */
-export function guarded<P extends LogRecordProcessor | SpanProcessor>(seam: string, inner: P, onDisabled: () => void): P {
+export function guarded<P extends LogRecordProcessor | SpanProcessor>(seam: string, inner: P, onDisabled: () => void, allowed: () => boolean = () => true): P {
   const p = inner as Partial<LogRecordProcessor & SpanProcessor>;
   const record = (method: "onEmit" | "onEnd") =>
     function (a: unknown, b: unknown): void {
@@ -156,6 +156,8 @@ export function guarded<P extends LogRecordProcessor | SpanProcessor>(seam: stri
         onDisabled();
         return;
       }
+      // Telemetry consent denied (spec PRV-4): nothing is recorded, and it is not a drop.
+      if (!allowed()) return;
       guard.run(`${seam}.${method}`, () => (p[method] as (a: unknown, b: unknown) => void).call(p, a, b));
     };
   const out = {

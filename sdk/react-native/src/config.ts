@@ -27,6 +27,8 @@ export interface Config {
   beforeSend: BeforeSend | undefined;
   urlPrivacy: UrlPrivacy;
   registerGlobal: boolean;
+  /** `consent.required`: start with consent pending. */
+  consentRequired: boolean;
   debug: boolean;
   options: RUMOptions;
 }
@@ -149,6 +151,7 @@ export function normalizeOptions(input: unknown): NormalizedOptions {
           hook: sanitizeUrl,
         },
         registerGlobal: otel["registerGlobal"] === true,
+        consentRequired: section("consent")["required"] === true,
         debug: options.debug === true,
         options,
       },
