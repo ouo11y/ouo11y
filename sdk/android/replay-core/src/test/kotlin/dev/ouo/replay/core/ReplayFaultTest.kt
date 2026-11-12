@@ -182,7 +182,6 @@ class ReplayFaultTest {
       mapOf("otlp" to mapOf("logsUrl" to "ftp://x/v1/logs")),
       mapOf("otlp" to mapOf("logsUrl" to "not a url")),
       mapOf("otlp" to mapOf("logsUrl" to "http://")),
-      mapOf("otlp" to mapOf("logsUrl" to "http://x/v1/logs"), "mode" to "pixel/video"),
       mapOf("otlp" to mapOf("logsUrl" to "http://x/v1/logs"), "mode" to "structure/wireframe"),
       mapOf("otlp" to mapOf("logsUrl" to "http://x/v1/logs"), "mode" to "pixel"),
       mapOf("otlp" to mapOf("logsUrl" to "http://x/v1/logs"), "mode" to "session"),
@@ -192,6 +191,9 @@ class ReplayFaultTest {
       val p = ReplayOTLPOptions.parse(o)
       assertTrue("$o", p is ReplayOTLPOptions.Parsed.Off && p.problems.isNotEmpty())
     }
+    // Both pixel recorders are in this build (pixel/video since the sentry-java encoder port).
+    val video = ReplayOTLPOptions.parse(mapOf("otlp" to mapOf("logsUrl" to "http://x/v1/logs"), "mode" to "pixel/video"))
+    assertTrue(video is ReplayOTLPOptions.Parsed.Otlp && video.options.recorder == ReplayRecorderMode.PIXEL_VIDEO)
 
     // Usable, with everything else wrong: defaults, clamps and a list of problems.
     val p = ReplayOTLPOptions.parse(

@@ -1,0 +1,78 @@
+{
+ "verdict": "pass",
+ "requests": 174,
+ "faultsInjected": 0,
+ "accepted": {
+  "/v1/logs": 132,
+  "/v1/traces": 42
+ },
+ "streams": [
+  {
+   "stream": "9f97dbb85c8dcfbcf931145282a72ef2",
+   "chunks": 33,
+   "highestSequence": 32,
+   "duplicates": 0,
+   "bytes": 567268,
+   "ended": []
+  }
+ ],
+ "openStreams": [
+  "9f97dbb85c8dcfbcf931145282a72ef2"
+ ],
+ "rules": {
+  "one_chunk_per_request": {
+   "rule": "TRN-5: a replay request holds exactly one log record",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "no_content_encoding": {
+   "rule": "8.1: no Content-Encoding on a replay request (the body is compressed by the format layer)",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "chunk_attributes": {
+   "rule": "RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14)",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "body_size": {
+   "rule": "a chunk body is at most 1 MiB",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "hash_and_size": {
+   "rule": "RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "body_decodes": {
+   "rule": "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (ouo-video/1: a header line, then an mp4 of the length it names)",
+   "result": "pass",
+   "checked": 66,
+   "failures": []
+  },
+  "sequence": {
+   "rule": "per stream the sequences are 0, 1, 2, ... with no gap",
+   "result": "pass",
+   "checked": 1,
+   "failures": []
+  },
+  "keyframe": {
+   "rule": "the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1)",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "ended": {
+   "rule": "RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen",
+   "result": "not_checked",
+   "checked": 0,
+   "failures": []
+  }
+ }
+}

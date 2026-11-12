@@ -1,0 +1,92 @@
+{
+ "verdict": "pass",
+ "requests": 166,
+ "faultsInjected": 0,
+ "accepted": {
+  "/v1/logs": 124,
+  "/v1/traces": 42
+ },
+ "streams": [
+  {
+   "stream": "9f97dbb85c8dcfbcf931145282a72ef2",
+   "chunks": 0,
+   "highestSequence": null,
+   "duplicates": 0,
+   "bytes": 0,
+   "ended": [
+    {
+     "lastSequence": 32,
+     "endState": "partial",
+     "endReason": "background_kill"
+    }
+   ]
+  },
+  {
+   "stream": "f8a6b1f351b0da22e9dcf87c4a27174c",
+   "chunks": 32,
+   "highestSequence": 31,
+   "duplicates": 0,
+   "bytes": 545827,
+   "ended": []
+  }
+ ],
+ "openStreams": [
+  "f8a6b1f351b0da22e9dcf87c4a27174c"
+ ],
+ "rules": {
+  "one_chunk_per_request": {
+   "rule": "TRN-5: a replay request holds exactly one log record",
+   "result": "pass",
+   "checked": 33,
+   "failures": []
+  },
+  "no_content_encoding": {
+   "rule": "8.1: no Content-Encoding on a replay request (the body is compressed by the format layer)",
+   "result": "pass",
+   "checked": 32,
+   "failures": []
+  },
+  "chunk_attributes": {
+   "rule": "RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14)",
+   "result": "pass",
+   "checked": 32,
+   "failures": []
+  },
+  "body_size": {
+   "rule": "a chunk body is at most 1 MiB",
+   "result": "pass",
+   "checked": 32,
+   "failures": []
+  },
+  "hash_and_size": {
+   "rule": "RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received",
+   "result": "pass",
+   "checked": 32,
+   "failures": []
+  },
+  "body_decodes": {
+   "rule": "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (ouo-video/1: a header line, then an mp4 of the length it names)",
+   "result": "pass",
+   "checked": 64,
+   "failures": []
+  },
+  "sequence": {
+   "rule": "per stream the sequences are 0, 1, 2, ... with no gap",
+   "result": "pass",
+   "checked": 1,
+   "failures": []
+  },
+  "keyframe": {
+   "rule": "the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1)",
+   "result": "pass",
+   "checked": 32,
+   "failures": []
+  },
+  "ended": {
+   "rule": "RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen",
+   "result": "pass",
+   "checked": 1,
+   "failures": []
+  }
+ }
+}

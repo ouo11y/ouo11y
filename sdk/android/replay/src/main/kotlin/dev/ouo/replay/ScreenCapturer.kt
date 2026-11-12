@@ -79,10 +79,7 @@ internal class ScreenCapturer(maxLongestSide: Int, jpegQuality: Int) {
 
   /** Masks, diffs and encodes [bmp]. [rects] are in window pixels; [scale] is frame per window pixel. */
   fun compose(bmp: Bitmap, rects: List<Box>, scale: Float, differ: TileDiffer, forceFull: Boolean, ts: Long, reason: FrameReason): Result {
-    if (rects.isNotEmpty()) {
-      val canvas = Canvas(bmp)
-      for (r in rects) canvas.drawRect(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale, black)
-    }
+    paintMasks(bmp, rects, scale)
     val size = bmp.rowBytes * bmp.height
     if (pixels.size != size) pixels = ByteArray(size)
     bmp.copyPixelsToBuffer(java.nio.ByteBuffer.wrap(pixels))
@@ -101,6 +98,16 @@ internal class ScreenCapturer(maxLongestSide: Int, jpegQuality: Int) {
     }
     differ.commit()
     return Result.Made(frame)
+  }
+
+  /**
+   * Paints [rects] (window pixels) black on [bmp] at [scale] frame pixels per window pixel. Every
+   * pixel recorder masks with this, so `pixel/frames` and `pixel/video` hide the same pixels.
+   */
+  fun paintMasks(bmp: Bitmap, rects: List<Box>, scale: Float) {
+    if (rects.isEmpty()) return
+    val canvas = Canvas(bmp)
+    for (r in rects) canvas.drawRect(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale, black)
   }
 
   private fun jpeg(bmp: Bitmap): ByteArray? {

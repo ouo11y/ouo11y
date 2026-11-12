@@ -9,7 +9,7 @@ enum class ReplayRecorderMode(val wire: String) {
   /** ouo's own recorder: masked JPEG frames and tile patches, `ouo-frames/3`. The default. */
   PIXEL_FRAMES("pixel/frames"),
 
-  /** `ouo-video/1`. Not in this build. */
+  /** Sentry's recorder core (sentry-java's video encoder) behind ouo's capture and masks: `ouo-video/1`, Android 8 or later. */
   PIXEL_VIDEO("pixel/video"),
 
   /** `ouo-wireframe/1`. Not in this build. */
@@ -17,7 +17,7 @@ enum class ReplayRecorderMode(val wire: String) {
 
   companion object {
     /** What this build of the Android SDK can record. */
-    val supported: Set<ReplayRecorderMode> = setOf(PIXEL_FRAMES)
+    val supported: Set<ReplayRecorderMode> = setOf(PIXEL_FRAMES, PIXEL_VIDEO)
 
     fun of(wire: String?): ReplayRecorderMode? = entries.firstOrNull { it.wire == wire }
   }
