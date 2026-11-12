@@ -28,10 +28,8 @@ public struct ViewNode: Sendable {
     /// whatever the options and the overrides say (PRV-7).
     public var secure: Bool
     /// View-level masking set by the host for this view (the React Native `mask(reactTag)` and
-    /// `unmask(reactTag)`), beside the accessibility identifiers.
+    /// `unmask(reactTag)` or an accessibility identifier), as `ReplayMaskRegistry` resolved it.
     public var maskOverride: MaskOverride?
-    /// How the view looks, for the structure format (`ouo-wireframe/1`). Nil in the pixel format.
-    public var style: ViewStyle?
 
     public enum MaskOverride: String, Sendable {
         case mask
@@ -50,12 +48,10 @@ public struct ViewNode: Sendable {
         truncated: Bool = false,
         children: [ViewNode] = [],
         secure: Bool = false,
-        maskOverride: MaskOverride? = nil,
-        style: ViewStyle? = nil
+        maskOverride: MaskOverride? = nil
     ) {
         self.secure = secure
         self.maskOverride = maskOverride
-        self.style = style
         self.className = className
         self.superclassNames = superclassNames
         self.frameInWindow = frameInWindow
@@ -66,32 +62,6 @@ public struct ViewNode: Sendable {
         self.moving = moving
         self.truncated = truncated
         self.children = children
-    }
-}
-
-/// What the structure format records of a view beside its rectangle. Colours are `0xRRGGBBAA`,
-/// lengths are points. `text` is read by the walker only where the options could show it; the
-/// wireframe builder decides whether it is written or replaced by `***`.
-public struct ViewStyle: Sendable, Equatable {
-    public var background: UInt32?
-    public var foreground: UInt32?
-    public var cornerRadius: Double
-    public var borderWidth: Double
-    public var borderColor: UInt32?
-    public var text: String?
-    public var fontSize: Double?
-    /// `left`, `center`, `right` or `justify`.
-    public var align: String?
-
-    public init(background: UInt32? = nil, foreground: UInt32? = nil, cornerRadius: Double = 0, borderWidth: Double = 0, borderColor: UInt32? = nil, text: String? = nil, fontSize: Double? = nil, align: String? = nil) {
-        self.background = background
-        self.foreground = foreground
-        self.cornerRadius = cornerRadius
-        self.borderWidth = borderWidth
-        self.borderColor = borderColor
-        self.text = text
-        self.fontSize = fontSize
-        self.align = align
     }
 }
 

@@ -37,26 +37,21 @@ enum ViewTreeBuilder {
         return entry
     }
 
-    /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields,
-    /// the host's view-level masks by React tag, and the look of each view for the structure format.
+    /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields
+    /// and the host's overrides from the mask registry.
     struct Detail {
-        var masked: Set<Int> = []
-        var unmasked: Set<Int> = []
-        /// Fill `ViewNode.style` (the structure format).
-        var style = false
-        var rules = RedactionRules()
+        var masks = ReplayMaskRegistry.Snapshot()
     }
 
     static func walk(_ window: UIWindow, maxDepth: Int = 64, detail: Detail? = nil) -> Walk {
         var animations = 0
-        let tree = node(for: window, maxDepth: maxDepth, animations: &animations, detail: detail, showText: false)
+        let tree = node(for: window, maxDepth: maxDepth, animations: &animations, detail: detail)
         return Walk(tree: tree, animations: animations)
     }
 
     // MARK: detail (OTLP replay path)
 
     private static let reactTagSelector = NSSelectorFromString("reactTag")
-    private static let attributedTextSelector = NSSelectorFromString("attributedText")
     /// Content types that hold a secret whether or not the field hides its characters.
     private static let secretContentTypes: Set<UITextContentType> = [.password, .newPassword, .oneTimeCode, .creditCardNumber]
 
@@ -88,86 +83,13 @@ enum ViewTreeBuilder {
         return (view, false)
     }
 
-    private static func rgba(_ color: UIColor?, in view: UIView) -> UInt32? {
-        guard let color else { return nil }
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        guard color.resolvedColor(with: view.traitCollection).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
-        func channel(_ v: CGFloat) -> UInt32 { v.isFinite ? UInt32((min(max(v, 0), 1) * 255).rounded()) : 0 }
-        return channel(r) << 24 | channel(g) << 16 | channel(b) << 8 | channel(a)
-    }
-
-    private static func alignment(_ a: NSTextAlignment) -> String? {
-        switch a {
-        case .left: return "left"
-        case .center: return "center"
-        case .right: return "right"
-        case .justified: return "justify"
-        default: return nil
-        }
-    }
-
-    /// `showText`: an ancestor (or the view) is unmasked by the host. Text is read only where the
-    /// options could show it, and never from a secret field; the wireframe builder still decides.
-    private static func style(of view: UIView, names: (name: String, superclasses: [String]), input: (field: UIView, secure: Bool)?, showText: Bool, rules: RedactionRules) -> ViewStyle {
-        let layer = view.layer
-        var s = ViewStyle()
-        s.background = rgba(view.backgroundColor, in: view) ?? rgba(layer.backgroundColor.map(UIColor.init(cgColor:)), in: view)
-        s.cornerRadius = layer.cornerRadius.isFinite ? Double(layer.cornerRadius) : 0
-        s.borderWidth = layer.borderWidth.isFinite ? Double(layer.borderWidth) : 0
-        s.borderColor = rgba(layer.borderColor.map(UIColor.init(cgColor:)), in: view)
-        if let input {
-            let readable = !input.secure && (showText || !rules.maskInputs)
-            if let f = input.field as? UITextField {
-                s.fontSize = (f.font?.pointSize).map(Double.init)
-                s.foreground = rgba(f.textColor, in: f)
-                s.align = alignment(f.textAlignment)
-                if readable { s.text = (f.text?.isEmpty ?? true) ? f.placeholder : f.text }
-            } else if let t = input.field as? UITextView {
-                s.fontSize = (t.font?.pointSize).map(Double.init)
-                s.foreground = rgba(t.textColor, in: t)
-                s.align = alignment(t.textAlignment)
-                if readable { s.text = t.text }
-            }
-            return s
-        }
-        let readable = showText || !rules.maskText
-        if let label = view as? UILabel {
-            s.fontSize = Double(label.font.pointSize)
-            s.foreground = rgba(label.textColor, in: label)
-            s.align = alignment(label.textAlignment)
-            if readable { s.text = label.text }
-        } else if RedactionRules.textClasses.contains(names.name) || names.superclasses.contains(where: RedactionRules.textClasses.contains) {
-            // React Native text: Fabric's paragraph view exposes its attributed string.
-            if view.responds(to: attributedTextSelector),
-               let attributed = view.perform(attributedTextSelector)?.takeUnretainedValue() as? NSAttributedString, attributed.length > 0 {
-                let attributes = attributed.attributes(at: 0, effectiveRange: nil)
-                s.fontSize = ((attributes[.font] as? UIFont)?.pointSize).map(Double.init)
-                s.foreground = rgba(attributes[.foregroundColor] as? UIColor, in: view)
-                s.align = ((attributes[.paragraphStyle] as? NSParagraphStyle)?.alignment).flatMap(alignment)
-                if readable { s.text = attributed.string }
-            } else if readable {
-                s.text = view.accessibilityLabel
-            }
-        }
-        return s
-    }
-
-    private static func node(for view: UIView, maxDepth: Int, animations: inout Int, detail: Detail?, showText: Bool) -> ViewNode {
+    private static func node(for view: UIView, maxDepth: Int, animations: inout Int, detail: Detail?) -> ViewNode {
         var secure = false
         var maskOverride: ViewNode.MaskOverride?
-        var style: ViewStyle?
-        var showText = showText
         if let detail {
             let names = names(of: type(of: view))
-            let input = input(of: view, names: names)
-            secure = input?.secure ?? false
-            if let tag = reactTag(of: view, className: names.name) {
-                maskOverride = detail.masked.contains(tag) ? .mask : (detail.unmasked.contains(tag) ? .unmask : nil)
-            }
-            if maskOverride == .unmask || (maskOverride == nil && view.accessibilityIdentifier == RedactionRules.unmaskIdentifier) { showText = true }
-            if detail.style {
-                style = Self.style(of: view, names: names, input: input, showText: showText, rules: detail.rules)
-            }
+            secure = input(of: view, names: names)?.secure ?? false
+            maskOverride = detail.masks.override(reactTag: reactTag(of: view, className: names.name), accessibilityIdentifier: view.accessibilityIdentifier)
         }
         let frame = view.convert(view.bounds, to: nil)
         let names = names(of: type(of: view))
@@ -189,7 +111,7 @@ enum ViewTreeBuilder {
         var truncated = false
         if !invisible {
             if maxDepth > 0 {
-                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations, detail: detail, showText: showText) }
+                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations, detail: detail) }
             } else {
                 truncated = !view.subviews.isEmpty
             }
@@ -212,8 +134,7 @@ enum ViewTreeBuilder {
             truncated: truncated,
             children: children,
             secure: secure,
-            maskOverride: maskOverride,
-            style: style
+            maskOverride: maskOverride
         )
     }
 }

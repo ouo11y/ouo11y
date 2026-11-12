@@ -19,7 +19,7 @@ public struct ReplayEvent: Sendable, Equatable {
 }
 
 /// What one look at the screen saw, handed from the capture side to the format adapter. Each
-/// format has its own (`PixelLook`, `TreeLook`); an adapter given another one drops the frame.
+/// format has its own (`PixelLook` for `ouo-frames/3`); an adapter given another one drops the frame.
 public protocol ReplayLook {}
 
 public enum ReplayFormatError: Error, Equatable {
