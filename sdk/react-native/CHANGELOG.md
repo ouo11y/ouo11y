@@ -39,7 +39,15 @@ telemetry are step B).
 - `rum.replay.capture()`, `rum.replay.mask(ref)` / `unmask(ref)` reach the native recorder
   (refs are resolved with `findNodeHandle`); every screen change sets a fresh `ouo.view.id` on
   the chunks; `shutdown()` ends the stream with reason `session_end`; withdrawing replay
-  consent stops the recorder and deletes the chunks not yet accepted.
+  consent stops the recorder with one native call, `discardPending()`, that sends no
+  `ouo.replay.ended` and deletes every replay record not yet accepted (PRV-4).
+- Replay drops are reported as `ouo.sdk.dropped` with `ouo.sdk.drop.signal` `replay` and the
+  reasons `frame_dropped`, `event_dropped`, `store_refused`, `rejected_status`,
+  `partial_rejected` and `outbox_evicted`, read from the native counters once per report
+  interval (ERR-7).
+- Native replay never makes the main thread wait for encoding or a disk write, nor the
+  JavaScript thread for the main thread; a `mask()` beyond the registry's 10 000 tags masks
+  every tagged view instead of being refused; a `Retry-After` waits at least 100 ms.
 - The replay records carry the telemetry's resource attributes and
   `schema_url = https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev`; the native side is
   told how the previous run ended (`crash`, `background_kill`) and ends its open stream so.
