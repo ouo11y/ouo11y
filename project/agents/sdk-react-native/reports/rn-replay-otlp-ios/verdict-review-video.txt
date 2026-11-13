@@ -1,0 +1,20 @@
+
+verdict: PASS
+requests: 55 (faults injected: 0; accepted logs 41, traces 14)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (22 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (20 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (20 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (20 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (20 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`; ouo-video/1: encoding identity, a header line and a well-formed mp4 (40 checked)
+  [PASS] sequence: per stream the sequences are 0, 1, 2, ... with no gap (2 checked)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1, where every chunk is a segment) (20 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (2 checked)
+  [PASS] same_session: every replay record's session.id is one the telemetry (logs, spans) of this collector carries (3 checked)
+  [ -- ] view_ids: every chunk's ouo.view.id is one the telemetry of this collector carries (0 checked)
+  stream f51265bcede678022b0686590797029f: 0 chunk(s), highest sequence null, 0 bytes, 0 duplicate(s), ended: partial/background_kill/last=0
+  stream 3f7a10694d71d3d5f1742aff0f666ebf: 9 chunk(s), highest sequence 8, 62758 bytes, 0 duplicate(s), ended: partial/background_kill/last=8
+  stream 79cd3e68513f54107369e3def99552e2: 11 chunk(s), highest sequence 10, 57070 bytes, 0 duplicate(s), ended: no
+  telemetry events: session.end=2, session.start=2, navigation=10, app.jank=11, ouo.app.start=2, http.request=12, ouo.screen.display=10, feedback=1, http.request.failed=2, app.lifecycle=2, ouo.stall=1
+  telemetry session.id: 7cb300df-09ea-46d4-8202-8b82c07143d4=1, 8606aa11-986b-47d9-90e2-c404d6458332=61, 52b50782-1d7e-4489-88a2-b70982e8a166=7
+  spans: HTTP GET=9, HTTP POST=5

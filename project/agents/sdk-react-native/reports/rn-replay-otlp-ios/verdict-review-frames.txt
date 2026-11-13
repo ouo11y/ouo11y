@@ -1,0 +1,19 @@
+
+verdict: PASS
+requests: 41 (faults injected: 0; accepted logs 27, traces 14)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (8 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (7 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (7 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (7 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (7 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`; ouo-video/1: encoding identity, a header line and a well-formed mp4 (14 checked)
+  [PASS] sequence: per stream the sequences are 0, 1, 2, ... with no gap (2 checked)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1, where every chunk is a segment) (2 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (1 checked)
+  [PASS] same_session: every replay record's session.id is one the telemetry (logs, spans) of this collector carries (2 checked)
+  [ -- ] view_ids: every chunk's ouo.view.id is one the telemetry of this collector carries (0 checked)
+  stream 1344a427e54b58719b541db12fdccf8e: 6 chunk(s), highest sequence 5, 71409 bytes, 0 duplicate(s), ended: partial/background_kill/last=5
+  stream 408dc775924b315361f3e6fb11c2b304: 1 chunk(s), highest sequence 0, 8820 bytes, 0 duplicate(s), ended: no
+  telemetry events: session.start=2, navigation=10, app.jank=11, ouo.app.start=2, http.request=12, ouo.screen.display=10, feedback=1, http.request.failed=2, app.lifecycle=2, session.end=1
+  telemetry session.id: 07b72777-4dcf-4546-9712-62029056344d=60, c3d65daa-a962-4d7d-ab74-5a22399e97bc=7
+  spans: HTTP GET=9, HTTP POST=5
