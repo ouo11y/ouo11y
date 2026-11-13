@@ -653,7 +653,11 @@ describe("replay over OTLP: the native calls", () => {
   it("PRV-4: withdrawing consent while recording calls only discardPending", () => {
     const calls: string[] = [];
     const native = fakeNative();
-    for (const k of ["stop", "endSession", "pause", "discardPending"] as const) native[k].mockImplementation(() => void calls.push(k));
+    for (const k of ["stop", "endSession", "pause"] as const) native[k].mockImplementation(() => void calls.push(k));
+    native.discardPending.mockImplementation(() => {
+      calls.push("discardPending");
+      return Promise.resolve();
+    });
     const c = createReplayController({ ...base, endpoint: "http://otel.test:4318", projectId: "p", projectToken: "t", options: { enabled: true }, native });
     c.start("0123456789abcdef0123456789abcdef");
     c.setAllowed(false);
