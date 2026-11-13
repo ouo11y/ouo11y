@@ -4,6 +4,8 @@ Can ouo use sentry-cocoa's session-replay recorder core instead of maintaining i
 
 Follow-up (2026-11-12): the recorder now ships as `replay.mode: "pixel/video"` over OTLP with ouo's masking, and the transition leak of finding 1 is traced and fixed: [sentry-ios-video-over-otlp.md](sentry-ios-video-over-otlp.md).
 
+Follow-up (2026-11-13, review of PR #184): the spike's legacy wiring is removed from `sdk/ios`: `VideoReplayRecorder`, `VideoChunk`, `ChunkUploader.enqueue(VideoChunk)`, `OuoReplayConfig.recorder` and `OuoConfig.replayRecorder` (and `OUO_RECORDER` in `examples/ouo-ios`). `SentryCoreRecorder` stays, driven by `OTLPReplayRecorder`. The collector still accepts `kind: "video"` chunks. The findings and measurements below describe the spike as it was built.
+
 **Answer: yes, technically.** 28 upstream files (3,157 lines) compile in the ouo package unmodified apart from a scripted header and one import line, behind an 82-line seam file and a 358-line ouo driver (`SentryCoreRecorder`), plus 178 lines that wrap segments as chunks (`VideoReplayRecorder`). The segments play in the existing Grafana video player as `kind: "video"` chunks with `ouo.replay.format = "sentry-video"`. What it costs and leaks is in [Measurements](#measurements).
 
 ## Seam map (sentry-cocoa 9.33.0)

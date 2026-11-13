@@ -205,18 +205,6 @@ public final class ChunkUploader {
         enqueue(json: json, sessionId: chunk.sessionId, seq: chunk.seq, summary: "\(chunk.frames.count) frames \(chunk.touches.count) touches")
     }
 
-    /// A `kind: "video"` chunk (the Sentry-derived recorder), queued like a frames chunk.
-    public func enqueue(_ chunk: VideoChunk) {
-        let json: Data
-        do {
-            json = try chunk.encodedJSON()
-        } catch {
-            logger.warn("could not encode video chunk seq=\(chunk.seq): \(error)")
-            return
-        }
-        enqueue(json: json, sessionId: chunk.sessionId, seq: chunk.seq, summary: "video \(chunk.video.frameCount) frames \(chunk.video.durationMs) ms \(chunk.touches.count) touches")
-    }
-
     /// Compresses and queues one chunk body of any kind; the headers carry `sessionId` and `seq`.
     public func enqueue(json: Data, sessionId: String, seq: Int, summary: String = "") {
         let body: Data

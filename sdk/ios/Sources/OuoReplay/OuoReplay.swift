@@ -122,20 +122,26 @@ public enum OuoReplay {
         var out = otlpLock.withLock { counters }
         out["replay.mask_registry_refused"] = ReplayMaskRegistry.shared.refused
         #if canImport(UIKit)
-        let live: [String: Int] = {
-            if Thread.isMainThread { return (recorder as? OTLPReplayRecorder)?.diagnostics() ?? [:] }
-            return DispatchQueue.main.sync { (recorder as? OTLPReplayRecorder)?.diagnostics() ?? [:] }
-        }()
+        let live = (recorder as? OTLPReplayRecorder)?.diagnostics() ?? [:]
         out.merge(live) { $0 + $1 }
         #endif
         return out
     }
 
     #if canImport(UIKit)
-    private static var recorder: ReplayRecording?
+    /// Changed on the main thread, read from any: the JavaScript thread reads `isRecording`, `mode`,
+    /// `recorderKind` and `diagnostics()` without a hop to the main thread (a `main.sync` from it
+    /// can deadlock, and waits for whatever the main thread does).
+    private static let recorderLock = NSLock()
+    private static var currentRecorder: ReplayRecording?
+    private static var recorder: ReplayRecording? {
+        get { recorderLock.withLock { currentRecorder } }
+        set { recorderLock.withLock { currentRecorder = newValue } }
+    }
 
     /// Starts capturing. Calling it again replaces the previous configuration. With `config.otlp`
-    /// the frames recorder sends OTLP log records; without it, chunks go to `/v1/replay/chunks`.
+    /// the pixel recorder `otlp.recorder` names sends OTLP log records; without it, the frames
+    /// recorder's chunks go to `/v1/replay/chunks`.
     public static func start(_ config: OuoReplayConfig) {
         onMain {
             recorder?.stop()
@@ -145,11 +151,7 @@ public enum OuoReplay {
                 r.start()
                 return
             }
-            let r: ReplayRecording
-            switch config.recorder {
-            case .frames: r = ReplayRecorder(config: config)
-            case .sentryVideo: r = VideoReplayRecorder(config: config)
-            }
+            let r = ReplayRecorder(config: config)
             recorder = r
             r.start()
         }
@@ -179,10 +181,7 @@ public enum OuoReplay {
     }
 
     /// The recorder in use, nil when not started.
-    public static var recorderKind: ReplayRecorderKind? {
-        if Thread.isMainThread { return recorder?.kind }
-        return DispatchQueue.main.sync { recorder?.kind }
-    }
+    public static var recorderKind: ReplayRecorderKind? { recorder?.kind }
 
     /// Stops the timer and flushes. Frames are not captured until `resume()`.
     public static func pause() {
@@ -194,10 +193,7 @@ public enum OuoReplay {
         onMain { recorder?.resume() }
     }
 
-    public static var isRecording: Bool {
-        if Thread.isMainThread { return recorder?.isRecording ?? false }
-        return DispatchQueue.main.sync { recorder?.isRecording ?? false }
-    }
+    public static var isRecording: Bool { recorder?.isRecording ?? false }
 
     /// Flushes the open chunk and drains the upload queue; `completion` runs when done.
     public static func flush(completion: (() -> Void)? = nil) {
@@ -235,10 +231,7 @@ public enum OuoReplay {
     }
 
     /// The mode the recorder runs in (`auto` resolved for this device), nil when not started.
-    public static var mode: ReplayMode? {
-        if Thread.isMainThread { return recorder?.mode }
-        return DispatchQueue.main.sync { recorder?.mode }
-    }
+    public static var mode: ReplayMode? { recorder?.mode }
 
     /// Stops everything and releases the window observers.
     public static func stop() {

@@ -59,9 +59,6 @@ public final class OuoConfig: NSObject {
     public var replaySampleRate: Double = 0
     /// `session`, `navigation` or `auto` (navigation below 3.5 GiB of RAM). Default `auto`.
     @nonobjc public var replayMode: ReplayMode = .auto
-    /// Spike switch: `.frames` (default, ouo's recorder) or `.sentryVideo` (sentry-cocoa's recorder
-    /// core, `kind: "video"` chunks with `format: "sentry-video"`).
-    @nonobjc public var replayRecorder: ReplayRecorderKind = .frames
     /// Masking (mobile-replay.md capture rule 4): every group masked unless turned off.
     public var replayMaskText = true
     public var replayMaskInputs = true
@@ -125,7 +122,6 @@ struct Settings {
     let vitals: Bool
     let replaySampleRate: Double
     let replayMode: ReplayMode
-    let replayRecorder: ReplayRecorderKind
     let replayMask: (text: Bool, inputs: Bool, images: Bool, webViews: Bool)
     let resourceAttributes: Attributes
     let debug: Bool
@@ -151,7 +147,6 @@ struct Settings {
         vitals = c.vitals
         replaySampleRate = c.replaySampleRate
         replayMode = c.replayMode
-        replayRecorder = c.replayRecorder
         replayMask = (c.replayMaskText, c.replayMaskInputs, c.replayMaskImages, c.replayMaskWebViews)
         resourceAttributes = Attributes(app: c.resourceAttributes)
         debug = c.debug

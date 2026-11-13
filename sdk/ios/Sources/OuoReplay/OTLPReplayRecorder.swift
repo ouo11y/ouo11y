@@ -44,7 +44,9 @@ final class OTLPReplayRecorder: ReplayRecording {
 
     /// Main thread from here on. The stream itself is thread-safe; the reference changes on a
     /// session rotation.
-    private var stream: ReplayStream
+    private var stream: ReplayStream {
+        didSet { shared.withLock { sharedStream = stream } }
+    }
     private var pacer: CapturePacer
     private var captureInFlight = false
     private var runLoopObserver: CFRunLoopObserver?
@@ -52,11 +54,28 @@ final class OTLPReplayRecorder: ReplayRecording {
     private var wakeTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var attachedWindow: UIWindow?
-    private(set) var isRecording = false
     private var pausedByHost = false
     private var stopped = false
-    private var faults = 0
-    private var maskDrops = 0
+
+    /// What other threads read (`isRecording`, `diagnostics()`, from the JavaScript thread without
+    /// a hop to the main thread): written on the main thread, under a lock held only to copy.
+    private let shared = NSLock()
+    private var sharedRecording = false
+    private var sharedStream: ReplayStream
+    private var sharedFaults = 0
+    private var sharedMaskDrops = 0
+    private(set) var isRecording: Bool {
+        get { shared.withLock { sharedRecording } }
+        set { shared.withLock { sharedRecording = newValue } }
+    }
+    private var faults: Int {
+        get { shared.withLock { sharedFaults } }
+        set { shared.withLock { sharedFaults = newValue } }
+    }
+    private var maskDrops: Int {
+        get { shared.withLock { sharedMaskDrops } }
+        set { shared.withLock { sharedMaskDrops = newValue } }
+    }
 
     init(config: OuoReplayConfig, options: ReplayOTLPOptions, delivery: ReplayDelivery, store: FileReplayStateStore) {
         var rules = config.redactionRules
@@ -73,7 +92,9 @@ final class OTLPReplayRecorder: ReplayRecording {
         self.mode = mode
         self.pacer = CapturePacer(mode: mode, interval: config.frameInterval)
         self.capturer = ScreenCapturer(rules: rules, jpegQuality: config.jpegQuality, maxLongestSide: config.maxLongestSide, logger: logger)
-        self.stream = Self.makeStream(sessionId: config.sessionId(), replayId: options.replayId, config: config, options: options, rules: rules, delivery: delivery, store: store, logger: logger)
+        let stream = Self.makeStream(sessionId: config.sessionId(), replayId: options.replayId, config: config, options: options, rules: rules, delivery: delivery, store: store, logger: logger)
+        self.stream = stream
+        self.sharedStream = stream
         if options.recorder == .pixelVideo {
             let planner = ReplayMaskPlanner(rules: rules)
             let core = SentryCoreRecorder(options: .init(
@@ -296,7 +317,9 @@ final class OTLPReplayRecorder: ReplayRecording {
         Self.queue.async { stream.setViewId(id) }
     }
 
+    /// Any thread: published values only, never the main thread's state.
     func diagnostics() -> [String: Int] {
+        let (stream, faults, maskDrops) = shared.withLock { (sharedStream, sharedFaults, sharedMaskDrops) }
         let s = stream.stats
         let d = delivery.stats
         return [

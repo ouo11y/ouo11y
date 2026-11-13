@@ -44,7 +44,7 @@ let package = Package(
         ),
         // sentry-cocoa's session-replay recorder core (MIT), copied by
         // scripts/sentry-core-sync.sh into Upstream/ and driven by SentryCoreRecorder. OuoReplay
-        // uses it for `replay.mode` `pixel/video` (OTLP) and the legacy `.sentryVideo` recorder. The ObjC target holds the one
+        // uses it for `replay.mode` `pixel/video` (OTLP). The ObjC target holds the one
         // Objective-C helper it needs (catching a Core Animation NSException while redacting).
         .target(name: "OuoReplaySentryCoreObjC"),
         .target(

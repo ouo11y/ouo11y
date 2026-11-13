@@ -132,7 +132,7 @@ React Native: `initRUM({ replay: { enabled: true, mode: "auto" } })` starts it t
 
 ## Video chunks from the iOS SDK, legacy upload path (spike, proposed ADR-0018)
 
-Behind `OuoReplayConfig.recorder = .sentryVideo` (`OuoConfig.replayRecorder`, default `.frames`) the native iOS SDK records with sentry-cocoa's recorder core, copied into `sdk/ios/Sources/OuoReplaySentryCore` ([kb](../../project/kb/session-replay/borrowing/sentry-ios-recorder-spike.md)), and posts `kind: "video"` chunks to the same `POST /v1/replay/chunks`, with the same headers, outbox and credential as frame chunks. One chunk is one segment: up to 5 s at 1 frame/s, H.264 in an mp4 that starts with a keyframe, so every chunk is decodable alone. The OTLP path of the same recorder is [`ouo-video/1`](#ouo-video1-video-segments-over-otlp) below.
+Removed from the iOS SDK: the spike recorder behind `OuoReplayConfig.recorder = .sentryVideo` (`OuoConfig.replayRecorder`) is gone, and the SDKs record video only over OTLP, as [`ouo-video/1`](#ouo-video1-video-segments-over-otlp) below (ADR-0021 decision 5). What the spike found is in its [kb entry](../../project/kb/session-replay/borrowing/sentry-ios-recorder-spike.md). The collector's `ouoreplay` receiver still accepts the chunk it posted, described here: `kind: "video"` on `POST /v1/replay/chunks`, with the headers and credential of frame chunks. One chunk is one segment: up to 5 s at 1 frame/s, H.264 in an mp4 that starts with a keyframe, so every chunk is decodable alone.
 
 ```json
 {
@@ -148,11 +148,10 @@ Behind `OuoReplayConfig.recorder = .sentryVideo` (`OuoConfig.replayRecorder`, de
 - The shape is the Sentry bridge's video chunk (ADR-0008) without `source`, plus `format` and `mode`. `viewport` is the video size at scale 1 (the core renders one pixel per point), so touches in points land on it unchanged.
 - `format` names the payload; the collector copies it to the log attribute `ouo.replay.format` (sdk-spec section 11.3). It is optional: frames and rrweb chunks have none. The spike first wrote `sentry-video`; that name is retired.
 - The collector's `ouoreplay` receiver validates a video chunk the way rum-api does (`schema_version` 1, `video.container` `"mp4"`, `video.mp4` non-empty base64 of a file with `ftyp` at offset 4, non-negative `duration_ms` and `frame_count`) and applies the body limit of frame chunks, not the rrweb one.
-- Masking is the frames recorder's (next section). Not built on this path: the crash spool, `navigation` mode and feedback frames.
 
 ## `ouo-video/1`: video segments over OTLP
 
-`replay.mode: "pixel/video"` (React Native on iOS, ADR-0021 decision 5) sends replay as `ouo.replay.chunk` log records (sdk-spec section 11) with `ouo.replay.format` `ouo-video/1`. Everything above the body (identity, stream, sequence, buffer ring, `ouo.replay.ended`, delivery) is the same as for `ouo-frames/3` (RPL-23).
+`replay.mode: "pixel/video"` (React Native on iOS and on Android 8 or later, ADR-0021 decision 5) sends replay as `ouo.replay.chunk` log records (sdk-spec section 11) with `ouo.replay.format` `ouo-video/1`. Everything above the body (identity, stream, sequence, buffer ring, `ouo.replay.ended`, delivery) is the same as for `ouo-frames/3` (RPL-23).
 
 **One chunk is one segment (RPL-25).** Every chunk has `ouo.replay.keyframe` `true` and its own `ouo.replay.segment.index` (one more than the chunk before it in the stream), and plays without any other chunk. `ouo.replay.start_time` and `ouo.replay.end_time` are the segment's first frame and its end. A segment is at most 5 s (one frame per second while the screen changes); background, pause, stop and a session rotation cut it early. A body over the 1 MiB chunk limit is dropped whole, never cut, and counted (`replay.frames_dropped`).
 
@@ -166,14 +165,16 @@ Behind `OuoReplayConfig.recorder = .sentryVideo` (`OuoConfig.replayRecorder`, de
 |---|---|
 | `t`, `end` | Epoch ms of the first frame and of the segment's end |
 | `w`, `h` | Video size in pixels |
-| `scale` | Video pixels per point of the window (1: the core renders one pixel per point) |
+| `scale` | Video pixels per point of the window (iOS: 1, the core renders one pixel per point; Android: video pixels per dp, about 1, see below) |
 | `fps`, `frames` | Frame rate the mp4 is timed at, and its number of frames |
 | `mp4` | Byte length of what follows the newline: an ISO base media file (`ftyp`, `moov`, `mdat`), H.264, starting with a keyframe |
 | `touches` | Touches made during the segment (`t` in `[t, end)`), in points of the window: `{t, x, y, phase}` with `phase` `began`, `moved` or `ended` |
 
 A player reads up to the first newline, parses the header, and hands the rest to its video element (`video/mp4`); it draws each touch at `(x * scale, y * scale)` when the video's time reaches `t - header.t`. Frame `i` of the mp4 is shown from `t + i * 1000 / fps`.
 
-**Capture and masking.** The recorder core is sentry-cocoa 9.33.0's (pacing, render, H.264 encoder), with ouo's masking instead of Sentry's: before every render it asks the plan the frames recorder uses (`ReplayMaskPlanner`: the view walk with the host's overrides from `ReplayMaskRegistry`, the default classes, secure fields always masked, strict precedence). No look while a view controller transition runs; no frame when a masked view moves or the walk fails (PRV-8). The rectangles are painted black, as in `ouo-frames/3`, before the frame reaches the encoder. The raw render never leaves the process. `ouo.replay.masked` is `true`.
+**Capture and masking on iOS.** The recorder core is sentry-cocoa 9.33.0's (pacing, render, H.264 encoder), with ouo's masking instead of Sentry's: before every render it asks the plan the frames recorder uses (`ReplayMaskPlanner`: the view walk with the host's overrides from `ReplayMaskRegistry`, the default classes, secure fields always masked, strict precedence). No look while a view controller transition runs; no frame when a masked view moves or the walk fails (PRV-8). The rectangles are painted black, as in `ouo-frames/3`, before the frame reaches the encoder. The raw render never leaves the process. `ouo.replay.masked` is `true`.
+
+**Capture and masking on Android.** The capture and the masks are ouo's, the ones `ouo-frames/3` uses: the frames recorder's capture loop copies the window, its two view walks (before and after the copy) must agree on the masks or the look is dropped, and `ScreenCapturer.paintMasks` paints them black (the host's overrides from `ReplayMaskRegistry`, the default classes, secure inputs always masked, strict precedence; PRV-8). Only then is the masked bitmap scaled to the video size and handed to sentry-java 8.64.0's encoder (`SimpleVideoEncoder` behind `Mp4SegmentWriter`, MediaCodec H.264, 75 kbit/s). The video size is one pixel per dp, each side brought to a multiple of 16 (`Mp4SegmentWriter.recordingSize`, from upstream's `ScreenshotRecorderConfig`), so `scale` is that size over the window in dp. `VideoSegmenter` times the looks into fixed-rate segments, 1 frame/s and 5 s; a second without a new look repeats the last masked frame, and a segment with no new look at all (a static screen) is not sent. The body is the iOS one, byte for byte in layout. The encoder needs Android 8 (API 26): below it `pixel/video` records nothing (counted `replay.mode_unsupported`), never another format unasked.
 
 ## Never-record screens (React Native, ADR-0006 revision 3)
 

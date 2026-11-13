@@ -219,9 +219,9 @@ opts in to visibility (Sentry's mobile replay ships the same default). To opt ou
 `scripts/sentry-core-sync.sh`): 1 frame/s, 5 s H.264 segments, one `ouo-video/1` chunk per
 segment (docs/specs/mobile-replay.md). Its masking is the frames recorder's plan, not Sentry's:
 the same classes, overrides and secure-field rule, no look during a view controller transition,
-and no frame while a masked view moves. On the legacy upload path the same core runs behind
-`OuoReplayConfig(recorder: .sentryVideo)` (`kind: "video"` chunks), a spike until ADR-0018 is
-decided.
+and no frame while a masked view moves. The legacy upload path records frames only: the
+`kind: "video"` spike recorder (`OuoReplayConfig.recorder = .sentryVideo`) was removed when
+`pixel/video` moved to OTLP (ADR-0021 decision 5).
 
 Per-view overrides through `accessibilityIdentifier` (React Native `testID`), honoured whatever
 the options above say:

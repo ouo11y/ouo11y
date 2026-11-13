@@ -14,10 +14,11 @@ import OuoReplayCore
 /// alone touches `differ` and `builder`. A chunk's first frame, the frame after a resume or a
 /// screen change, and a frame whose tiles changed over more than half its area are full images;
 /// other frames carry only their changed rectangles (ADR-0014).
-/// What `OuoReplay` drives: the frames recorder below or the Sentry-derived `VideoReplayRecorder`.
+/// What `OuoReplay` drives: the legacy frames recorder below or `OTLPReplayRecorder`.
 protocol ReplayRecording: AnyObject {
     var kind: ReplayRecorderKind { get }
     var mode: ReplayMode { get }
+    /// Read from any thread (the JavaScript thread, without a hop to the main thread).
     var isRecording: Bool { get }
     func start()
     func pause()
@@ -58,7 +59,13 @@ final class ReplayRecorder: ReplayRecording {
     private var wakeTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var attachedWindow: UIWindow?
-    private(set) var isRecording = false
+    /// Written on the main thread, read from any.
+    private let recordingLock = NSLock()
+    private var recording = false
+    private(set) var isRecording: Bool {
+        get { recordingLock.withLock { recording } }
+        set { recordingLock.withLock { recording = newValue } }
+    }
     /// Set by `pause()`; a background/foreground cycle must not resume a paused recorder.
     private var pausedByHost = false
 
