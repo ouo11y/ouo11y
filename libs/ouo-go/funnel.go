@@ -362,7 +362,7 @@ func WalkFunnel(f Funnel, recs []FunnelRecord) (p FunnelPath, ok bool) {
 	for _, r := range recs {
 		l := r.Labels
 		if p.Project == "" {
-			p.Project, p.Session, p.Platform = l["ouo_project_id"], l["session_id"], l["ouo_platform"]
+			p.Project, p.Session, p.Platform = l["ouo_project_id"], l["session_id"], PlatformOf(l)
 		}
 		if u := userOf(l); u != "" {
 			p.User = u
@@ -470,6 +470,25 @@ func platformOr(p string) string {
 	return p
 }
 
+// PlatformOf names a record's platform: ouo.platform when the producer set it (the mobile SDK,
+// the Sentry bridge), else web for the browser SDK's records (it sets no ouo.platform; it sends
+// telemetry.sdk.name and browser.* attributes), else the OS name, else unknown.
+func PlatformOf(labels map[string]string) string {
+	if p := labels["ouo_platform"]; p != "" {
+		return p
+	}
+	if strings.Contains(labels["telemetry_sdk_name"], "browser") || labels["browser_document_url_full"] != "" || labels["browser_platform"] != "" {
+		return "web"
+	}
+	switch os := strings.ToLower(labels["os_name"]); os {
+	case "ios", "ipados":
+		return "ios"
+	case "android":
+		return "android"
+	}
+	return "unknown"
+}
+
 func pct(n, of int) float64 {
 	if of == 0 {
 		return 0
@@ -554,7 +573,6 @@ func (c *Client) funnelRead(ctx context.Context, cl Clearance, f Funnel, q Funne
 		if err := checkProject(q.Platform); err != nil {
 			return nil, false, from, to, &BadRequestError{Msg: "platform must match ^[a-z0-9][a-z0-9._-]{0,63}$"}
 		}
-		sel += `, ouo_platform="` + q.Platform + `"`
 	}
 	var names []string
 	seen := map[string]bool{}
@@ -588,7 +606,7 @@ func (c *Client) funnelRead(ctx context.Context, cl Clearance, f Funnel, q Funne
 		}
 		truncated = truncated || len(lines) >= limit
 		for _, l := range lines {
-			if !cl.For(l.Labels["ouo_project_id"]).Can().Timeline {
+			if !cl.For(l.Labels["ouo_project_id"]).Can().Timeline || q.Platform != "" && PlatformOf(l.Labels) != q.Platform {
 				continue
 			}
 			recs = append(recs, FunnelRecord{Time: l.Time, Labels: l.Labels})

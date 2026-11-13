@@ -23,3 +23,4 @@ Step 6 (only when the founder asks), not started:
 | Date | Event |
 |---|---|
 | 2026-11-13 | Took stock: #189 and #191 open, so step 2 starts on `claude/plugin-funnels-overview`, stacked on `claude/plugin-bff-full` with `origin/main` merged in |
+| 2026-11-13 | Step 2 built on `claude/plugin-funnels-overview`: ADR-0025, `ouo-go` funnels and overview, BFF endpoints, kit components, Home and Business flows; Go, Vitest, Jest, lint, typecheck, Helm pass; e2e 32/32 in env `pdemo`. PR waits for #189 and the second slice |

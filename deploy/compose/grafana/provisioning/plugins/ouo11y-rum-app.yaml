@@ -17,6 +17,12 @@
 # clearance maps Grafana users to Clearance levels 0-5: by login (users) first, then by
 # org role (roles); anyone in neither gets 0 and sees nothing.
 #
+# funnels are the business flows the Business flows page counts (ADR-0025): ordered steps, a
+# page step matches web pages and mobile screens by path, an event step matches an event name
+# with optional conditions; the failure event (default exception) splits a drop-off into failed
+# and abandoned. mimirUrl (default http://mimir:9009/prometheus) feeds the Home page's backend
+# section from Tempo's span metrics.
+#
 # ${OUO_FEATURE_TOGGLES_ENABLE} turns plugin feature toggles on, comma separated, like
 # Grafana's GF_FEATURE_TOGGLES_ENABLE (empty: all off). The list is in
 # plugins/ouo11y-rum-app/README.md, e.g. OUO_FEATURE_TOGGLES_ENABLE=sessionTimelinePanel.
@@ -35,6 +41,16 @@ apps:
           Editor: 3
           Admin: 5
         users: {}
+      funnels:
+        - id: shop-checkout
+          name: Shop checkout
+          description: Browse a product, add it to the cart, check out and pay, on web and mobile.
+          steps:
+            - { kind: page, value: /products, prefix: true, label: Product page }
+            - { kind: event, value: cart.add, label: Add to cart }
+            - { kind: event, value: checkout.start, label: Checkout }
+            - { kind: event, value: payment.submit, label: Pay by card, where: [{ key: payment.method, value: card }] }
+            - { kind: event, value: order.placed, label: Order placed }
     secureJsonData:
       readToken: ${OUO_READ_TOKEN}
       muninnReadToken: ${OUO_MUNINN_READ_TOKEN}

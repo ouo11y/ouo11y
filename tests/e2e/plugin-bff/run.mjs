@@ -21,6 +21,15 @@
 //              403 "needs c5" to an Editor (c3). Clearance by team and by project: a Viewer in
 //              team e2e-support gets c3, and c4 in project demo (the plugin settings are
 //              changed for the test and put back after).
+// 6. flows     The provisioned funnel shop-checkout (ADR-0025) counts step 1's web session
+//              (product page, cart, checkout, then an exception: failed before "Pay by card"),
+//              an iOS session that converts and an Android one that abandons after the cart,
+//              sent as OTLP. Admin clicks the failed drop-off on the Business flows page, opens
+//              the web session from the list and its replay plays. A Viewer (c1) gets the same
+//              counts and the drop-off list without users.
+// 7. home      The Home page's answer: session health by platform, web vitals from step 1,
+//              mobile vitals from the OTLP sessions, the top error, and the backend's server
+//              spans (sent as OTLP traces) read back from Mimir through Tempo's span metrics.
 //
 // Writes out/report.html (screenshots inlined) and out/results.json.
 //
@@ -101,10 +110,20 @@ async function record(browser) {
       await page.click("#add");
       await sleep(700);
     }
+    // Step 6's flow: a product page (a History API navigation), cart, checkout, then the payment
+    // fails before payment.submit.
+    await page.evaluate(() => history.pushState({}, "", "/products/7"));
+    await sleep(300);
+    await page.evaluate(() => window.ouo.recordEvent("cart.add", { "product.id": "7" }));
+    await sleep(300);
+    await page.evaluate(() => window.ouo.recordEvent("checkout.start"));
+    await sleep(300);
+    await page.evaluate(() => window.ouo.recordException(new Error("card declined by the e2e bank")));
+    await sleep(500);
     await page.evaluate(() => window.ouo.shutdown()); // flushes and closes the replay stream
     await sleep(1000);
-    console.log(`recorded session ${session} (marker ${marker}, SDK ${sdkSrc ?? "@ouo11y/browser 0.4.0 from npm"})`);
-    return { session, marker, user, sdk: sdkSrc ?? "@ouo11y/browser 0.4.0 (npm)" };
+    console.log(`recorded session ${session} (marker ${marker}, SDK ${sdkSrc ?? "@ouo11y/browser 0.4.1 from npm"})`);
+    return { session, marker, user, sdk: sdkSrc ?? "@ouo11y/browser 0.4.1 (npm)" };
   } finally {
     await page.close();
     server.close();
@@ -420,8 +439,140 @@ async function access(browser, px) {
   }
 }
 
+// --- 6. flows -------------------------------------------------------------------------
+const FUNNEL = "shop-checkout";
+
+/** OTLP logs of a mobile-shaped session walking the shop flow up to `upTo` events. */
+async function sendMobileFlow({ platform, upTo, t0, vitals }) {
+  const session = hex(16);
+  const resource = { "service.name": `shop-${platform}`, "ouo.platform": platform };
+  const ms = (t) => BigInt(t) * 1_000_000n;
+  const flow = [
+    { event: "session.start", attrs: {} },
+    { event: "navigation", attrs: { "url.path": "/products/3", "ouo.navigation.kind": "screen" } },
+    { event: "cart.add", attrs: { "ouo.event.custom": true } },
+    { event: "checkout.start", attrs: { "ouo.event.custom": true } },
+    { event: "payment.submit", attrs: { "ouo.event.custom": true, "payment.method": "card" } },
+    { event: "order.placed", attrs: { "ouo.event.custom": true } },
+  ].slice(0, upTo);
+  if (vitals) {
+    flow.push(
+      { event: "ouo.app.start", attrs: { "ouo.app.start.type": "cold", "ouo.app.start.duration_ms": "812.5" } },
+      { event: "ouo.screen.display", attrs: { "app.screen.name": "Products", "ouo.screen.ttid_ms": "240" } },
+      { event: "app.jank", attrs: { "ouo.frames.total": 300, "ouo.frames.slow": 12, "ouo.frames.frozen": 3, "app.jank.frame_count": 15 } },
+    );
+  }
+  await sendOTLP(logsRequest({ resource, scope: "ouo.rum", records: flow.map((r, i) => ({ ...r, attrs: { ...r.attrs, "session.id": session }, timeNs: ms(t0 + i * 1000) })) }));
+  return session;
+}
+
+/** Server spans of a backend, as OTLP/JSON traces: Tempo's metrics generator turns them into span metrics in Mimir. */
+async function sendServerSpans(service, n, errors) {
+  const now = BigInt(Date.now()) * 1_000_000n;
+  const spans = Array.from({ length: n }, (_, i) => ({
+    traceId: hex(16), spanId: hex(8), name: "POST /api/pay", kind: 2,
+    startTimeUnixNano: String(now - BigInt(i) * 10_000_000n - 120_000_000n), endTimeUnixNano: String(now - BigInt(i) * 10_000_000n),
+    status: { code: i < errors ? 2 : 1 },
+  }));
+  const body = { resourceSpans: [{ resource: { attributes: [{ key: "service.name", value: { stringValue: service } }] }, scopeSpans: [{ scope: { name: "e2e" }, spans }] }] };
+  const r = await fetch(`${OTLP}/v1/traces`, { method: "POST", headers: { "content-type": "application/json", authorization: OTLP_AUTH }, body: JSON.stringify(body) });
+  if (r.status !== 200) throw new Error(`collector answered ${r.status} for traces`);
+}
+
+async function flows(browser, rec, since) {
+  const t0 = Date.now() - 30_000;
+  const ios = await sendMobileFlow({ platform: "ios", upTo: 6, t0, vitals: true });
+  const android = await sendMobileFlow({ platform: "android", upTo: 3, t0 });
+  const scope = `from=${since}&to=${Date.now() + 60_000}&project=${PROJECT}`;
+
+  const { ctx, responses } = await grafanaContext(browser, ADMIN);
+  const list = await (await ctx.request.get(`${BFF}/funnels`)).json();
+  check("flows: the provisioned funnel is listed", list.funnels?.some((f) => f.id === FUNNEL && f.steps.length === 5), list.funnels?.map((f) => f.id).join(","));
+  const report = await poll("the three sessions in the funnel", async () => {
+    const r = await (await ctx.request.get(`${BFF}/funnels/${FUNNEL}?${scope}`)).json();
+    return r.steps?.[0]?.sessions >= 3 && r.steps?.[2]?.sessions >= 2 ? r : null;
+  }, 90).catch(() => null);
+  const counts = report?.steps?.map((s) => `${s.sessions}/${s.dropped_off}/${s.failed}`).join(" ");
+  const st = report?.steps ?? [];
+  check("flows: web and mobile sessions in one funnel, the drop at Pay split into failed and abandoned",
+    st[0]?.sessions === 3 && st[0]?.by_platform?.web === 1 && st[0]?.by_platform?.ios === 1 && st[0]?.by_platform?.android === 1 &&
+    st[2]?.sessions === 2 && st[2]?.dropped_off === 1 && st[3]?.sessions === 1 && st[3]?.failed === 1 && st[4]?.sessions === 1,
+    `sessions/dropped/failed per step: ${counts}`);
+  const failed = await (await ctx.request.get(`${BFF}/funnels/${FUNNEL}/steps/4/sessions?outcome=failed&${scope}`)).json();
+  const abandoned = await (await ctx.request.get(`${BFF}/funnels/${FUNNEL}/steps/3/sessions?outcome=abandoned&${scope}`)).json();
+  check("flows: the failed drop-off is the web session, with its user for admin; the abandoned one is Android",
+    failed.sessions?.length === 1 && failed.sessions[0].id === rec.session && failed.sessions[0].user === rec.user && failed.sessions[0].failed_with === "exception" &&
+    abandoned.sessions?.length === 1 && abandoned.sessions[0].id === android,
+    `failed ${JSON.stringify(failed.sessions?.[0])}, abandoned ${abandoned.sessions?.[0]?.platform}`);
+
+  // The page: click the failed drop-off at Pay, open the web session, its replay plays.
+  const page = await ctx.newPage();
+  await page.goto(`${GRAFANA}/a/ouo11y-rum-app/flows`);
+  await page.getByTestId("funnel-step").first().waitFor({ timeout: 30000 });
+  const flowShot = await shot(page, "flows-funnel");
+  const steps = page.getByTestId("funnel-step");
+  await steps.nth(3).getByTestId("funnel-failed").click();
+  const link = page.locator(`[data-testid="dropped-session-link"][href*="${rec.session}"]`);
+  await link.waitFor({ timeout: 30000 });
+  const dropShot = await shot(page, "flows-dropped");
+  await link.click();
+  const frame = page.frameLocator('[data-testid="ouo-replay-rrweb"] iframe');
+  const seen = await frame.locator("#marker").textContent({ timeout: 30000 }).catch(() => null);
+  check("flows: from the failed drop-off to the session page, and its replay plays", seen === `plugin-bff-marker-${rec.marker}`, `iframe #marker = ${JSON.stringify(seen)}`);
+  const replayShot = await shot(page, "flows-replay");
+  await ctx.close();
+
+  const viewer = await grafanaContext(browser, VIEWER);
+  const vr = await (await viewer.ctx.request.get(`${BFF}/funnels/${FUNNEL}?${scope}`)).json();
+  const vd = await (await viewer.ctx.request.get(`${BFF}/funnels/${FUNNEL}/steps/4/sessions?outcome=failed&${scope}`)).json();
+  check("flows: a Viewer (c1) gets the same counts and the drop-off list without users",
+    vr.steps?.map((s) => s.sessions).join() === st.map((s) => s.sessions).join() && vd.sessions?.length === 1 && !("user" in vd.sessions[0]) && vd.redacted?.includes("identity") && !JSON.stringify(vd).includes(rec.user),
+    `counts ${vr.steps?.map((s) => s.sessions).join()}, redacted [${vd.redacted}]`);
+  await viewer.ctx.close();
+  return { flowShot, dropShot, replayShot, ios, android };
+}
+
+// --- 7. home --------------------------------------------------------------------------
+async function home(browser, rec, flow, since) {
+  await sendServerSpans("shop-api-e2e", 20, 5);
+  const scope = `from=${since}&to=${Date.now() + 60_000}&project=${PROJECT}`;
+  const { ctx } = await grafanaContext(browser, ADMIN);
+  const ov = await poll("the overview with the backend from Mimir", async () => {
+    await sendServerSpans("shop-api-e2e", 5, 0);
+    const r = await (await ctx.request.get(`${BFF}/overview?${scope}`)).json();
+    return r.backend?.some((s) => s.service === "shop-api-e2e") ? r : null;
+  }, 180).catch(async () => (await ctx.request.get(`${BFF}/overview?${scope}`)).json());
+  const platforms = Object.fromEntries((ov.health ?? []).map((h) => [h.platform, h]));
+  check("home: session health by platform (web errored, iOS and Android healthy)",
+    platforms.web?.errored >= 1 && platforms.ios?.sessions >= 1 && platforms.ios?.errored === 0 && platforms.android?.sessions >= 1 && ov.totals?.health < 100,
+    `totals ${JSON.stringify(ov.totals)}, platforms ${Object.keys(platforms)}`);
+  check("home: the web session's exception is a top error with its message (admin)",
+    ov.top_errors?.some((e) => e.message?.includes("card declined by the e2e bank") && e.session === rec.session), ov.top_errors?.map((e) => `${e.sessions}x ${e.message ?? e.fingerprint}`).join("; "));
+  check("home: web vitals from the browser session", ov.web_vitals?.length > 0, ov.web_vitals?.map((v) => `${v.name} ${v.p75}`).join(", "));
+  const mv = Object.fromEntries((ov.mobile_vitals ?? []).map((v) => [`${v.platform}/${v.name}`, v.p75]));
+  check("home: mobile vitals from the iOS session (cold start, TTID, slow and frozen frames)",
+    mv["ios/app_start_cold"] === 812.5 && mv["ios/ttid"] === 240 && mv["ios/slow_frames"] === 4 && mv["ios/frozen_frames"] === 1, JSON.stringify(mv));
+  const api = ov.backend?.find((s) => s.service === "shop-api-e2e");
+  check("home: the backend's server spans read back from Mimir (Tempo span metrics)", api && api.rate_per_sec > 0 && api.error_pct > 0 && api.p95_ms > 0,
+    api ? JSON.stringify(api) : `backend ${JSON.stringify(ov.backend)} ${ov.backend_error ?? ""}`);
+  const page = await ctx.newPage();
+  await page.goto(`${GRAFANA}/a/ouo11y-rum-app/home`);
+  await page.getByTestId("home-health").waitFor({ timeout: 30000 });
+  await page.getByTestId("home-backend").scrollIntoViewIfNeeded();
+  const homeShot = await shot(page, "home");
+  await ctx.close();
+
+  const viewer = await grafanaContext(browser, VIEWER);
+  const vo = await (await viewer.ctx.request.get(`${BFF}/overview?${scope}`)).json();
+  check("home: a Viewer (c1) gets the numbers but no error message or type",
+    vo.totals?.sessions === ov.totals?.sessions && vo.top_errors?.length > 0 && vo.top_errors.every((e) => !("message" in e) && !("type" in e)) && vo.redacted?.includes("attributes") && !JSON.stringify(vo).includes("card declined"),
+    `sessions ${vo.totals?.sessions}, redacted [${vo.redacted}]`);
+  await viewer.ctx.close();
+  return { homeShot };
+}
+
 // --- report ---------------------------------------------------------------------------
-function report(rec, admin, viewer, pixel) {
+function report(rec, admin, viewer, pixel, flow, homeRes) {
   const img = (f) => `<img alt="${path.basename(f)}" src="data:image/png;base64,${fs.readFileSync(f).toString("base64")}">`;
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
   const rows = results.map((r) => `<tr class="${r.ok ? "ok" : "fail"}"><td>${r.ok ? "PASS" : "FAIL"}</td><td>${esc(r.name)}</td><td>${esc(r.detail)}</td></tr>`).join("");
@@ -430,7 +581,7 @@ function report(rec, admin, viewer, pixel) {
 <style>body{font:14px system-ui,sans-serif;margin:24px;max-width:1400px;color:#222;background:#fff}td{padding:4px 8px;border-bottom:1px solid #ddd;vertical-align:top}
 .ok td:first-child{color:#1a7f37;font-weight:600}.fail td:first-child{color:#cf222e;font-weight:600}img{max-width:100%;border:1px solid #ccc;margin:8px 0}
 pre{background:#f6f8fa;padding:12px;overflow:auto;max-height:480px;font-size:12px}</style></head><body>
-<h1>Plugin BFF slice, end to end</h1>
+<h1>Plugin BFF: sessions, replays, Clearance, business flows and Home, end to end</h1>
 <p>${new Date().toISOString()} · session <code>${rec.session}</code> · SDK ${esc(rec.sdk)} · Grafana ${esc(GRAFANA)}</p>
 <table>${rows}</table>
 <h2>Admin (c5): session page, replay playing the recorded DOM</h2>${img(admin.sessionShot)}
@@ -439,6 +590,8 @@ pre{background:#f6f8fa;padding:12px;overflow:auto;max-height:480px;font-size:12p
 <h2>Viewer: list</h2>${img(viewer.listShot)}
 <h2>ouo-frames/3 replay (full frame, then a red patch top left)</h2>${img(pixel.framesShot)}
 <h2>ouo-video/1 replay (a real H.264 segment from the Sentry iOS fixtures)</h2>${img(pixel.videoShot)}
+${homeRes ? `<h2>Home: health, sessions over time, top errors, vitals, backend from Mimir</h2>${img(homeRes.homeShot)}` : ""}
+${flow ? `<h2>Business flows: the funnel, web and mobile</h2>${img(flow.flowShot)}<h2>The failed drop-off at Pay</h2>${img(flow.dropShot)}<h2>From the drop-off to the replay</h2>${img(flow.replayShot)}` : ""}
 <h2>Viewer: every BFF response</h2><pre>${viewerJSON}</pre>
 </body></html>`);
   fs.writeFileSync(path.join(OUT, "results.json"), JSON.stringify({ rec, results }, null, 2));
@@ -449,13 +602,16 @@ const CHANNEL = env.OUO_E2E_CHANNEL ?? "chrome";
 const browser = await chromium.launch(CHANNEL === "chromium" ? {} : { channel: CHANNEL });
 console.log(`browser: ${CHANNEL} ${browser.version()}`);
 try {
+  const since = Date.now() - 60_000;
   const rec = await record(browser);
   const admin = await asAdmin(browser, rec);
   const viewer = await asViewer(browser, rec, admin.manifest);
   const px = await pixelSessions(browser);
   const pixel = await pixelPlayback(browser, px, rec);
   await access(browser, px);
-  report(rec, admin, viewer, pixel);
+  const flow = await flows(browser, rec, since);
+  const homeRes = await home(browser, rec, flow, since);
+  report(rec, admin, viewer, pixel, flow, homeRes);
 } catch (err) {
   check("run", false, err.stack ?? String(err));
 } finally {

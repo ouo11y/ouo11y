@@ -1,6 +1,6 @@
 # Funnel reports specification
 
-Status: normative. Changes require an ADR. Decided in [ADR-0012](../adr-archive/0012-funnel-reports.md).
+Status: normative. Changes require an ADR. Decided in [ADR-0012](../adr-archive/0012-funnel-reports.md); the spec-wire engine in `ouo-go` and the plugin's BFF follow [ADR-0025](../adr/0025-funnels-and-home-in-the-bff.md), whose differences are in [On the spec wire](#on-the-spec-wire) at the end.
 
 A funnel answers "of the sessions that did step 1, how many then did step 2, then step 3...". rum-api computes it from the session events already in Loki; nothing new is collected.
 
@@ -58,3 +58,15 @@ See [services/rum-api/README.md](../../services/rum-api/README.md#funnels): `POS
 | events read per step kind | 100,000 |
 | drop-off page size | default 50, at most 500 |
 | step suggestions | 200 values per kind |
+
+## On the spec wire
+
+The plugin's backend computes funnels with `ouo-go` ([ADR-0025](../adr/0025-funnels-and-home-in-the-bff.md)) from the client SDK spec's records. The counting rules above hold, with these differences:
+
+- A **page step** matches `browser.navigation` (web SDK) by the path of `url.full`, and `navigation` (mobile SDK, screens) by `url.path`. A funnel counts web and mobile sessions together, and each step reports its sessions by platform (`ouo.platform`, else `web` for the browser SDK's records).
+- **Event steps** take up to 5 conditions (`=`, `!=`, `=~` fully anchored RE2) on the event's attributes, named as the SDK sends them and compared under their Loki name (`.` becomes `_`); a missing attribute reads as the empty string. Page steps take none.
+- A **failure event** (default `exception`, or another event with conditions, or none) splits each drop-off: a session that stopped after step *n − 1* is **failed** when a failure event follows the record it used for step *n − 1* (inside the window when one is set), else **abandoned**. Each step reports `failed` and `failure_rate` (failed over step *n − 1*'s sessions).
+- A session is identified by project and `session.id`.
+- Definitions are provisioned (plugin `jsonData.funnels`), not sent with each query; the time range is at most 30 days.
+- Each of the two Loki reads (navigations; named events and the failure event) returns at most 5,000 records by default; a report past that says `truncated`.
+- Clearance: counts need c1; the user of a dropped session needs c4 in its project.

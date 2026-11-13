@@ -32,15 +32,18 @@ deleted with it.
 
 | URL | What |
 |---|---|
+| `/a/ouo11y-rum-app/home` | the landing page ([ADR-0025](../../docs/adr/0025-funnels-and-home-in-the-bff.md)): session health and crash-free share by project and platform, sessions over time, top errors (linked to their latest session), web and mobile vitals (p75), backend services from Mimir (Tempo span metrics) |
+| `/a/ouo11y-rum-app/flows` | business flows: the provisioned funnels over web and mobile sessions, conversion and drop-off per step split into failed and abandoned; a click on a drop-off lists the sessions that stopped there, each linked to its session page and replay |
 | `/a/ouo11y-rum-app/explore` | sessions with records in the last 1 h / 6 h / 24 h / 7 d, newest first |
 | `/a/ouo11y-rum-app/explore/<project>/<session_id>?from&to` | the session's event timeline (click an event for its attributes), its traces from Tempo (linked to Explore) and its replay: web `rrweb/2`, mobile `ouo-frames/3` and `ouo-video/1` |
 
 Backend resources, all `GET` under `/api/plugins/ouo11y-rum-app/resources/v1`: `me`, `sessions`,
 `projects/{p}/sessions/{s}`, `.../replays/{r}` (manifest), `.../streams/{st}/chunks/{seq}`
-(decompressed bytes). Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `tempoUrl`
-(`http://tempo:3200`), `muninnUrl` (`http://muninn:3400`), `muninnTenant` (`anonymous`),
-`grafanaUrl` (`http://localhost:3000`, for team lookups), `clearance`, and
-`secureJsonData.muninnReadToken`. Provisioned in `deploy/compose/grafana/provisioning/plugins/`;
+(decompressed bytes), `overview`, `funnels`, `funnels/{id}`, `funnels/{id}/steps/{n}/sessions`.
+Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `tempoUrl`
+(`http://tempo:3200`), `mimirUrl` (`http://mimir:9009/prometheus`), `muninnUrl`
+(`http://muninn:3400`), `muninnTenant` (`anonymous`), `grafanaUrl` (`http://localhost:3000`, for
+team lookups), `clearance`, `funnels`, and `secureJsonData.muninnReadToken`. Provisioned in `deploy/compose/grafana/provisioning/plugins/`;
 Helm values `grafana.plugin.*`.
 
 `clearance` maps users to levels 0-5: `roles`, `teams`, `users` (login wins; else the highest of
@@ -55,6 +58,24 @@ clearance:
   projects:
     payments: {roles: {Viewer: 0}, teams: {payments-oncall: 4}}
 ```
+
+`funnels` are the business flows (ADR-0025; rules in [the funnel spec](../../docs/specs/funnels.md#on-the-spec-wire)).
+A page step matches web pages and mobile screens by path; an event step an event name, with up to
+five conditions; the failure event (default `exception`) splits a drop-off into failed and abandoned:
+
+```yaml
+funnels:
+  - id: shop-checkout
+    name: Shop checkout
+    steps:
+      - { kind: page, value: /products, prefix: true, label: Product page }
+      - { kind: event, value: cart.add }
+      - { kind: event, value: payment.submit, where: [{ key: payment.method, value: card }] }
+      - { kind: event, value: order.placed }
+    # within_seconds: 3600, failure: { kind: event, value: payment.failed }, project: shop
+```
+
+Counts need c1; the user of a dropped session c4; the session page follows the levels below.
 
 Teams are read through Grafana's API with the plugin's managed service account
 (`plugin.json` `iam`); Grafana needs `GF_FEATURE_TOGGLES_ENABLE=externalServiceAccounts` and

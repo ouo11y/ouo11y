@@ -350,6 +350,15 @@ grafana:
         Viewer: 1
         Editor: 3
         Admin: 5
+    # Business flows (ADR-0025): funnel definitions the Business flows page counts, the same
+    # shape as deploy/compose/grafana/provisioning/plugins/ouo11y-rum-app.yaml. Example:
+    #   - id: checkout
+    #     name: Checkout
+    #     steps:
+    #       - {kind: page, value: /products, prefix: true}
+    #       - {kind: event, value: cart.add}
+    #       - {kind: event, value: payment.submit, where: [{key: payment.method, value: card}]}
+    funnels: []
   datasources:
     # Provision Loki, Tempo and Mimir datasources (uids loki, tempo, mimir).
     enabled: true

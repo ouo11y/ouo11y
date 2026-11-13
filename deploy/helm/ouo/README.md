@@ -448,6 +448,7 @@ deploy/README.md).
 | `grafana.plugin.muninnTenant` | `anonymous` | `X-Scope-OrgID` the backend sends to Muninn |
 | `grafana.plugin.muninnReadTokenSecret` | none | Secret `name` and `key` holding Muninn's read token |
 | `grafana.plugin.clearance` | Viewer 1, Editor 3, Admin 5 | Clearance levels by `roles`, `teams`, `users` and per `projects` (plugin README); teams also need Grafana's managed service accounts in `grafana.env` |
+| `grafana.plugin.funnels` | `[]` | Business flows: funnel definitions the plugin counts (ADR-0025); the backend reads Mimir at the chart's Prometheus URL for the Home page |
 | `grafana.datasources.enabled` | `true` | provision Loki, Tempo, Mimir (uids `loki`, `tempo`, `mimir`) |
 | `grafana.persistence.*`, `grafana.service.*`, `grafana.ingress.*`, `grafana.resources`, ... | `5Gi`, `3000`, disabled | |
 | `lgtm.mode` | `bundled` | `bundled` or `external` |

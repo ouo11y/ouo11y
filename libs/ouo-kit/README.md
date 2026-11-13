@@ -21,4 +21,14 @@ The player picks a stream (a picker when there are several), keeps the runs that
 | `ouo-video/1` | Plays (`VideoPlayer`): one mp4 segment per chunk in a `<video>` that follows the replay clock; a gap keeps the last frame. H.264: Chrome, Safari, Edge, Firefox decode it; Playwright's own Chromium does not |
 | `ouo-wireframe/1`, anything else | Stored, not playable (RPL-24) |
 
+Building blocks around the BFF ([ADR-0025](../../docs/adr/0025-funnels-and-home-in-the-bff.md)):
+
+| Export | What |
+|---|---|
+| `createBffClient({ baseUrl, fetch?, headers? })` | typed methods for every BFF endpoint; a 403 throws `BffError` with `forbidden` |
+| `useBff(fn, key)` | runs `fn` when `key` changes (`null`: wait), latest call wins; `{ data, error, loading, forbidden }` |
+| `SessionTable`, `Timeline`, `FunnelChart` | the session list, a session's event timeline, a funnel's bars with clickable failed and abandoned drop-offs |
+| `themeStyle({ accent, border, ... })`, `themeVars` | the components' colours are CSS custom properties (`--ouo-accent` ...); set them once on an ancestor |
+| `formatTime`, `formatDuration`, `formatValue` | the formats the components use |
+
 Private workspace package, imported from source by `plugins/ouo11y-rum-app`; not published until it has a second user. `npm test -w libs/ouo-kit` (Vitest), `npm run typecheck -w libs/ouo-kit`. Licence Apache-2.0.

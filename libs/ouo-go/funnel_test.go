@@ -238,3 +238,19 @@ func TestRunFunnelClearance(t *testing.T) {
 		t.Fatal("step 1 has no drop-off")
 	}
 }
+
+func TestPlatformOf(t *testing.T) {
+	for want, labels := range map[string]map[string]string{
+		"ios":     {"ouo_platform": "ios", "telemetry_sdk_name": "@ouo11y/browser"},
+		"web":     {"telemetry_sdk_name": "@ouo11y/browser"},
+		"android": {"os_name": "Android"},
+		"unknown": {},
+	} {
+		if got := PlatformOf(labels); got != want {
+			t.Errorf("%v: %q, want %q", labels, got, want)
+		}
+	}
+	if got := PlatformOf(map[string]string{"os_name": "iPadOS"}); got != "ios" {
+		t.Errorf("iPadOS: %q", got)
+	}
+}

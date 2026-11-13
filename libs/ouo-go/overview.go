@@ -120,10 +120,12 @@ func (c *Client) GetOverview(ctx context.Context, cl Clearance, q OverviewQuery)
 		if err := checkProject(q.Platform); err != nil {
 			return nil, &BadRequestError{Msg: "platform must match ^[a-z0-9][a-z0-9._-]{0,63}$"}
 		}
-		sel += `, ouo_platform="` + q.Platform + `"`
 	}
 	limit := orDefault(c.FunnelLimit, 5000)
-	visible := func(l lokiLine) bool { return cl.For(l.Labels["ouo_project_id"]).Can().Timeline }
+	// The platform filter runs here, not in LogQL: web records carry no ouo_platform (PlatformOf).
+	visible := func(l lokiLine) bool {
+		return cl.For(l.Labels["ouo_project_id"]).Can().Timeline && (q.Platform == "" || PlatformOf(l.Labels) == q.Platform)
+	}
 
 	sessLines, err := c.Loki.queryRange(ctx, `{`+sel+`, event_name=~"session[.]start|exception|app[.]crash"} | session_id != ""`, from, to, limit, true)
 	if err != nil {
@@ -151,7 +153,7 @@ func (c *Client) GetOverview(ctx context.Context, cl Clearance, q OverviewQuery)
 			continue
 		}
 		lb := l.Labels
-		k := sessKey{lb["ouo_project_id"], platformOr(lb["ouo_platform"]), lb["session_id"]}
+		k := sessKey{lb["ouo_project_id"], PlatformOf(lb), lb["session_id"]}
 		switch lb["event_name"] {
 		case "session.start":
 			started[k] = true
@@ -288,7 +290,7 @@ func vitalsOf(lines []lokiLine, visible func(lokiLine) bool) (web, mobile []Vita
 		if !visible(l) {
 			continue
 		}
-		p := platformOr(l.Labels["ouo_platform"])
+		p := PlatformOf(l.Labels)
 		switch l.Labels["event_name"] {
 		case "browser.web_vital":
 			name := strings.ToLower(l.Labels["browser_web_vital_name"])
@@ -462,7 +464,7 @@ func (m *Mimir) services(ctx context.Context, from, to time.Time) ([]ServiceStat
 	}
 	for _, s := range p95 {
 		if st := by[s.Labels["service"]]; st != nil {
-			ms := math.Round(s.Value * 1000 * 10) / 10 // span metrics latency is in seconds
+			ms := math.Round(s.Value*1000*10) / 10 // span metrics latency is in seconds
 			st.P95Ms = &ms
 		}
 	}
