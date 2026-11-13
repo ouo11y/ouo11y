@@ -14,6 +14,8 @@ export interface Capabilities {
 export interface Me {
   login: string;
   role: string;
+  /** Where the level came from: "groups" (identity-provider groups), "roles" (Grafana org role) or "" (not configured). */
+  mode: string;
   level: number;
   can: Capabilities;
 }
@@ -114,7 +116,7 @@ export interface Manifest {
 /** Fetches one chunk's decompressed bytes from the BFF. */
 export type ChunkFetcher = (streamId: string, sequence: number) => Promise<ArrayBuffer>;
 
-/** BFF paths, relative to the BFF's base URL (in Grafana: /api/plugins/ouo11y-rum-app/resources). */
+/** BFF paths, relative to the BFF's base URL (in Grafana: /api/datasources/uid/ouo11y/resources). */
 export const bffPaths = {
   me: () => 'v1/me',
   sessions: () => 'v1/sessions',

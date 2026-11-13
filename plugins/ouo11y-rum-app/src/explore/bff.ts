@@ -1,11 +1,12 @@
 // The one client of the plugin's backend (ADR-0023): every request of the Session explorer
-// pages goes through here, to /api/plugins/<id>/resources/v1/..., with the Grafana session
+// pages goes through here, to the resources of the plugin's datasource
+// (/api/datasources/uid/ouo11y/resources/v1/..., ADR-0024), with the Grafana session
 // cookie. The backend applies Clearance; this file only fetches.
 import { useEffect, useRef, useState } from 'react';
 import { bffPaths, type ChunkFetcher, type Manifest, type Me, type SessionDetail, type SessionList } from '@ouo11y/kit';
-import { PLUGIN_ID } from '../constants';
+import { BFF_DATASOURCE_UID } from '../constants';
 
-export const BFF_BASE = `/api/plugins/${PLUGIN_ID}/resources`;
+export const BFF_BASE = `/api/datasources/uid/${BFF_DATASOURCE_UID}/resources`;
 
 export class BffError extends Error {
   constructor(

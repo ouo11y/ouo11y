@@ -31,12 +31,17 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${OUO_GRAFANA_ADMIN_PASSWORD:-testing567}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_DEFAULT_THEME: dark
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app,ouo11y-rum-datasource
       GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo11y-rum-app
       # Read by grafana/provisioning/plugins/ouo11y-rum-app.yaml (secureJsonData.readToken):
       # the plugin's route proxy adds `Authorization: Bearer <token>` to every rum-api
       # call, so the token never reaches the browser. Must equal rum-api's OUO_READ_TOKEN.
       OUO_READ_TOKEN: ${OUO_READ_TOKEN:-rt_dev_0000000000000000}
+      # Read by grafana/provisioning/datasources (the ouo11y datasource, ADR-0024): where
+      # Clearance levels come from. "roles": the Grafana org role, since this stack has no
+      # identity provider. compose.idp.yaml sets "groups" and the issuer.
+      OUO_CLEARANCE_MODE: ${OUO_CLEARANCE_MODE:-roles}
+      OUO_OIDC_ISSUER: ${OUO_OIDC_ISSUER:-}
       # Plugin feature toggles (jsonData.featureToggles), comma separated, e.g. sessionTimelinePanel.
       OUO_FEATURE_TOGGLES_ENABLE: ${OUO_FEATURE_TOGGLES_ENABLE:-}
     volumes:

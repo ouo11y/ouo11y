@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "ouo11y",
+  "id": "ouo11y-rum-datasource",
+  "backend": true,
+  "executable": "gpx_ouo11y-rum-datasource",
+  "info": {
+    "description": "The backend of the ouo11y RUM app: sessions and replays with Clearance applied. It answers the app's pages, not dashboard queries.",
+    "author": {
+      "name": "ouo11y"
+    },
+    "logos": {
+      "small": "../img/logo.svg",
+      "large": "../img/logo.svg"
+    },
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=13.0.0",
+    "plugins": []
+  }
+}

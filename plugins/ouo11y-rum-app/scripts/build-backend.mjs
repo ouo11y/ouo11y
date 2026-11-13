@@ -1,5 +1,6 @@
-// Builds the plugin's Go backend (pkg/, ADR-0023) into dist/ for the platforms Grafana runs
-// it on in our stacks: gpx_ouo11y-rum-app_linux_{amd64,arm64}. Run after webpack, which keeps
+// Builds the Go backend (pkg/, ADR-0023) of the nested datasource (ADR-0024) into
+// dist/datasource/ for the platforms Grafana runs it on in our stacks:
+// gpx_ouo11y-rum-datasource_linux_{amd64,arm64}. Run after webpack, which keeps
 // these files when it cleans dist/. Uses the local Go toolchain when there is one, otherwise
 // the golang image (CI jobs that only set up Node, and machines without Go).
 //
@@ -20,7 +21,7 @@ const platforms = (process.env.OUO_BACKEND_PLATFORMS ?? "linux/amd64,linux/arm64
 const hasGo = spawnSync("go", ["version"], { stdio: "ignore" }).status === 0;
 for (const p of platforms) {
   const [goos, goarch] = p.split("/");
-  const out = `dist/gpx_ouo11y-rum-app_${goos}_${goarch}`;
+  const out = `dist/datasource/gpx_ouo11y-rum-datasource_${goos}_${goarch}`;
   const args = ["build", "-trimpath", "-ldflags", "-s -w", "-o", out, "./pkg"];
   const env = { CGO_ENABLED: "0", GOOS: goos, GOARCH: goarch };
   console.log(`backend: ${out}${hasGo ? "" : ` (in ${GO_IMAGE})`}`);

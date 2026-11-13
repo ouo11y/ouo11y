@@ -13,5 +13,5 @@ FROM grafana/grafana:13.2.5
 COPY --chown=grafana:root plugins/ouo11y-rum-app/dist /var/lib/grafana/plugins/ouo11y-rum-app
 
 # The plugin is unsigned (private distribution, see plugins/ouo11y-rum-app/README.md).
-ENV GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app \
+ENV GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app,ouo11y-rum-datasource \
     GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS=ouo11y-rum-app

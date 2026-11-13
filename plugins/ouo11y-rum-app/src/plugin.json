@@ -19,6 +19,11 @@
   },
   "includes": [
     {
+      "type": "datasource",
+      "name": "ouo11y",
+      "path": "datasource/plugin.json"
+    },
+    {
       "type": "page",
       "name": "Session explorer",
       "icon": "play",
@@ -71,8 +76,6 @@
       "addToNav": true
     }
   ],
-  "backend": true,
-  "executable": "gpx_ouo11y-rum-app",
   "routes": [
     {
       "path": "rum/*",

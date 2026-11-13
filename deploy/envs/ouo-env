@@ -352,7 +352,7 @@ async function main() {
     case "env": {
       const s = readState(need(a1));
       if (!s) throw new Error(`no env ${a1}`);
-      return console.log(lib.exportsOf(s.env, s.block, s.muninn));
+      return console.log(lib.exportsOf(s.env, s.block, s.muninn, s.idp));
     }
     case "proxy":
       if (a1 === "down") return proxyCompose(["down"]);

@@ -1,5 +1,5 @@
 // End-to-end check of the plugin BFF slice (ADR-0023) against an ouo-env stack started with
-// --muninn:
+// --muninn and without --idp (Clearance in roles mode; clearance-idp.mjs checks groups mode):
 //
 //   deploy/envs/ouo-env up <env> --muninn
 //   eval "$(deploy/envs/ouo-env env <env>)"
@@ -21,15 +21,12 @@
 // OUO_BROWSER_SDK_SRC: a @ouo11y/browser source entry (sdk/browser/src/index.ts of a checkout) to
 // bundle instead of the released package, e.g. a fix not yet released.
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
-import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
 import { chromium } from "playwright";
+import { record } from "./record.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(HERE, "../../..");
 const env = process.env;
 const need = (k) => (env[k] ?? (() => { throw new Error(`${k} is not set (eval "$(deploy/envs/ouo-env env <env>)")`); })()).replace(/\/$/, "");
 const OTLP = need("OUO_OTLP_URL");
@@ -40,7 +37,7 @@ const ADMIN = { user: "admin", password: env.OUO_GRAFANA_ADMIN_PASSWORD ?? "test
 // A Viewer created by this test in the local env; its password is a throwaway test value.
 const VIEWER = { user: "e2e-viewer", password: "e2e-viewer-local-only" };
 const APP = `${GRAFANA}/a/ouo11y-rum-app/explore`;
-const BFF = `${GRAFANA}/api/plugins/ouo11y-rum-app/resources/v1`;
+const BFF = `${GRAFANA}/api/datasources/uid/ouo11y/resources/v1`;
 const OUT = path.join(HERE, "out");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -56,45 +53,6 @@ async function poll(what, fn, timeoutS = 120) {
     if (v) return v;
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
     await sleep(2000);
-  }
-}
-
-// --- 1. record ------------------------------------------------------------------------
-async function record(browser) {
-  const marker = randomBytes(4).toString("hex");
-  const user = `e2e-user-${marker}`;
-  const out = path.join(HERE, "build");
-  fs.mkdirSync(out, { recursive: true });
-  const sdkSrc = env.OUO_BROWSER_SDK_SRC ? path.resolve(env.OUO_BROWSER_SDK_SRC) : null;
-  await build({
-    entryPoints: [path.join(HERE, "page/entry.js")], bundle: true, format: "iife", target: "es2022",
-    outfile: path.join(out, "page.js"), logLevel: "warning",
-    ...(sdkSrc ? { alias: { "@ouo11y/browser": sdkSrc }, nodePaths: [path.join(REPO, "node_modules"), path.join(REPO, "sdk/browser/node_modules")] } : {}),
-  });
-  const cfg = JSON.stringify({ endpoint: OTLP, projectId: PROJECT, projectToken: TOKEN, user });
-  const html = fs.readFileSync(path.join(HERE, "page/index.html"), "utf8").replace("__CONFIG__", cfg).replace("__MARKER__", marker);
-  const js = fs.readFileSync(path.join(out, "page.js"));
-  const server = http.createServer((req, res) => {
-    if (req.url === "/page.js") return res.writeHead(200, { "content-type": "text/javascript" }).end(js);
-    res.writeHead(200, { "content-type": "text/html" }).end(html);
-  });
-  await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const page = await browser.newPage();
-  try {
-    await page.goto(`http://localhost:${server.address().port}`);
-    await page.waitForFunction(() => window.ouo?.getSessionId());
-    const session = await page.evaluate(() => window.ouo.getSessionId());
-    for (let i = 0; i < 5; i++) {
-      await page.click("#add");
-      await sleep(700);
-    }
-    await page.evaluate(() => window.ouo.shutdown()); // flushes and closes the replay stream
-    await sleep(1000);
-    console.log(`recorded session ${session} (marker ${marker}, SDK ${sdkSrc ?? "@ouo11y/browser 0.4.0 from npm"})`);
-    return { session, marker, user, sdk: sdkSrc ?? "@ouo11y/browser 0.4.0 (npm)" };
-  } finally {
-    await page.close();
-    server.close();
   }
 }
 
@@ -118,7 +76,7 @@ async function grafanaContext(browser, who) {
   const responses = [];
   ctx.on("response", async (resp) => {
     const url = resp.url();
-    if (!url.includes("/api/plugins/ouo11y-rum-app/resources/")) return;
+    if (!url.includes("/api/datasources/uid/ouo11y/resources/")) return;
     const entry = { path: url.slice(url.indexOf("/resources/") + "/resources".length), status: resp.status() };
     try {
       const type = resp.headers()["content-type"] ?? "";
@@ -255,7 +213,7 @@ pre{background:#f6f8fa;padding:12px;overflow:auto;max-height:480px;font-size:12p
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch();
 try {
-  const rec = await record(browser);
+  const rec = await record(browser, { otlp: OTLP, project: PROJECT, token: TOKEN });
   const admin = await asAdmin(browser, rec);
   const viewer = await asViewer(browser, rec, admin.manifest);
   report(rec, admin, viewer);

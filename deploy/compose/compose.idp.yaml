@@ -43,5 +43,7 @@ services:
       # Grafana refreshes the user's tokens when they expire; the plugin backend then gets a
       # fresh ID token with the user's current groups.
       GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN: "true"
-      # Read by grafana/provisioning (the ouo11y datasource): the issuer the backend expects.
+      # Read by grafana/provisioning/datasources (the ouo11y datasource): Clearance from the
+      # groups of the user's ID token, and the issuer the backend expects in it.
+      OUO_CLEARANCE_MODE: groups
       OUO_OIDC_ISSUER: ${OUO_KEYCLOAK_URL:-http://localhost:8180}/realms/ouo

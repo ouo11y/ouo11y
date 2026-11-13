@@ -55,7 +55,7 @@ test('the list reads the BFF and says what clearance hid', async () => {
   expect(screen.getByTestId('clearance-note')).toHaveTextContent('event attributes, replays, user identity');
   expect(screen.getByText('hidden')).toBeInTheDocument();
   const urls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
-  expect(urls.every((u) => u.startsWith('/api/plugins/ouo11y-rum-app/resources/v1/'))).toBe(true);
+  expect(urls.every((u) => u.startsWith('/api/datasources/uid/ouo11y/resources/v1/'))).toBe(true);
 });
 
 test('below replay clearance the session page asks for no replay', async () => {

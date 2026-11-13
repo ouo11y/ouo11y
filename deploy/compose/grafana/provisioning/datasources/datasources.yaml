@@ -76,3 +76,34 @@ datasources:
       exemplarTraceIdDestination:
         - name: trace_id
           datasourceUid: tempo
+
+  # The ouo11y RUM app's backend (the BFF, ADR-0023): the datasource nested in the plugin.
+  # The Session explorer calls its resources; the uid is fixed (BFF_DATASOURCE_UID in the
+  # plugin). It reads Loki and Muninn directly: lokiUrl, muninnUrl and muninnTenant default
+  # to this stack's (http://loki:3100, http://muninn:3400, anonymous).
+  #
+  # Clearance (ADR-0024) is the secure field `clearance`, a JSON object no user can read back:
+  #   mode    "groups": the level is the highest among the user's identity-provider groups,
+  #           read from the ID token Grafana forwards (oauthPassThru) and verified with `oidc`;
+  #           "roles": the level comes from the Grafana org role, for a Grafana with no
+  #           identity provider. Anything else: every user is level 0.
+  #   groups  group name -> level 0-5        roles  Viewer / Editor / Admin -> level 0-5
+  # ${OUO_CLEARANCE_MODE} is "roles" in this stack and "groups" with compose.idp.yaml, whose
+  # Keycloak realm has the three groups below. ${OUO_MUNINN_READ_TOKEN} is set by
+  # compose.muninn.yaml; empty without it, when the explorer shows no replays.
+  - name: ouo11y
+    uid: ouo11y
+    type: ouo11y-rum-datasource
+    access: proxy
+    jsonData:
+      oauthPassThru: true
+      oidc:
+        issuer: "${OUO_OIDC_ISSUER}"
+        audience: grafana
+        jwksUrl: http://keycloak:8080/realms/ouo/protocol/openid-connect/certs
+    secureJsonData:
+      muninnReadToken: ${OUO_MUNINN_READ_TOKEN}
+      clearance: >-
+        {"mode": "${OUO_CLEARANCE_MODE}",
+         "groups": {"rum-support": 1, "rum-engineers": 3, "rum-privacy": 4},
+         "roles": {"Viewer": 1, "Editor": 3, "Admin": 5}}

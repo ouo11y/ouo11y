@@ -78,7 +78,7 @@ spec:
             - name: GF_USERS_DEFAULT_THEME
               value: {{ .Values.grafana.defaultTheme | quote }}
             - name: GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS
-              value: ouo11y-rum-app
+              value: ouo11y-rum-app,ouo11y-rum-datasource
             - name: GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS
               value: ouo11y-rum-app
             {{- $rootUrl := "" }}

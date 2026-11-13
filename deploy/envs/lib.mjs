@@ -302,11 +302,12 @@ export function renderOverlay(s) {
 export const envNetwork = (env) => `${project(env)}_default`;
 
 // Shell exports that point deploy/scripts/{wait-ready,smoke,e2e}.sh at an env.
-export function exportsOf(env, block, muninn = false) {
+export function exportsOf(env, block, muninn = false, idp = false) {
   const p = portsOf(block);
   const u = (n) => urlOf(env, n);
   return [
     ...(muninn ? [["OUO_MUNINN_URL", u("muninn")], ["OUO_COMPOSE_PROJECT", project(env)]] : []),
+    ...(idp ? [["OUO_KEYCLOAK_URL", u("keycloak")]] : []),
     ["OUO_GRAFANA_URL", u("grafana")],
     ["OUO_RUM_API_URL", u("rum-api")],
     ["OUO_OTLP_URL", `http://localhost:${p.otlp}`],
