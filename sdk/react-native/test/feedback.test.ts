@@ -166,7 +166,7 @@ describe("rum.feedback through initRUM", () => {
     expect(attr(a, "ouo.feedback.message")).toBe("Paying fails every time");
     expect(attr(a, "ouo.feedback.contact")).toBe("ana@example.com");
     expect(attr(a, "ouo.feedback.id")).toBe(id);
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(id).toMatch(/^[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/);
     expect(attr(a, "session.id")).toBe(rum.session.id());
     expect(attr(a, "ouo.feedback.screenshot")).toBeUndefined();
     const last = JSON.parse(attr(a, "ouo.last_events") as string) as RecentEvent[];

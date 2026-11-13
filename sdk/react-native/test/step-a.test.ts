@@ -125,7 +125,7 @@ describe("configuration never throws (CFG-1, CFG-2, CFG-3)", () => {
     expect(getRUM()).toBeUndefined();
     const real = initRUM(base);
     expect(getRUM()).toBe(real);
-    expect(real.getSessionId()).toMatch(/^[0-9a-f-]{36}$/);
+    expect(real.getSessionId()).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("the project token, or any prefix of it, is in no diagnostic, URL or record", async () => {

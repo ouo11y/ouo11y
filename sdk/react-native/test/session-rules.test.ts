@@ -160,7 +160,7 @@ describe("session rules", () => {
 
     AppState.__emit("active");
     const id = rum.getSessionId()!;
-    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(id).toMatch(/^[0-9a-f]{32}$/);
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
     expect((nativeReplay.start.mock.calls[0]![1] as { sessionId: string }).sessionId).toBe(id);
     rum.recordEvent("opened");

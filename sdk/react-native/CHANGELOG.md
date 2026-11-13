@@ -8,6 +8,11 @@ telemetry are step B).
 
 ### Breaking: replay over OTLP (ADR-0021 decision 5)
 
+- **`session.id` and feedback ids are 32 lowercase hex characters** (a UUID v4 without its
+  dashes, SES-1), as `@ouo11y/browser` writes them. Muninn rejects a replay chunk whose
+  `session.id` has any other form, so with dashed ids every replay chunk was dropped after the
+  Collector had answered 2xx. A session persisted by an older version keeps its id until it
+  rotates.
 - **Replay chunks are OTLP log records.** The native module sends each chunk as one protobuf
   request to `${endpoint}/v1/logs` (scope `ouo.replay`, event `ouo.replay.chunk`) and ends a
   stream with `ouo.replay.ended`. The custom upload to `/v1/replay/chunks` is gone from the
