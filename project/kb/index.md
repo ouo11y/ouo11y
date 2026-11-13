@@ -1,3 +1,4 @@
+| [muninn/](muninn/index.md) | Muninn, the replay store: what building it and its Collector config taught (read-path gzip pitfalls, ocb and MinIO quirks, which Collector points running it settled) |
 # Knowledge base
 
 The knowledge base for the post-MVP work. Entries live in descriptive topic folders, `project/kb/<area>/<subject>/<topic>.md`, and every folder has an `index.md`. Add one line here for every new area.

@@ -26,6 +26,7 @@ deploy/envs/ouo-env proxy up|down        # the shared proxy (up is implicit in `
 ```
 
 - `up main` fetches origin and checks out `origin/main` in the main worktree (`--ref <ref>` for another ref), builds the plugin there when the commit changed, then builds the images. `--images` runs the released GHCR images instead (`compose.images.yaml`, public images, no login). Refresh main after every merge with `deploy/envs/ouo-env up main`.
+- `up <env> --muninn` adds `deploy/compose/compose.muninn.yaml`: Muninn (the replay store, ADR-0019) on MinIO, and the collector on `collector/config.muninn.yaml`, where replay chunks are OTLP log records on `/v1/logs` routed to Muninn through a disk queue. The flag is kept in the env's state for later `up`s. Muninn is at `http://muninn.<env>.ouo.localhost`; `ouo-env env <env>` also exports `OUO_MUNINN_URL` and `OUO_COMPOSE_PROJECT` for `tests/e2e/muninn/run.mjs`.
 - `up <env>` for any other env builds from the checkout the script lives in (`--src <dir>` for another one) and records the branch, its PR (via `gh`), `OUO_SESSION` / `--session`, the creation time and the port block as Docker labels (`ouo.env`, `ouo.branch`, `ouo.pr`, `ouo.session`, `ouo.created`, `ouo.block`) and in `~/.local/state/ouo-env/<env>.json` (override with `OUO_ENV_STATE`).
 - `gc` never touches `main` or `sbx`, and keeps an env when `gh` cannot answer. Volumes are kept unless `--purge`.
 - Smoke-test an env: `eval "$(deploy/envs/ouo-env env sbx)" && deploy/scripts/smoke.sh`.

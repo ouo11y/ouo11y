@@ -1,3 +1,4 @@
+| [muninn-build](muninn-build/) | Muninn, the replay store (`services/muninn`), and the spec-wire Collector config that feeds it (`deploy/compose/collector/config.muninn.yaml`, `compose.muninn.yaml`, `ouo-env up --muninn`, `tests/e2e/muninn/`), from the ADR-0019 design | post-MVP step 8 |
 # Agents
 
 One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summaries/`. Reports are HTML under `reports/` inside the folder. All of it lives under `project/` (ADR-0010).
