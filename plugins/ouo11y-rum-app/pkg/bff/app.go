@@ -26,6 +26,10 @@ type Settings struct {
 	MuninnURL    string `json:"muninnUrl"`
 	MuninnTenant string `json:"muninnTenant"`
 	TempoURL     string `json:"tempoUrl"`
+	// MimirURL is the Prometheus API base of Mimir (the overview's backend section).
+	MimirURL string `json:"mimirUrl"`
+	// Funnels are the provisioned funnel definitions (ADR-0025).
+	Funnels []ouogo.Funnel `json:"funnels"`
 	// GrafanaURL is where the backend reaches Grafana's own API (team lookups). The backend
 	// runs inside Grafana's container, so the default is http://localhost:3000.
 	GrafanaURL string                `json:"grafanaUrl"`
@@ -39,6 +43,9 @@ type App struct {
 	clearance ouogo.ClearanceConfig
 	teamNames []string
 	teams     *teams
+	funnels   []ouogo.Funnel
+	// funnelErrors are the definitions that did not validate, shown to whoever lists funnels.
+	funnelErrors []string
 }
 
 // NewApp builds an instance from the app settings Grafana passes.
@@ -69,12 +76,30 @@ func New(cfg Settings, muninnReadToken string) *App {
 				ReadToken: muninnReadToken,
 			},
 			Tempo: &ouogo.Tempo{URL: def(cfg.TempoURL, "http://tempo:3200"), HTTP: &http.Client{Timeout: 30 * time.Second}},
+			Mimir: &ouogo.Mimir{URL: def(cfg.MimirURL, "http://mimir:9009/prometheus"), HTTP: &http.Client{Timeout: 30 * time.Second}},
 		},
 		clearance: cfg.Clearance,
 		teamNames: cfg.Clearance.TeamNames(),
 		teams:     newTeams(def(cfg.GrafanaURL, "http://localhost:3000")),
 	}
+	ids := map[string]bool{}
+	for _, f := range cfg.Funnels {
+		if err := f.Validate(); err != nil {
+			a.funnelErrors = append(a.funnelErrors, err.Error())
+			continue
+		}
+		if ids[f.ID] {
+			a.funnelErrors = append(a.funnelErrors, "funnel id "+f.ID+" is used twice; the first one is kept")
+			continue
+		}
+		ids[f.ID] = true
+		a.funnels = append(a.funnels, f)
+	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/overview", a.overview)
+	mux.HandleFunc("GET /v1/funnels", a.funnelList)
+	mux.HandleFunc("GET /v1/funnels/{funnel}", a.funnel)
+	mux.HandleFunc("GET /v1/funnels/{funnel}/steps/{step}/sessions", a.funnelDropped)
 	mux.HandleFunc("GET /v1/me", a.me)
 	mux.HandleFunc("GET /v1/sessions", a.sessions)
 	mux.HandleFunc("GET /v1/projects/{project}/sessions/{session}", a.session)
@@ -178,6 +203,94 @@ func (a *App) chunk(w http.ResponseWriter, r *http.Request) {
 	// no-store: a lowered Clearance level must take effect at once, also for bytes already seen.
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(out.Body)
+}
+
+func (a *App) overview(w http.ResponseWriter, r *http.Request) {
+	tr, err := timeRange(r)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	q := r.URL.Query()
+	out, err := a.client.GetOverview(r.Context(), a.clearanceOf(r), ouogo.OverviewQuery{TimeRange: tr, Project: q.Get("project"), Platform: q.Get("platform")})
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	if out.BackendErr != nil {
+		log.DefaultLogger.FromContext(r.Context()).Error("backend metrics failed", "error", out.BackendErr.Error())
+	}
+	writeJSON(w, out)
+}
+
+type funnelListAnswer struct {
+	Funnels []ouogo.Funnel `json:"funnels"`
+	Invalid []string       `json:"invalid,omitempty"`
+}
+
+// funnelList lists the definitions to anyone with c1 somewhere. Invalid definitions are named
+// to Admins only (they are the ones who can fix the provisioning).
+func (a *App) funnelList(w http.ResponseWriter, r *http.Request) {
+	cl := a.clearanceOf(r)
+	if !cl.Max().Can().Timeline {
+		writeErr(w, r, ouogo.ErrForbidden)
+		return
+	}
+	out := funnelListAnswer{Funnels: []ouogo.Funnel{}}
+	for _, f := range a.funnels {
+		if f.Project == "" || cl.For(f.Project).Can().Timeline {
+			out.Funnels = append(out.Funnels, f)
+		}
+	}
+	if cl.Role == "Admin" {
+		out.Invalid = a.funnelErrors
+	}
+	writeJSON(w, out)
+}
+
+func (a *App) funnelQuery(r *http.Request) (ouogo.Funnel, ouogo.FunnelQuery, error) {
+	tr, err := timeRange(r)
+	if err != nil {
+		return ouogo.Funnel{}, ouogo.FunnelQuery{}, err
+	}
+	f, err := ouogo.FindFunnel(a.funnels, r.PathValue("funnel"))
+	if err != nil {
+		return f, ouogo.FunnelQuery{}, err
+	}
+	q := r.URL.Query()
+	return f, ouogo.FunnelQuery{TimeRange: tr, Project: q.Get("project"), Platform: q.Get("platform")}, nil
+}
+
+func (a *App) funnel(w http.ResponseWriter, r *http.Request) {
+	f, q, err := a.funnelQuery(r)
+	if err == nil {
+		var out *ouogo.FunnelReport
+		if out, err = a.client.RunFunnel(r.Context(), a.clearanceOf(r), f, q); err == nil {
+			writeJSON(w, out)
+			return
+		}
+	}
+	writeErr(w, r, err)
+}
+
+func (a *App) funnelDropped(w http.ResponseWriter, r *http.Request) {
+	f, q, err := a.funnelQuery(r)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	step, err := strconv.Atoi(r.PathValue("step"))
+	if err != nil {
+		writeErr(w, r, &ouogo.BadRequestError{Msg: "step must be an integer"})
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	out, err := a.client.FunnelDropped(r.Context(), a.clearanceOf(r), f, q, step, r.URL.Query().Get("outcome"), limit)
+	if err != nil {
+		writeErr(w, r, err)
+		return
+	}
+	writeJSON(w, out)
 }
 
 // timeRange reads from and to, in ms since the epoch; absent means the last 24 hours.

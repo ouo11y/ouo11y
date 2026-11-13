@@ -178,3 +178,51 @@ func TestTeamsFromGrafana(t *testing.T) {
 		t.Errorf("sam without a token: %v", b)
 	}
 }
+
+func TestFunnelEndpoints(t *testing.T) {
+	loki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nav := `{"stream":{"ouo_project_id":"demo","session_id":"` + sess + `","ouo_platform":"web","event_name":"browser.navigation","url_full":"https://x/products/1","enduser_id":"u-1"},"values":[["1794400000000000000",""]]}`
+		ev := `{"stream":{"ouo_project_id":"demo","session_id":"` + sess + `","ouo_platform":"web","event_name":"exception","enduser_id":"u-1"},"values":[["1794400001000000000",""]]}`
+		body := ev
+		if strings.Contains(r.URL.Query().Get("query"), "navigation") {
+			body = nav
+		}
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"streams","result":[` + body + `]}}`))
+	}))
+	defer loki.Close()
+	var funnels []ouogo.Funnel
+	_ = json.Unmarshal([]byte(`[{"id":"shop","steps":[{"kind":"page","value":"/products","prefix":true},{"kind":"event","value":"cart.add"}]},
+		{"id":"broken","steps":[{"kind":"page","value":"no-slash"},{"kind":"event","value":"x"}]}]`), &funnels)
+	a := New(Settings{LokiURL: loki.URL, Funnels: funnels, Clearance: mustClearance(t, `{"roles":{"Viewer":1,"Admin":5}}`)}, "")
+	viewer := &backend.User{Login: "v", Role: "Viewer"}
+	admin := &backend.User{Login: "a", Role: "Admin"}
+
+	if st, b := call(t, a, viewer, "/v1/funnels"); st != 200 || len(b["funnels"].([]any)) != 1 || b["invalid"] != nil {
+		t.Errorf("viewer list: %d %v", st, b)
+	}
+	if _, b := call(t, a, admin, "/v1/funnels"); len(b["invalid"].([]any)) != 1 {
+		t.Errorf("admin sees the invalid definition: %v", b)
+	}
+	st, b := call(t, a, viewer, "/v1/funnels/shop?from=1794399000000&to=1794401000000")
+	steps, _ := b["steps"].([]any)
+	if st != 200 || len(steps) != 2 || steps[0].(map[string]any)["sessions"] != 1.0 || steps[1].(map[string]any)["failed"] != 1.0 {
+		t.Errorf("viewer report: %d %v", st, b)
+	}
+	st, b = call(t, a, viewer, "/v1/funnels/shop/steps/2/sessions?outcome=failed&from=1794399000000&to=1794401000000")
+	s := b["sessions"].([]any)
+	if st != 200 || len(s) != 1 || s[0].(map[string]any)["user"] != nil {
+		t.Errorf("viewer drop-offs: %d %v", st, b)
+	}
+	_, b = call(t, a, admin, "/v1/funnels/shop/steps/2/sessions?from=1794399000000&to=1794401000000")
+	if b["sessions"].([]any)[0].(map[string]any)["user"] != "u-1" {
+		t.Errorf("admin drop-offs carry the user: %v", b)
+	}
+	for p, want := range map[string]int{"/v1/funnels/nope": 404, "/v1/funnels/shop/steps/x/sessions": 400, "/v1/funnels/shop/steps/1/sessions": 400} {
+		if st, _ := call(t, a, viewer, p); st != want {
+			t.Errorf("%s: %d, want %d", p, st, want)
+		}
+	}
+	if st, _ := call(t, a, &backend.User{Login: "n", Role: "Editor"}, "/v1/funnels"); st != 403 {
+		t.Errorf("level 0 list: %d", st)
+	}
+}
