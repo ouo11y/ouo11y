@@ -69,6 +69,12 @@ services:
       muninn-init:
         condition: service_completed_successfully
 
+  # The plugin's backend reads Muninn with the read token (ADR-0023);
+  # grafana/provisioning/plugins/ouo11y-rum-app.yaml puts it in secureJsonData.
+  grafana:
+    environment:
+      OUO_MUNINN_READ_TOKEN: ${OUO_MUNINN_READ_TOKEN:-mrt_dev_0000000000000000}
+
   otel-collector:
     volumes: !override
       - ./collector/config.muninn.yaml:/etc/otelcol/config.yaml:ro

@@ -179,7 +179,8 @@ function mainSource(ref) {
 function buildPlugin(src) {
   const marker = path.join(src, "plugins/ouo11y-rum-app/dist/.ouo-env-built");
   const head = git(src, "rev-parse", "HEAD");
-  const dirty = git(src, "status", "--porcelain", "--", "plugins/ouo11y-rum-app");
+  // The plugin imports libs/ (ouo-go in its backend, ouo-kit in its frontend, ADR-0023).
+  const dirty = git(src, "status", "--porcelain", "--", "plugins/ouo11y-rum-app", "libs");
   if (fs.existsSync(marker) && fs.readFileSync(marker, "utf8").trim() === head && !dirty) return;
   log(`building plugins/ouo11y-rum-app in ${src}`);
   if (!fs.existsSync(path.join(src, "node_modules"))) run("npm", ["ci", "--no-audit", "--no-fund"], { cwd: src });

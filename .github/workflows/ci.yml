@@ -57,9 +57,9 @@ jobs:
           fi
           match() { [ "$all" = true ] || printf '%s\n' "$files" | grep -Eq "$1"; }
           flag() { if match "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
-          flag go        '^(services/rum-api|services/muninn|examples/backend)/'
+          flag go        '^(services/rum-api|services/muninn|examples/backend|libs/ouo-go|plugins/ouo11y-rum-app/(pkg/|go\.(mod|sum)$))'
           flag collector '^(collector|deploy/compose/collector)/'
-          flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
+          flag node      '^(sdk|plugins|libs|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           # The Kotlin, the scripts and manifests that vendor and build it into the example app.
           flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
@@ -75,7 +75,7 @@ jobs:
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
           match '^services/muninn/'                                         && images="$images\"muninn\","
           match '^collector/'                                               && images="$images\"collector\","
-          match '^(deploy/images/grafana|plugins/ouo11y-rum-app)/|^package-lock\.json$' && images="$images\"grafana\","
+          match '^(deploy/images/grafana|plugins/ouo11y-rum-app|libs)/|^package-lock\.json$' && images="$images\"grafana\","
           echo "images=[${images%,}]" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
@@ -137,7 +137,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [services/rum-api, services/muninn, examples/backend]
+        module: [services/rum-api, services/muninn, examples/backend, libs/ouo-go, plugins/ouo11y-rum-app]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -148,7 +148,8 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          # go.mod, not go.sum: libs/ouo-go has no dependencies and so no go.sum.
+          cache-dependency-path: ${{ matrix.module }}/go.mod
       - name: go mod verify
         run: go mod verify
       - name: go vet

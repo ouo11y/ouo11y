@@ -31,9 +31,13 @@ for (const p of platforms) {
     // The module cache is a host directory owned by this user, kept between builds.
     const cache = path.join(os.tmpdir(), "ouo-gomod-cache");
     fs.mkdirSync(cache, { recursive: true });
+    // Rootless Docker (the CI runners) maps container root to this user, so run as root there;
+    // elsewhere run as this user so dist/ stays ours.
+    const rootless = /rootless/.test(execFileSync("docker", ["info", "--format", "{{json .SecurityOptions}}"], { encoding: "utf8" }));
+    const user = rootless ? [] : ["-u", `${process.getuid()}:${process.getgid()}`];
     execFileSync("docker", [
       "run", "--rm", "-v", `${repo}:/src`, "-v", `${cache}:/gomod`, "-e", "GOMODCACHE=/gomod",
-      "-w", "/src/plugins/ouo11y-rum-app", "-u", `${process.getuid()}:${process.getgid()}`,
+      "-w", "/src/plugins/ouo11y-rum-app", ...user,
       "-e", "GOCACHE=/tmp/gocache", "-e", "GOFLAGS=-buildvcs=false",
       ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
       GO_IMAGE, "go", ...args,
