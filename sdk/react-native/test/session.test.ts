@@ -72,14 +72,15 @@ describe("SessionManager (docs/specs/session-lifecycle.md, mobile)", () => {
     expect(events).toHaveLength(1);
     expect(events[0]!.name).toBe("session.start");
     expect(events[0]!.attributes["session.id"]).toBe(manager.id());
-    expect(events[0]!.attributes["user.id"]).toBe(manager.userId());
+    // Spec PRV-13: no user id until the app sets one; nothing anonymous is made up or persisted.
+    expect(events[0]!.attributes["user.id"]).toBeUndefined();
+    expect(manager.userId()).toBe("");
     expect(events[0]!.attributes["ouo.session.started_at"]).toBe(Date.now());
     expect(events[0]!.attributes["session.previous_id"]).toBeUndefined();
     expect(events[0]!.timestamp).toBe(Date.now());
     expect(persisted(storage).id).toBe(manager.id());
-    expect(persisted(storage).userId).toBe(manager.userId());
-    expect(manager.isAnonymousUser()).toBe(true);
-    expect(JSON.parse(storage.peek(USER_STORAGE_KEY)!)).toEqual({ id: manager.userId(), anonymous: true });
+    expect(persisted(storage).userId).toBe("");
+    expect(storage.peek(USER_STORAGE_KEY)).toBeNull();
   });
 
   it("case 2: re-init within the inactivity window (same process) resumes the session with no new event", async () => {
@@ -287,28 +288,37 @@ describe("SessionManager (docs/specs/session-lifecycle.md, mobile)", () => {
     expect(second.events[0]!.attributes["session.previous_id"]).toBe(id);
   });
 
-  it("keeps the anonymous user id across launches and persists an app-provided user", async () => {
+  it("has no user id until setUser (PRV-13); a set user persists across launches; clearUser removes it; an old anonymous id is dropped", async () => {
     const storage = new MemoryAsyncStorage();
+    // An anonymous id written by an older SDK version.
+    await storage.setItem(USER_STORAGE_KEY, JSON.stringify({ id: "anon-from-0.3.0", anonymous: true }));
     const first = launch(storage);
     await first.manager.start();
-    const anon = first.manager.userId();
+    expect(first.manager.userId()).toBe("");
+    expect(storage.peek(USER_STORAGE_KEY)).toBeNull();
     const disk2 = storage.clone();
     const second = launch(disk2, {});
     await second.manager.start();
-    expect(second.manager.userId()).toBe(anon);
-    expect(second.manager.isAnonymousUser()).toBe(true);
-    expect(second.events[1]!.attributes["user.id"]).toBe(anon);
+    expect(second.manager.userId()).toBe("");
+    expect(second.events[1]!.attributes["user.id"]).toBeUndefined();
 
     second.manager.setUser("user-42");
-    expect(second.manager.isAnonymousUser()).toBe(false);
+    expect(second.manager.userId()).toBe("user-42");
     expect(JSON.parse(disk2.peek(USER_STORAGE_KEY)!)).toEqual({ id: "user-42", anonymous: false });
+    // The next launch, without a user at init, still knows the user that was set.
+    const relaunch = launch(disk2.clone(), {});
+    await relaunch.manager.start();
+    expect(relaunch.manager.userId()).toBe("user-42");
+    relaunch.manager.clearUser();
+    expect(relaunch.manager.userId()).toBe("");
     const third = launch(disk2.clone(), {}, { initialUserId: "user-42" });
     await third.manager.start();
     expect(third.manager.userId()).toBe("user-42");
     expect(third.events[0]!.attributes["user.id"]).toBe("user-42");
   });
 
-  it("persists activity at most once per second and immediately on structural changes", async () => {
+  // Spec SES-6: at most once per 5 s (it was once per second).
+  it("persists activity at most once per 5 s and immediately on structural changes", async () => {
     const storage = new MemoryAsyncStorage();
     const spy = vi.spyOn(storage, "setItem");
     const { manager } = launch(storage);
@@ -316,7 +326,7 @@ describe("SessionManager (docs/specs/session-lifecycle.md, mobile)", () => {
     spy.mockClear();
     manager.touch();
     manager.touch();
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(4500);
     manager.touch();
     expect(spy.mock.calls.filter((c) => c[0] === SESSION_STORAGE_KEY)).toHaveLength(0);
     vi.advanceTimersByTime(600);

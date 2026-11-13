@@ -397,11 +397,13 @@ describe("initRUM({ replay })", () => {
   });
 
   it("tells the native recorder about every session rotation", async () => {
-    const rum = initRUM(options({ replay: { enabled: true }, session: { backgroundTimeoutMs: 30 } })) as RUMInternal;
+    // The shortest background timeout the SDK accepts is a minute (spec CFG-2): the clock is moved past it.
+    const rum = initRUM(options({ replay: { enabled: true }, session: { backgroundTimeoutMs: 60_000 } })) as RUMInternal;
     await rum.ready;
     const first = rum.session.id();
     AppState.__emit("background");
-    await new Promise((r) => setTimeout(r, 60));
+    const backgroundedAt = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => backgroundedAt + 61_000);
     AppState.__emit("active");
     const second = rum.session.id();
     expect(second).not.toBe(first);

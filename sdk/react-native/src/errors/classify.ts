@@ -1,5 +1,6 @@
 import type { Attrs } from "../types";
 import { debugIdAttribute } from "./debugids";
+import { safeString } from "../text";
 import { normalizeStack } from "./stack";
 
 export type ExceptionKind = "uncaught" | "unhandledrejection" | "console" | "captured" | "sentry";
@@ -30,7 +31,7 @@ export function serializeError(err: unknown): SerializedError {
     }
     return { type: "Object", message: safeStringify(err), stacktrace: "" };
   }
-  return { type: typeof err === "string" ? "Error" : capitalize(typeof err), message: String(err), stacktrace: "" };
+  return { type: typeof err === "string" ? "Error" : capitalize(typeof err), message: safeString(err), stacktrace: "" };
 }
 
 /**
@@ -74,9 +75,9 @@ export function serializeConsoleArgs(args: unknown[]): { error: unknown; message
 function safeStringify(v: unknown): string {
   try {
     const s = JSON.stringify(v);
-    return s === undefined ? String(v) : s.length > 2000 ? `${s.slice(0, 2000)}...` : s;
+    return s === undefined ? safeString(v) : s.length > 2000 ? `${s.slice(0, 2000)}...` : s;
   } catch {
-    return String(v);
+    return safeString(v);
   }
 }
 

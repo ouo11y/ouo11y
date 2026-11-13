@@ -62,7 +62,7 @@ describe("sampled processors", () => {
 
   it("forward only records and spans of sampled sessions", async () => {
     const innerLog = { onEmit: vi.fn(), forceFlush: vi.fn(() => Promise.resolve()), shutdown: vi.fn(() => Promise.resolve()) } satisfies LogRecordProcessor;
-    const logs = new SampledLogProcessor(innerLog, 0.5);
+    const logs = new SampledLogProcessor(innerLog, (id) => sampled(id, 0.5, SAMPLING_SALT.session));
     logs.onEmit({ attributes: { "session.id": inId } } as unknown as SdkLogRecord);
     logs.onEmit({ attributes: { "session.id": outId } } as unknown as SdkLogRecord);
     logs.onEmit({ attributes: {} } as unknown as SdkLogRecord);
@@ -71,7 +71,7 @@ describe("sampled processors", () => {
     expect(innerLog.forceFlush).toHaveBeenCalled();
 
     const innerSpan = { onStart: vi.fn(), onEnd: vi.fn(), forceFlush: vi.fn(() => Promise.resolve()), shutdown: vi.fn(() => Promise.resolve()) } satisfies SpanProcessor;
-    const spans = new SampledSpanProcessor(innerSpan, 0.5);
+    const spans = new SampledSpanProcessor(innerSpan, (id) => sampled(id, 0.5, SAMPLING_SALT.session));
     spans.onEnd({ attributes: { "session.id": inId } } as unknown as ReadableSpan);
     spans.onEnd({ attributes: { "session.id": outId } } as unknown as ReadableSpan);
     expect(innerSpan.onEnd).toHaveBeenCalledTimes(1);

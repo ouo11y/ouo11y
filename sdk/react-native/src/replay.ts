@@ -1,4 +1,5 @@
 import type { DebugLogger } from "./logger";
+import { guard } from "./guard";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
 import type { AsyncKeyValueStorage, HeldReplaySession, ReplayMode, ReplayOptions, RUMReplay } from "./types";
 
@@ -23,6 +24,10 @@ export interface NativeReplayModule {
   heldReplaySessions?(endpoint: string, options: NativeStartOptions): Promise<NativeHeldSession[]>;
   /** Sends (`keep`) or deletes a held session's chunks. */
   releaseHeldReplay?(endpoint: string, options: NativeStartOptions, sessionId: string, keep: boolean): void;
+  /** Spec API `replay.capture`, `replay.mask`, `replay.unmask`: native support lands with step B of ADR-0021; called when present. */
+  capture?(): void;
+  mask?(target: unknown): void;
+  unmask?(target: unknown): void;
 }
 
 export interface NativeHeldSession {
@@ -125,6 +130,8 @@ export interface ReplayControllerOptions {
   storage?: AsyncKeyValueStorage;
   /** Capture stopped for a never-record screen (`screen`) or `hideScreen()` (`manual`) while the session records. */
   onHidden?: (reason: "screen" | "manual") => void;
+  /** Replay consent (spec PRV-3). False: the native recorder is not started and sends nothing until `setAllowed(true)`. Default true. */
+  allowed?: boolean;
   logger: DebugLogger;
 }
 
@@ -147,7 +154,7 @@ export function screenExcluded(patterns: Array<string | RegExp> | undefined, pat
 }
 
 /** What `initRUM` drives; `RUMReplay` is the public subset exposed as `rum.replay`. */
-export interface ReplayController extends RUMReplay {
+export interface ReplayController extends Pick<RUMReplay, "pause" | "resume" | "isRecording" | "hideScreen" | "showScreen"> {
   /** True when the native recorder was started. */
   readonly active: boolean;
   start(sessionId: string): void;
@@ -168,6 +175,10 @@ export interface ReplayController extends RUMReplay {
    * nothing stays behind after the hook is removed). `crashedId` is the session that crashed.
    */
   decideHeld(currentId: string, crashedId: string | undefined): Promise<void>;
+  /** Replay consent changed: false stops the recorder, true starts it for the current session. */
+  setAllowed(allowed: boolean): void;
+  /** The native recorder's method of that name, when it has one. */
+  forward(method: "capture" | "mask" | "unmask", target?: unknown): void;
 }
 
 export const REPLAY_ERRORS_KEY = "ouo.replay.errors";
@@ -277,14 +288,25 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   });
 
   // The chunk a crash left open goes out whatever this launch's sampling decides.
-  if (native && endpoint && typeof native.recoverPendingChunk === "function") {
+  let allowed = opts.allowed !== false;
+  // Sends what an earlier run left: only with consent.
+  let recovered = false;
+  const recover = (): void => {
+    if (recovered || !allowed || !native || !endpoint || typeof native.recoverPendingChunk !== "function") return;
+    recovered = true;
     call("recoverPendingChunk", () => native.recoverPendingChunk!(endpoint, nativeOptions("")));
-  }
+  };
+  recover();
 
   const hiddenReason = (): "screen" | "manual" => (screenHidden ? "screen" : "manual");
 
   const startNative = (sessionId: string): void => {
     if (!native || !endpoint || active) return;
+    if (!allowed) {
+      // Remembered: `setAllowed(true)` starts it.
+      pendingStart = sessionId;
+      return;
+    }
     // Native start takes a frame at once: on a hidden screen, start once it is shown.
     if (hidden()) {
       if (pendingStart !== sessionId && !userPaused) opts.onHidden?.(hiddenReason());
@@ -297,7 +319,9 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       native.setSessionId(sessionId);
       native.start(endpoint, startOptions);
       active = true;
-      logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
+      // Never the project token, not even a prefix (spec CFG-3).
+      const { projectToken: _token, ...shown } = startOptions;
+      logger.log("replay: started", { endpoint, ...shown });
     });
     if (active && userPaused) call("pause", () => native.pause());
   };
@@ -328,10 +352,13 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     const now = screenHidden || manualHidden;
     if (was === now) return;
     if (!now) {
-      showing = setTimeout(() => {
-        showing = undefined;
-        show();
-      }, SHOW_DELAY_MS);
+      showing = setTimeout(
+        guard.wrap("timer.replay", () => {
+          showing = undefined;
+          show();
+        }),
+        SHOW_DELAY_MS,
+      );
       return;
     }
     if (showing !== undefined) {
@@ -440,6 +467,29 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       } catch (err) {
         logger.warn("replay: native flush failed", err);
       }
+    },
+    setAllowed(next: boolean): void {
+      if (next === allowed) return;
+      allowed = next;
+      if (!next) {
+        if (native && active) {
+          active = false;
+          pendingStart = currentId;
+          call("stop", () => (native.stop ? native.stop() : native.pause()));
+          // Unsent chunks of the withdrawn category, when the native recorder can delete them.
+          const discard = (native as { discardPending?: () => void }).discardPending;
+          if (typeof discard === "function") call("discardPending", () => discard.call(native));
+        }
+        return;
+      }
+      recover();
+      const id = pendingStart ?? currentId;
+      if (id !== undefined && recorded(id)) startNative(id);
+    },
+    forward(method, target): void {
+      const fn = native?.[method];
+      if (typeof fn !== "function") return;
+      call(method, () => (fn as (target?: unknown) => void).call(native, target));
     },
     stop(): void {
       clearTimeout(showing);

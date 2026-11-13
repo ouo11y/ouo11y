@@ -173,7 +173,7 @@ describe("rum.feedback through initRUM", () => {
     const steps = last.map((e) => `${e.name}|${e.body}`);
     // In emit order, the feedback itself not among them.
     expect(steps.indexOf("navigation|/Cart")).toBeLessThan(steps.indexOf("ui.tap|Tap pay (button) on Cart"));
-    expect(steps).toContain("http.request.failed|GET http://backend.test/api/pay?fail=500 500");
+    expect(steps).toContain("http.request.failed|GET http://backend.test/api/pay?fail=REDACTED 500");
     expect(steps.at(-1)).toBe("log|payment retried");
     expect(steps.some((s) => s.startsWith("feedback|"))).toBe(false);
     expect(last.every((e) => e.ts <= Number(BigInt(f!.timeUnixNano) / 1_000_000n))).toBe(true);

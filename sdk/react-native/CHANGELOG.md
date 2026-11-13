@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0021 step
+A: the names, scope, session id and sampling rules, protobuf and replay over OTLP are step B).
+
+### Changed
+
+- `initRUM` no longer throws on a missing or invalid `endpoint`, `projectId`, `projectToken` or
+  `service.name`: it returns a no-op instance and says why when `debug` is on.
+- `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` below one minute are raised to
+  one minute, `session.maxDurationMs` above 24 hours is lowered to 24 hours.
+- App-supplied event names and attribute keys starting with `session.` or `ouo.` are dropped and
+  counted (except `ouo.exception.fingerprint`).
+- The SDK no longer registers its providers, propagator and context manager as OpenTelemetry
+  globals; `otel.registerGlobal: true` restores that.
+- `withSpan` reports an error as an `exception` log record with the span's ids, not as a span
+  event. String attributes are truncated (stack 25 KiB, others 4 KiB, 64 KB per record).
+- Next to Sentry, ouo hands unhandled rejections to Sentry itself when
+  `errors.onUnhandledRejection` is not set.
+- Debug output no longer prints event attributes, the user id or the first characters of the
+  project token; the double-init warning is printed only with `debug`.
+
+- Sessions start only on activity (touch, navigation, foreground): requests, timers and
+  telemetry no longer extend or start one, and while none is valid records are dropped
+  (`no_session`). A background launch starts no session. At the maximum duration in the
+  foreground the next session starts at once. The last activity is persisted every 5 s at most.
+- An unsampled session now sends its bypass set (unhandled exceptions, crashes, hangs, marked
+  `ouo.sampling.bypass`), capped per session (only a native crash and a termination are exempt); the sampling decision is persisted with the
+  session; unsampled requests propagate `traceparent` with the sampled flag clear.
+- No `baggage` header unless `propagation.sessionBaggage` is set, and then only `session.id`;
+  a request that already has a `traceparent` is never changed.
+- No anonymous `user.id`: records carry `user.id` only after `setUser`; `session.userId()` is
+  `""` until then.
+- Recorded URLs are sanitised where they are captured (request URLs, the `trackNavigation`
+  path, URLs inside `exception.stacktrace` and `exception.message`): credentials, query values
+  and query parts without `=` become `REDACTED`, fragments are removed.
+- A fatal error reaches the previous global handler after at most `errors.fatalFlushTimeoutMs`,
+  also when storage does not answer.
+- Uninstalling (shutdown, self-disable) no longer removes a `fetch`, `XMLHttpRequest`,
+  `console.error` or global-handler patch that another SDK installed after ouo's.
+- Delivery: backoff with full jitter up to 300 s (was a fixed doubling up to 30 s),
+  `Retry-After` capped at 300 s.
+
+### Added
+
+- Consent: `consent.required`, `setConsent({ telemetry, replay })`.
+- `privacy.urlQueryAllow`, `privacy.keepUrlFragment`, `sanitizeUrl`.
+- `sampling.sessionRate`, `sampling.bypass.perSessionCap`, `ouo.session.sample_rate` on
+  `session.start`, `propagation.sessionBaggage`, `transport.maxRequestBytes`.
+- Failure isolation: one guard around every entry point, a fault-injection suite, self-disable
+  after `diagnostics.selfDisableThreshold` internal errors.
+- Spec API: `init`, `shutdown`, `flush`, `getSessionId`, `restartSession`, `setUser(id | null)`,
+  `setGlobalAttributes`, `recordEvent`, `recordException`, `trackNavigation`,
+  `getTracerProvider`, `getLoggerProvider`, `replay.start/stop/capture/mask/unmask`.
+- `beforeSend`, drop counting with the `ouo.sdk.dropped` event, `transport.shutdownDeadlineMs`.
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
 
 ### Breaking

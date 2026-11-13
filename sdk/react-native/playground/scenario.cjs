@@ -29,14 +29,16 @@ async function main() {
     ...(REPLAY_ENDPOINT ? { replayEndpoint: REPLAY_ENDPOINT } : {}),
     service: { name: "mobile-store", version: VERSION, environment: "local" },
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
-    session: { backgroundTimeoutMs: 2000 },
+    // The demo backend reads the session id from W3C baggage (off by default, spec PRP-6).
+    propagation: { sessionBaggage: true },
+    session: { backgroundTimeoutMs: 60_000 }, // the spec minimum (CFG-2); lower values are clamped up,
     device: { modelIdentifier: "iPhone15,2", modelName: "iPhone 14 Pro", manufacturer: "Apple" },
     debug: process.env.OUO_DEBUG === "1",
   });
   await rum.ready;
   const id = rum.session.id();
   console.log(`scenario=${SCENARIO} version=${VERSION} session=${id} previous=${rum.session.previousId() ?? "-"} user=${rum.session.userId()}`);
-  const headers = { "x-user-id": rum.session.userId(), accept: "application/json" };
+  const headers = { "x-user-id": rum.session.userId() || "guest", accept: "application/json" };
   const get = (p) => fetch(`${BACKEND}${p}`, { headers });
   const post = (p, body) => fetch(`${BACKEND}${p}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) });
 
@@ -82,7 +84,7 @@ async function main() {
     case "background": {
       await get("/api/products");
       require("react-native").AppState.__emit("background");
-      await sleep(2500);
+      await sleep(61_000); // longer than the 60 s timeout
       require("react-native").AppState.__emit("active");
       console.log("after background: session", rum.session.id(), "previous", rum.session.previousId());
       await get("/api/cart");
