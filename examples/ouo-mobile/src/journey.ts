@@ -20,6 +20,7 @@
 //   action/event?name=...        rum.addEvent(name)
 //   action/type?field=feedback-message&text=...  types into a registered text field (`typeable`)
 //   action/shutdown              rum.shutdown(): the session and the replay stream end normally
+//   action/consent?replay=false  rum.setConsent: each of `telemetry` and `replay` given is set (PRV-1 to PRV-4)
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
 //
 // On Android the commands arrive as broadcasts (modules/ouo-chaos, `am broadcast -a
@@ -127,6 +128,13 @@ async function run(cmd: string): Promise<void> {
       case "type":
         fields.get(params.get("field") ?? "")?.(params.get("text") ?? "");
         break;
+      case "consent": {
+        const flag = (name: string): boolean | undefined => (params.has(name) ? params.get(name) === "true" : undefined);
+        const telemetry = flag("telemetry");
+        const replay = flag("replay");
+        rum.setConsent({ ...(telemetry !== undefined ? { telemetry } : {}), ...(replay !== undefined ? { replay } : {}) });
+        break;
+      }
       case "shutdown":
         await rum.shutdown();
         break;
