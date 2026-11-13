@@ -63,6 +63,10 @@
       "release-type": "go",
       "component": "rum-api"
     },
+    "services/muninn": {
+      "release-type": "go",
+      "component": "muninn"
+    },
     "deploy/images/grafana": {
       "release-type": "simple",
       "component": "grafana"

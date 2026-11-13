@@ -100,6 +100,19 @@ test("overlay: labels, routes, published ingest ports, no other host ports", () 
   for (const svc of ["grafana", "rum-api", "otel-collector", "backend"]) assert.equal(y.split(`\n  ${svc}:\n`).length, 2, svc);
 });
 
+test("overlay with --muninn: Muninn routed, its and MinIO's loopback ports dropped; without it, no Muninn service", () => {
+  const base = { env: "x1", kind: "ephemeral", branch: "b", pr: "", session: "", created: "2026-11-13T00:00:00Z", block: 2, src: "/src" };
+  const y = lib.renderOverlay({ ...base, muninn: true });
+  assert.match(y, /traefik\.http\.routers\.ouo-x1-muninn\.rule=Host\(`muninn\.x1\.ouo\.localhost`\)/);
+  assert.match(y, /loadbalancer\.server\.port=3400/);
+  for (const svc of lib.MUNINN_UNPUBLISHED) assert.match(y, new RegExp(`\\n  ${svc}:\\n[\\s\\S]*?ports: !reset \\[\\]`));
+  for (const svc of ["muninn", "minio", "muninn-init"]) assert.equal(y.split(`\n  ${svc}:\n`).length, 2, svc);
+  const plain = lib.renderOverlay(base);
+  assert.doesNotMatch(plain, /muninn|minio/);
+  assert.match(lib.exportsOf("x1", 2, true), /export OUO_MUNINN_URL=http:\/\/muninn\.x1\.ouo\.localhost/);
+  assert.doesNotMatch(lib.exportsOf("x1", 2), /MUNINN/);
+});
+
 test("env exports point the scripts at the env", () => {
   const e = lib.exportsOf("main", 0);
   assert.match(e, /export OUO_GRAFANA_URL=http:\/\/grafana\.ouo\.localhost/);

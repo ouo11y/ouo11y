@@ -31,5 +31,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [sdk-safety](sdk-safety/) | The golden rule, "the app must not pay for the SDK's failures": `project/kb/client-sdk-safety/`, checklist, incidents, SDK grades and spec proposal | before post-MVP step 7 |
 | [vendor-research](vendor-research/) | Step 6 of the post-MVP plan: `project/kb/vendor-internals/`, Sentry, Datadog and PostHog internals (SDKs, wire formats, storage, read APIs) and the capture demos | post-MVP step 6 |
 | [muninn-design](muninn-design/) | Step 8 design of the post-MVP plan: ADR-0019, `docs/specs/muninn.md` and `project/kb/muninn/`, the Collector to Muninn replay path | post-MVP step 8 (design) |
+| [muninn-build](muninn-build/) | Muninn, the replay store (`services/muninn`), and the spec-wire Collector config that feeds it (`deploy/compose/collector/config.muninn.yaml`, `compose.muninn.yaml`, `ouo-env up --muninn`, `tests/e2e/muninn/`), from the ADR-0019 design | post-MVP step 8 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

@@ -36,6 +36,7 @@ last released) with the settings in
 | `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
 | `rum-api` | `services/rum-api` | none: the tag is the version | `rum-api-v<semver>` | `ghcr.io/ouo11y/rum-api` | `release-images.yml` |
+| `muninn` | `services/muninn` | none: the tag is the version | `muninn-v<semver>` | `ghcr.io/ouo11y/muninn` | `release-images.yml` |
 | `grafana` | `deploy/images/grafana` | `version.txt` | `grafana-v<semver>` | `ghcr.io/ouo11y/grafana` | `release-images.yml` |
 | `chart` | `deploy/helm/ouo` | `Chart.yaml` `version` | `chart-v<semver>` | `oci://ghcr.io/ouo11y/charts/ouo` | `release-chart.yml` |
 
@@ -191,7 +192,9 @@ the last rc when possible.
 
 **The first SDK, iOS, plugin and chart releases** are hand tags of the versions already in the
 manifest (no release PR is needed, the version fields and changelogs are in place):
-`browser-v0.2.0`, `react-native-v0.2.0`, `ios-v0.2.0`, `plugin-v0.7.0`, `chart-v0.1.1`. Each needs
+`browser-v0.2.0`, `react-native-v0.2.0`, `ios-v0.2.0`, `plugin-v0.7.0`, `chart-v0.1.1`. Muninn's
+first image is the same: tag `muninn-v0.1.0` (manifest and `services/muninn/CHANGELOG.md` are at 0.1.0),
+then make the new `muninn` package public (section 7). Each needs
 its accounts from section 8 first, and its changelog section dated in a small PR.
 
 ## 6. Dry runs

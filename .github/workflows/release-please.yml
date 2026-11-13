@@ -25,6 +25,7 @@ on:
       - 'plugin-v*'
       - 'collector-v*'
       - 'rum-api-v*'
+      - 'muninn-v*'
       - 'grafana-v*'
       - 'chart-v*'
   workflow_dispatch:

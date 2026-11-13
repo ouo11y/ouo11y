@@ -1,0 +1,19 @@
+# Muninn in the local stack (compose.muninn.yaml). Every key and its default:
+# services/muninn/config.example.yaml. Secrets come from the environment.
+server:
+  http_listen_port: 3400
+multitenancy_enabled: false   # tenant "anonymous"; the Collector sends one fixed X-Scope-OrgID
+auth:
+  ingest_token: ${MUNINN_INGEST_TOKEN}
+  read_token: ${MUNINN_READ_TOKEN}
+storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    bucket: ${MUNINN_S3_BUCKET:-ouo-muninn}
+    access_key_id: ${MUNINN_S3_ACCESS_KEY}
+    secret_access_key: ${MUNINN_S3_SECRET_KEY}
+    insecure: true
+retention:
+  default: ${OUO_RETENTION_REPLAYS:-720h}
+  sweep_interval: ${OUO_REPLAY_SWEEP_INTERVAL:-1h}

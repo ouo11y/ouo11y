@@ -1,0 +1,205 @@
+# ouo-collector configuration for the spec wire (ADR-0019, docs/specs/muninn.md section 5).
+#
+# Replaces config.yaml when the stack runs with compose.muninn.yaml. It carries no MVP
+# component: no ouoreplay receiver or exporter, no rum-api replay sink, no Sentry bridge.
+# Replay chunks are ordinary OTLP log records (scope ouo.replay) on the ordinary
+# /v1/logs endpoint; stock components route them to Muninn:
+#
+#   otlp :4318 -> memory_limiter -> ouoratelimit -> resource/project -> routing/replay
+#     scope != ouo.replay -> logs              (transform/events, batch)  -> Loki
+#     scope == ouo.replay -> logs/replay       (no batch: COL-3)          -> otlp_http/muninn [disk queue, fsync]
+#                         -> logs/replay-index (body dropped, ref set)    -> Loki
+#
+# Ports: 4318 OTLP/HTTP public (Basic auth, CORS), 4317 gRPC, 13133 health, 8888 metrics.
+#
+# Environment (on top of config.yaml's OUO_ALLOWED_ORIGINS and OUO_RATELIMIT_*):
+#   MUNINN_ENDPOINT      Muninn base URL (default http://muninn:3400)
+#   MUNINN_INGEST_TOKEN  bearer for POST /otlp/v1/logs; must equal Muninn's auth.ingest_token
+#   MUNINN_TENANT        X-Scope-OrgID sent to Muninn: one tenant per Collector (COL-9)
+#   OUO_REPLAY_QUEUE_BYTES  disk queue bound in bytes (default 2 GiB, COL-5 / Q12)
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  basicauth/server:
+    htpasswd:
+      file: /etc/otelcol/projects.htpasswd
+  ouoauth:
+    authenticator: basicauth/server
+  ouoratelimit:
+    processor: ouoratelimit
+  # The replay exporter's persistent queue (COL-4): every enqueue is written with fsync
+  # before the pipeline call returns, so the SDK's 2xx means "on disk" (SDK spec TRN-12).
+  # The directory is a named volume in compose (Q12: StatefulSet volume in Helm).
+  file_storage/replay:
+    directory: /var/lib/otelcol/replay-queue
+    create_directory: true
+    fsync: true
+    timeout: 5s
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        include_metadata: true
+        auth:
+          authenticator: ouoauth
+        middlewares:
+          - id: ouoratelimit
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+        max_request_body_size: 4194304   # 4 MiB; a chunk body is at most 1 MiB (RPL-10)
+        auth:
+          authenticator: ouoauth
+        middlewares:
+          - id: ouoratelimit
+        cors:
+          allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
+          allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
+          exposed_headers: [Retry-After]
+          max_age: 7200
+
+connectors:
+  # COL-2: route by instrumentation scope, after the project is stamped, before any batch.
+  # error_mode propagate: the default would send a record whose condition failed to the
+  # default pipeline, body included.
+  routing/replay:
+    error_mode: propagate
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: instrumentation_scope.name == "ouo.replay"
+        pipelines: [logs/replay, logs/replay-index]
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  ouoratelimit:
+    project:
+      rate: ${env:OUO_RATELIMIT_PROJECT_RATE:-1000}
+      burst: ${env:OUO_RATELIMIT_PROJECT_BURST:-5000}
+    client:
+      rate: ${env:OUO_RATELIMIT_CLIENT_RATE:-100}
+      burst: ${env:OUO_RATELIMIT_CLIENT_BURST:-300}
+      key_from: ${env:OUO_RATELIMIT_CLIENT_KEY:-address}
+    idle_timeout: 10m
+  # COL-9: the authenticated project overwrites whatever the client sent.
+  resource/project:
+    attributes:
+      - key: ouo.project.id
+        action: delete
+      - key: ouo.project.id
+        from_context: auth.username
+        action: upsert
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+          - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+  # COL-6, COL-7 (Q3: one reference record per chunk): Loki's copy keeps the attributes,
+  # gets ouo.replay.ref and loses the chunk bytes. An empty string, not nil: set(body, nil)
+  # is a no-op without the ottl.set.allowNil gate and would send the chunk to Loki.
+  # ouo.replay.ended records pass unchanged.
+  # The body goes first, and errors are ignored: this copy is a hint, and by the time it
+  # runs the chunk may already be in Muninn's queue, so failing here would only make the
+  # SDK resend (and queue) the chunk again. A record the ref cannot be built for still
+  # reaches Loki without its bytes.
+  transform/replay-ref:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.body, "") where log.event_name == "ouo.replay.chunk"
+          - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+  otlp_http/mimir:
+    endpoint: http://mimir:9009/otlp
+    tls:
+      insecure: true
+  # Q1: Muninn's OTLP/HTTP logs endpoint with the stock exporter.
+  otlp_http/muninn:
+    logs_endpoint: ${env:MUNINN_ENDPOINT:-http://muninn:3400}/otlp/v1/logs
+    compression: none   # COL-10: chunk bodies are already compressed
+    timeout: 30s
+    tls:
+      insecure: true
+    headers:
+      Authorization: Bearer ${env:MUNINN_INGEST_TOKEN}
+      X-Scope-OrgID: ${env:MUNINN_TENANT:-anonymous}
+    sending_queue:
+      enabled: true
+      storage: file_storage/replay
+      sizer: bytes
+      queue_size: ${env:OUO_REPLAY_QUEUE_BYTES:-2147483648}
+      block_on_overflow: false   # COL-5: full queue -> 503 to the SDK, never block
+      num_consumers: 4
+    # COL-8: retry 429/502/503/504 and network failures without a time limit.
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 60s
+      max_elapsed_time: 0
+
+service:
+  extensions: [health_check, basicauth/server, ouoauth, ouoratelimit, file_storage/replay]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: normal
+      readers:
+        - periodic:
+            interval: 15000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://mimir:9009/otlp/v1/metrics
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, ouoratelimit, resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, ouoratelimit, resource/project, batch]
+      exporters: [otlp_http/mimir]
+    logs/in:
+      receivers: [otlp]
+      processors: [memory_limiter, ouoratelimit, resource/project]
+      exporters: [routing/replay]
+    logs:
+      receivers: [routing/replay]
+      processors: [transform/events, batch]
+      exporters: [otlp_http/loki]
+    # COL-3: no batch processor, so the receiver waits for the queue write.
+    logs/replay:
+      receivers: [routing/replay]
+      exporters: [otlp_http/muninn]
+    logs/replay-index:
+      receivers: [routing/replay]
+      processors: [transform/replay-ref, transform/events, batch]
+      exporters: [otlp_http/loki]

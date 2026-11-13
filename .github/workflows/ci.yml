@@ -57,7 +57,7 @@ jobs:
           fi
           match() { [ "$all" = true ] || printf '%s\n' "$files" | grep -Eq "$1"; }
           flag() { if match "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
-          flag go        '^(services/rum-api|examples/backend)/'
+          flag go        '^(services/rum-api|services/muninn|examples/backend)/'
           flag collector '^(collector|deploy/compose/collector)/'
           flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
@@ -73,6 +73,7 @@ jobs:
           flag ex-sentry-mobile "^(examples/sentry-mobile|collector)/|^$shared"
           images=""
           match '^services/rum-api/'                                        && images="$images\"rum-api\","
+          match '^services/muninn/'                                         && images="$images\"muninn\","
           match '^collector/'                                               && images="$images\"collector\","
           match '^(deploy/images/grafana|plugins/ouo11y-rum-app)/|^package-lock\.json$' && images="$images\"grafana\","
           echo "images=[${images%,}]" >> "$GITHUB_OUTPUT"
@@ -136,7 +137,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [services/rum-api, examples/backend]
+        module: [services/rum-api, services/muninn, examples/backend]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -187,6 +188,11 @@ jobs:
         env:
           OUO_INGEST_TOKEN: it_ci
         run: ./dist/ouo-collector validate --config=../deploy/compose/collector/config.yaml
+      - name: Validate the spec-wire config (ADR-0019, compose.muninn.yaml)
+        working-directory: collector
+        env:
+          MUNINN_INGEST_TOKEN: mit_ci
+        run: ./dist/ouo-collector validate --config=../deploy/compose/collector/config.muninn.yaml
 
   # Builds each image release-images.yml publishes, from the same Dockerfile and context,
   # for linux/amd64 only (the arm64 leg runs in the release and in its dry run), loads it,
@@ -216,6 +222,7 @@ jobs:
         run: |
           case "$IMAGE" in
             rum-api)   echo "context=services/rum-api" >> "$GITHUB_OUTPUT"; echo "dockerfile=services/rum-api/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            muninn)    echo "context=services/muninn" >> "$GITHUB_OUTPUT"; echo "dockerfile=services/muninn/Dockerfile" >> "$GITHUB_OUTPUT" ;;
             collector) echo "context=collector" >> "$GITHUB_OUTPUT"; echo "dockerfile=collector/Dockerfile" >> "$GITHUB_OUTPUT" ;;
             grafana)   echo "context=." >> "$GITHUB_OUTPUT"; echo "dockerfile=deploy/images/grafana/Dockerfile" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::unknown image $IMAGE"; exit 1 ;;
@@ -252,8 +259,11 @@ jobs:
           case "$IMAGE" in
             rum-api)
               docker run --rm --entrypoint /rum-api ouo-ci/rum-api -h 2>&1 | grep -q -- -check ;;
+            muninn)
+              docker run --rm ouo-ci/muninn -version | grep -q "^muninn " ;;
             collector)
               docker run --rm ouo-ci/collector components | grep -E 'ouoreplay|ouosentry'
+              docker run --rm ouo-ci/collector components | grep -q file_storage
               docker run --rm ouo-ci/collector --version ;;
             grafana)
               docker run --rm --entrypoint cat ouo-ci/grafana \

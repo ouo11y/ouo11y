@@ -28,8 +28,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     builder --config builder.yaml \
     && cp dist/ouo-collector /ouo-collector
 
+RUN mkdir -p /out/replay-queue
+
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /ouo-collector /ouo-collector
+# Owned by nonroot: Docker copies it into a new named volume mounted there, so the
+# file_storage extension (replay disk queue, config.muninn.yaml) can write without a chown.
+COPY --from=build --chown=nonroot:nonroot /out/replay-queue /var/lib/otelcol/replay-queue
 EXPOSE 4317 4318 4319 4320 13133
 USER nonroot:nonroot
 ENTRYPOINT ["/ouo-collector"]
