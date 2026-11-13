@@ -18,7 +18,7 @@
  *   reject       Home, then Products, each flushed, while the collector answers the first OTLP
  *                request 500 every time and the second 503 once (OUO_E2E_REJECT=1)
  *   relaunch     the next launch: takes the previous run's state, then flushes
- * Env: OUO_OTLP_URL, OUO_REPLAY_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
+ * Env: OUO_OTLP_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
  *      OUO_E2E_SERVICE (service.name of the run), OUO_STORAGE_FILE (the device's AsyncStorage).
  */
 const { initRUM, RUMProvider } = require("../../../sdk/react-native/dist/index.js");
@@ -26,7 +26,6 @@ const { AppState } = require("react-native");
 
 const env = process.env;
 const OTLP = (env.OUO_OTLP_URL ?? "http://localhost:4318").replace(/\/$/, "");
-const REPLAY = (env.OUO_REPLAY_URL ?? "http://localhost:4319").replace(/\/$/, "");
 const BACKEND = (env.OUO_BACKEND_URL ?? "http://localhost:8081").replace(/\/$/, "");
 const LAUNCH = env.OUO_E2E_LAUNCH ?? "main";
 // Spec CFG-2 clamps every session timeout to at least 60 s, so the background stay is a real
@@ -53,7 +52,6 @@ async function touch(root, { label, role, component, screen }, ms = 60, dy = 0) 
 async function main() {
   const rum = initRUM({
     endpoint: OTLP,
-    replayEndpoint: REPLAY,
     projectId: env.OUO_PROJECT_ID ?? "demo",
     projectToken: env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     service: { name: env.OUO_E2E_SERVICE ?? "qa-rn-ios", version: "1.0.0", environment: "qa" },

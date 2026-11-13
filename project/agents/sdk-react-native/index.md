@@ -14,5 +14,6 @@ Owns `sdk/react-native` (`@ouo11y/react-native`) and `examples/ouo-mobile` (Expo
   - [2026-11-12-step-a-missing-layers.md](summaries/2026-11-12-step-a-missing-layers.md) — full-feature run, step A: ADR-0021, guard and fault injection, spec API, beforeSend, consent, sanitising, bypass set, drop counting; unit tests only
   - [2026-11-12-rn-replay-otlp-android.md](summaries/2026-11-12-rn-replay-otlp-android.md) — replay over OTLP (`pixel/frames`) end to end on an Android emulator: every section-11 rule passes, faults handled, masking checked on decoded frames
   - [2026-11-13-replay-over-otlp.md](summaries/2026-11-13-replay-over-otlp.md) — replay over OTLP: `replay.mode` with `pixel/frames` and `pixel/video` on iOS and Android, verified on a simulator and an emulator against the fake Collector; the merged result of the replay sessions
+  - [2026-11-13-conformance-on-muninn.md](summaries/2026-11-13-conformance-on-muninn.md) — the RN conformance suite reads replay from Muninn; `session.id` is 32 hex (Muninn dropped every dashed-id chunk); CI runs the mobile legs on `compose.muninn.yaml`
 - [notes/](notes/index.md) working notes
 - [reports/](reports/index.md) evidence folders (OCR results, frames, collector reports)

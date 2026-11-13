@@ -7,6 +7,10 @@
 #   .github/scripts/stack-env.sh >> "$GITHUB_ENV"
 set -eu
 h=http://localhost
+# Muninn (compose.muninn.yaml) has no slot in the runners' .env: 20N40, next to Grafana's 20N00.
+if [ -n "${OUO_MUNINN_PORT:-}" ]; then muninn=$OUO_MUNINN_PORT
+elif [ -n "${OUO_GRAFANA_PORT:-}" ]; then muninn=$((OUO_GRAFANA_PORT + 40))
+else muninn=3400; fi
 cat <<EOF
 OUO_GRAFANA_URL=$h:${OUO_GRAFANA_PORT:-3000}
 OUO_LOKI_URL=$h:${OUO_LOKI_PORT:-3100}
@@ -18,6 +22,8 @@ OUO_SENTRY_URL=$h:${OUO_SENTRY_PORT:-4320}
 OUO_COLLECTOR_HEALTH_URL=http://127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}
 OUO_RUM_API_URL=$h:${OUO_RUM_API_PORT:-8080}
 OUO_BACKEND_URL=$h:${OUO_BACKEND_PORT:-8081}
+OUO_MUNINN_PORT=$muninn
+OUO_MUNINN_URL=$h:$muninn
 VITE_OTLP_ENDPOINT=$h:${OUO_OTLP_HTTP_PORT:-4318}
 VITE_OUO_REPLAY_ENDPOINT=$h:${OUO_REPLAY_PORT:-4319}
 VITE_BACKEND_URL=$h:${OUO_BACKEND_PORT:-8081}
