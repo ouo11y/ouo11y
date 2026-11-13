@@ -112,6 +112,27 @@ telemetry are step B).
   `getTracerProvider`, `getLoggerProvider`, `replay.start/stop/capture/mask/unmask`.
 - `beforeSend`, drop counting with the `ouo.sdk.dropped` event, `transport.shutdownDeadlineMs`.
 
+## [0.4.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.3.0...react-native-v0.4.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184))
+* **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183))
+
+### Added
+
+* **android:** native crashes, hangs, terminations and FrameMetrics frames (W9 part 2) ([c525b91](https://github.com/ouo11y/ouo11y/commit/c525b91d34fc85d01a2afeb180a8e6406a0cb4f7))
+* **react-native:** Android replay capture, gzip delivery and vitals (W9 part 1) ([de2b3bc](https://github.com/ouo11y/ouo11y/commit/de2b3bc4e3522f7136720db0d2be1edbea099e1e))
+* **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183)) ([670e3df](https://github.com/ouo11y/ouo11y/commit/670e3df93817c75f0062d22eac85f0ede42b583f))
+* **react-native:** Hermes debug ids and OTA-safe source maps ([a30fc0c](https://github.com/ouo11y/ouo11y/commit/a30fc0cc324efd24b07bbb952738eb727b2be429))
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184)) ([edd3fa2](https://github.com/ouo11y/ouo11y/commit/edd3fa28889c4252de4c12e9a08c8091d177ca13))
+
+
+### Fixed
+
+* **sdk:** mobile delivery retries only 429 and 502-504, React Native outbox keeps no age ([1959cc0](https://github.com/ouo11y/ouo11y/commit/1959cc04057b84bd503f8d7ced31aeb3218b8e15))
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
 
 ### Breaking
