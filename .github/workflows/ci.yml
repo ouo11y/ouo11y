@@ -148,7 +148,7 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          # go.mod, not go.sum: libs/ouo-go has no dependencies and so no go.sum.
+          # go.mod, not go.sum: not every module has dependencies and so a go.sum.
           cache-dependency-path: ${{ matrix.module }}/go.mod
       - name: go mod verify
         run: go mod verify

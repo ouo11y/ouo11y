@@ -4,6 +4,8 @@ Status: **proposed** (2026-11-13). Not to be merged by a session; the founder me
 
 Numbers 0021 and 0022 are taken by open pull requests, so this is 0023.
 
+**Amended by [ADR-0024](0024-clearance-from-idp-groups.md)** (2026-11-13): a user's level comes from identity-provider groups or, in a mode of its own, from the Grafana org role; the per-login override is gone; the BFF is the backend of a datasource nested in the plugin, under `/api/datasources/uid/ouo11y/resources/v1`; the Clearance mapping is a secure setting. Sections 2, 3, 4.2, 4.4 and 8 below are marked where they changed.
+
 ## 1. Context
 
 Decided before this ADR and not reopened:
@@ -25,7 +27,7 @@ What exists: `plugins/ouo11y-rum-app` is MVP code, a frontend only. It reads MVP
 | BFF | The plugin's own Go backend, `plugins/ouo11y-rum-app/pkg`, built with `grafana-plugin-sdk-go`, resource handlers only | Apache-2.0 (as the plugin today) |
 | Frontend | The existing plugin, new pages beside the MVP pages | Apache-2.0 |
 
-**The BFF is the plugin backend, not a separate service.** Grafana starts it, passes the signed-in user with every resource call, and proxies `/api/plugins/ouo11y-rum-app/resources/*` to it, so there is nothing new to deploy, expose or authenticate. Rejected: a standalone BFF service behind Grafana's route proxy. It would need its own deployment and would have to trust a user header that the route proxy forwards, which is weaker than the plugin context Grafana hands a backend plugin.
+**The BFF is the plugin backend, not a separate service** (since ADR-0024 the backend of the plugin's nested datasource, reached under `/api/datasources/uid/ouo11y/resources/*`; the reasoning is the same). Grafana starts it, passes the signed-in user with every resource call, and proxies `/api/plugins/ouo11y-rum-app/resources/*` to it, so there is nothing new to deploy, expose or authenticate. Rejected: a standalone BFF service behind Grafana's route proxy. It would need its own deployment and would have to trust a user header that the route proxy forwards, which is weaker than the plugin context Grafana hands a backend plugin.
 
 **`ouo-go` is a library the backend imports, in `libs/`.** The functions that apply Clearance must be usable by someone who builds their own BFF, so they cannot live inside the plugin; and a library that others embed takes the embeddable licence, unlike the servers. `libs/` is a new top-level folder, which ADR-0010 allows only through an ADR: this one. It holds the two libraries and nothing else. Rejected: `services/ouo-go` (it is not a service, and services are AGPL-3.0) and `plugins/ouo11y-rum-app/pkg/ouogo` (cannot be imported without the plugin, and would carry the plugin's release cycle).
 
@@ -37,11 +39,11 @@ What exists: `plugins/ouo11y-rum-app` is MVP code, a frontend only. It reads MVP
 
 ## 3. The BFF API
 
-Resource paths, all `GET`, all JSON unless stated, all under `/api/plugins/ouo11y-rum-app/resources/v1`. The version is in the path; a breaking change adds `v2` beside it. Errors are `{"error": "<message>"}` with 400 (bad identifier or time), 403 (Clearance too low), 404, or 502 (a backend failed; the message names the store only, the detail goes to Grafana's log). Answers carry `Cache-Control: no-store`, so a lowered level takes effect at once. Times are milliseconds since the epoch.
+Resource paths, all `GET`, all JSON unless stated, all under `/api/datasources/uid/ouo11y/resources/v1` (ADR-0024; first `/api/plugins/ouo11y-rum-app/resources/v1`). The version is in the path; a breaking change adds `v2` beside it. Errors are `{"error": "<message>"}` with 400 (bad identifier or time), 403 (Clearance too low), 404, or 502 (a backend failed; the message names the store only, the detail goes to Grafana's log). Answers carry `Cache-Control: no-store`, so a lowered level takes effect at once. Times are milliseconds since the epoch.
 
 | Path | Answer | Needs |
 |---|---|---|
-| `/me` | `{login, role, level, can: {timeline, attributes, replay, identity}}` | any signed-in user; level 0 answers too, so the UI can explain itself |
+| `/me` | `{login, role, mode, level, can: {timeline, attributes, replay, identity}}` | any signed-in user; level 0 answers too, so the UI can explain itself |
 | `/sessions?from&to&project&limit` | `{sessions: [Session], truncated, redacted: [...]}` | c1 |
 | `/projects/{project}/sessions/{session}?from&to` | `{session: Session, events: [Event], replays: [Replay] \| null, redacted: [...]}` | c1 |
 | `/projects/{project}/sessions/{session}/replays/{replay}` | The Muninn manifest (spec 7.2) without the chunks' `path` (a reader builds the BFF chunk path from the ids), and without identity attributes on chunks below c4 | c3 |
@@ -76,6 +78,8 @@ The capabilities of each level are one table in `ouo-go` (`clearance.go`), so re
 
 ### 4.2 From a Grafana user to a level
 
+**Replaced by [ADR-0024](0024-clearance-from-idp-groups.md) section 3.** What follows is the first design, kept for the record.
+
 Grafana passes the calling user (login and org role) to the backend with every request. The level is:
 
 1. the user's entry in `clearance.users` (by login, without case, as Grafana compares logins), if there is one, else
@@ -95,8 +99,8 @@ Both maps are in the plugin's settings (`jsonData.clearance`), provisioned like 
 - **It cannot redact inside a recording.** A chunk is shown whole or not at all. Text, inputs and images in an rrweb chunk are as masked as the SDK made them at record time (PRV-5 to PRV-8), no more. Redacting inside a chunk means parsing each format in the BFF; the decompress step of section 3 is the place it will go.
 - **It does not find personal data inside values.** Identity is a list of attribute names. A URL or an exception message that contains an email address is shown at c2.
 - **It is per Grafana org, not per project.** A user's level applies to every project the plugin can read (Q9).
-- **A login is not a strong identity.** Overrides are keyed by login, and the map is readable (next point). Where users may change their own login (Grafana's default for local users), a user can rename themselves to a login listed with a higher level that no one holds. Use overrides only for logins that exist, prefer roles, or let an identity provider own the logins. Teams or user ids (Q2) close this.
-- **Its configuration is not secret.** Grafana gives every signed-in user the plugin's `jsonData`, so the level map, logins included, is readable by Viewers. It holds no data and no credential; the Muninn token is in `secureJsonData`.
+- **A login is not a strong identity** (closed by ADR-0024: the override by login is removed). Overrides are keyed by login, and the map is readable (next point). Where users may change their own login (Grafana's default for local users), a user can rename themselves to a login listed with a higher level that no one holds. Use overrides only for logins that exist, prefer roles, or let an identity provider own the logins. Teams or user ids (Q2) close this.
+- **Its configuration is not secret** (closed by ADR-0024: the mapping is a secure setting). Grafana gives every signed-in user the plugin's `jsonData`, so the level map, logins included, is readable by Viewers. It holds no data and no credential; the Muninn token is in `secureJsonData`.
 - **It does not cover Grafana's own Explore.** A user who can query the Loki datasource directly sees what Loki holds. Clearance protects the plugin's API; operators restrict the datasources to Admins (or remove them) where that matters (Q3).
 
 ## 5. Reaching the stores
@@ -136,7 +140,7 @@ Not in this slice: Tempo and Mimir views, funnels, dashboards, vendor APIs, Grap
 
 ## 8. Consequences
 
-- The plugin ships a Go binary per platform (`gpx_ouo11y-rum-app_linux_amd64`, `_linux_arm64`) next to its JavaScript. Every place that builds the plugin needs Go, or Docker to build it in a `golang` container; the build script does either.
+- The plugin ships a Go binary per platform (`datasource/gpx_ouo11y-rum-datasource_linux_amd64`, `_linux_arm64` since ADR-0024) next to its JavaScript. Every place that builds the plugin needs Go, or Docker to build it in a `golang` container; the build script does either.
 - Grafana starts the backend process; a broken binary disables the whole plugin, MVP pages included, so the stack checks in CI cover the new path too.
 - `libs/` appears in the layout, the npm workspaces and the CI Go matrix.
 - Clearance is stated in one table, tested as a table, and enforced in one library: a second BFF built on `ouo-go` gets the same rules.

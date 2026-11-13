@@ -100,6 +100,19 @@ test("overlay: labels, routes, published ingest ports, no other host ports", () 
   for (const svc of ["grafana", "rum-api", "otel-collector", "backend"]) assert.equal(y.split(`\n  ${svc}:\n`).length, 2, svc);
 });
 
+test("overlay with --idp: Keycloak routed with the env's issuer and Grafana URL; without it, no Keycloak", () => {
+  const base = { env: "x1", kind: "ephemeral", branch: "b", pr: "", session: "", created: "2026-11-13T00:00:00Z", block: 2, src: "/src" };
+  const y = lib.renderOverlay({ ...base, idp: true });
+  assert.match(y, /traefik\.http\.routers\.ouo-x1-keycloak\.rule=Host\(`keycloak\.x1\.ouo\.localhost`\)/);
+  assert.match(y, /\n  keycloak:\n[\s\S]*?ports: !reset \[\]/);
+  assert.match(y, /KC_HOSTNAME: "http:\/\/keycloak\.x1\.ouo\.localhost"/);
+  assert.match(y, /OUO_GRAFANA_ROOT_URL: "http:\/\/grafana\.x1\.ouo\.localhost"/);
+  assert.match(y, /OUO_OIDC_ISSUER: "http:\/\/keycloak\.x1\.ouo\.localhost\/realms\/ouo"/);
+  for (const svc of ["keycloak", "grafana"]) assert.equal(y.split(`\n  ${svc}:\n`).length, 2, svc);
+  assert.doesNotMatch(lib.renderOverlay(base), /keycloak|OIDC/i);
+  assert.match(lib.exportsOf("x1", 2, false, true), /export OUO_KEYCLOAK_URL=http:\/\/keycloak\.x1\.ouo\.localhost/);
+});
+
 test("overlay with --muninn: Muninn routed, its and MinIO's loopback ports dropped; without it, no Muninn service", () => {
   const base = { env: "x1", kind: "ephemeral", branch: "b", pr: "", session: "", created: "2026-11-13T00:00:00Z", block: 2, src: "/src" };
   const y = lib.renderOverlay({ ...base, muninn: true });

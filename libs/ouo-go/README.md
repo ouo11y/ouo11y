@@ -7,7 +7,8 @@ c := &ouogo.Client{
 	Loki:   &ouogo.Loki{URL: "http://loki:3100"},
 	Muninn: &ouogo.Muninn{URL: "http://muninn:3400", Tenant: "anonymous", ReadToken: token},
 }
-cl := ouogo.Resolve(cfg, user.Login, user.Role) // the caller's Clearance level
+groups, _ := oidc.Groups(ctx, idToken)                // nil unless the ID token verifies (ADR-0024)
+cl := ouogo.Resolve(cfg, user.Login, user.Role, groups) // the caller's Clearance level
 list, err := c.ListSessions(ctx, cl, ouogo.SessionQuery{})
 ```
 
@@ -18,6 +19,6 @@ list, err := c.ListSessions(ctx, cl, ouogo.SessionQuery{})
 | `GetManifest` | c3 | A replay's manifest (Muninn spec 7.2) |
 | `GetChunk` | c3 | One chunk's bytes, decompressed |
 
-The levels are one table, `levels` in [clearance.go](clearance.go), tested field by field in `TestLevelsAgainstFields`. A user in neither the `users` nor the `roles` map gets level 0 and every read answers `ErrForbidden`.
+The levels are one table, `levels` in [clearance.go](clearance.go), tested field by field in `TestLevelsAgainstFields`. `Resolve` has two modes: `groups` (the highest level among the user's identity-provider groups, from an ID token that `OIDC.Groups` verified: signature against the provider's JWKS, issuer, audience, expiry) and `roles` (the Grafana org role). No mode, no matching group or role: level 0, and every read answers `ErrForbidden`. Dependency: `github.com/go-jose/go-jose/v4`, for JWS and JWKS.
 
 Standard library only. `go vet ./... && go test ./...`. Licence Apache-2.0.

@@ -25,7 +25,9 @@ without a route with 404 and a role below the route's `reqRole` with 403):
 
 The pages under `/a/ouo11y-rum-app/explore` read the spec wire (Loki, Muninn) through the plugin's
 own Go backend, the BFF of [ADR-0023](../../docs/adr/0023-plugin-bff-and-clearance.md), and nothing
-else. The backend (`pkg/`, built on [`ouo-go`](../../libs/ouo-go/README.md)) resolves the signed-in
+else. The backend belongs to `ouo11y-rum-datasource`, a datasource nested in this plugin
+(`src/datasource/`), because Grafana forwards the user's identity-provider token only to a
+datasource ([ADR-0024](../../docs/adr/0024-clearance-from-idp-groups.md)). The backend (`pkg/`, built on [`ouo-go`](../../libs/ouo-go/README.md)) resolves the signed-in
 user's Clearance level and redacts every answer before it leaves; the frontend uses the replay player
 of [`@ouo11y/kit`](../../libs/ouo-kit/README.md). The MVP pages below still read rum-api and are
 deleted with it.
@@ -35,12 +37,20 @@ deleted with it.
 | `/a/ouo11y-rum-app/explore` | sessions with records in the last 1 h / 6 h / 24 h / 7 d, newest first |
 | `/a/ouo11y-rum-app/explore/<project>/<session_id>?from&to` | the session's event timeline (click an event for its attributes) and its replay |
 
-Backend resources, all `GET` under `/api/plugins/ouo11y-rum-app/resources/v1`: `me`, `sessions`,
+Backend resources, all `GET` under `/api/datasources/uid/ouo11y/resources/v1`: `me`, `sessions`,
 `projects/{p}/sessions/{s}`, `.../replays/{r}` (manifest), `.../streams/{st}/chunks/{seq}`
-(decompressed bytes). Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `muninnUrl`
-(`http://muninn:3400`), `muninnTenant` (`anonymous`), `clearance.roles` and `clearance.users`
-(levels 0-5 by org role and by login; default Viewer 1, Editor 3, Admin 5; anyone else 0), and
-`secureJsonData.muninnReadToken`. All provisioned in `deploy/compose/grafana/provisioning/plugins/`.
+(decompressed bytes). The datasource instance has the uid `ouo11y` and is provisioned in
+`deploy/compose/grafana/provisioning/datasources/datasources.yaml`:
+
+| Setting | What |
+|---|---|
+| `jsonData.oauthPassThru` | `true`: Grafana forwards the user's ID token, which groups mode reads |
+| `jsonData.lokiUrl`, `muninnUrl`, `muninnTenant` | default `http://loki:3100`, `http://muninn:3400`, `anonymous` |
+| `jsonData.oidc` | `issuer`, `audience` (the OAuth client id), `jwksUrl`, `groupsClaim` (default `groups`): how the ID token is verified |
+| `secureJsonData.clearance` | a JSON object: `mode` (`groups` or `roles`), `groups` (identity-provider group to level 0-5; the highest of a user's groups wins), `roles` (Viewer, Editor, Admin to level). No user can read it back. No setting, or another mode: everyone is level 0 |
+| `secureJsonData.muninnReadToken` | Muninn's read token |
+
+`ouo-env up <env> --muninn --idp` runs the stack with Keycloak and groups mode.
 
 | Level | Sees |
 |---|---|
@@ -159,7 +169,7 @@ page, so in a provisioned install the token is rotated in `.env` and Grafana is 
 ```bash
 npm install                                   # repo root (npm workspaces)
 npm run -w plugins/ouo11y-rum-app build          # -> dist/: webpack, then the Go backend (scripts/build-backend.mjs)
-                                              #    gpx_ouo11y-rum-app_linux_{amd64,arm64}; local Go or the golang image
+                                              #    datasource/gpx_ouo11y-rum-datasource_linux_{amd64,arm64}; local Go or the golang image
 (cd plugins/ouo11y-rum-app && go vet ./... && go test ./...)   # the backend
 npm run -w plugins/ouo11y-rum-app test           # jest: formatting, marker math, tables, config page, 401 banner
 npm run -w plugins/ouo11y-rum-app typecheck
@@ -169,7 +179,8 @@ docker compose -f deploy/compose/compose.yaml up -d grafana   # mounts dist/ int
 
 `deploy/compose/compose.yaml` bind-mounts `dist/` at `/var/lib/grafana/plugins/ouo11y-rum-app` and the
 provisioning file above enables the app. Grafana must allow the unsigned plugin
-(`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app`). After a rebuild, restart Grafana if
+(`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app,ouo11y-rum-datasource`: the nested
+datasource is a plugin id of its own). After a rebuild, restart Grafana if
 `plugin.json` changed or a new chunk file appeared; for JS-only changes bump `version` in
 `package.json` (every user-visible change does, see `CHANGELOG.md`) so browsers drop the cached
 `module.js?_cache=<version>`.

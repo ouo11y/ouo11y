@@ -223,6 +223,7 @@ deploy/compose/collector/config.yaml             ouo-collector config: basicauth
 deploy/compose/collector/projects.htpasswd       development project registry (demo); one `{SHA}` line per project token
 deploy/compose/compose.s3.yaml                   opt-in override: MinIO + bucket init, rum-api on storage.backend s3
 deploy/compose/compose.muninn.yaml               opt-in override: Muninn on MinIO, collector on config.muninn.yaml (spec-wire replay)
+deploy/compose/compose.idp.yaml                  opt-in override: Keycloak, Grafana signing in through it, Clearance from IdP groups (ADR-0024)
 deploy/compose/compose.external.yaml             opt-in override: your existing Loki / Tempo / Mimir (or your OTel collector) instead of the bundled ones
 deploy/compose/external/                         collector exporters merged over collector/config.yaml, Grafana datasources for compose.external.yaml
 deploy/compose/rum-api/config.yaml               rum-api config file (-config.file, ${VAR} expansion for the tokens / S3 keys)
