@@ -17,7 +17,8 @@ The player picks a stream (a picker when there are several), keeps the runs that
 | Format | Here |
 |---|---|
 | `rrweb/2` | Plays (`RrwebPlayer`) |
-| `ouo-frames/3`, `ouo-video/1` | Shown as stored, not playable: the seam for the pixel players, which still read the MVP wire in the plugin |
+| `ouo-frames/3` | Plays (`FramesPlayer`): JPEG full frames and patches on a canvas, touches drawn for 500 ms |
+| `ouo-video/1` | Plays (`VideoPlayer`): one mp4 segment per chunk in a `<video>` that follows the replay clock; a gap keeps the last frame. H.264: Chrome, Safari, Edge, Firefox decode it; Playwright's own Chromium does not |
 | `ouo-wireframe/1`, anything else | Stored, not playable (RPL-24) |
 
 Private workspace package, imported from source by `plugins/ouo11y-rum-app`; not published until it has a second user. `npm test -w libs/ouo-kit` (Vitest), `npm run typecheck -w libs/ouo-kit`. Licence Apache-2.0.

@@ -33,14 +33,32 @@ deleted with it.
 | URL | What |
 |---|---|
 | `/a/ouo11y-rum-app/explore` | sessions with records in the last 1 h / 6 h / 24 h / 7 d, newest first |
-| `/a/ouo11y-rum-app/explore/<project>/<session_id>?from&to` | the session's event timeline (click an event for its attributes) and its replay |
+| `/a/ouo11y-rum-app/explore/<project>/<session_id>?from&to` | the session's event timeline (click an event for its attributes), its traces from Tempo (linked to Explore) and its replay: web `rrweb/2`, mobile `ouo-frames/3` and `ouo-video/1` |
 
 Backend resources, all `GET` under `/api/plugins/ouo11y-rum-app/resources/v1`: `me`, `sessions`,
 `projects/{p}/sessions/{s}`, `.../replays/{r}` (manifest), `.../streams/{st}/chunks/{seq}`
-(decompressed bytes). Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `muninnUrl`
-(`http://muninn:3400`), `muninnTenant` (`anonymous`), `clearance.roles` and `clearance.users`
-(levels 0-5 by org role and by login; default Viewer 1, Editor 3, Admin 5; anyone else 0), and
-`secureJsonData.muninnReadToken`. All provisioned in `deploy/compose/grafana/provisioning/plugins/`.
+(decompressed bytes). Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `tempoUrl`
+(`http://tempo:3200`), `muninnUrl` (`http://muninn:3400`), `muninnTenant` (`anonymous`),
+`grafanaUrl` (`http://localhost:3000`, for team lookups), `clearance`, and
+`secureJsonData.muninnReadToken`. Provisioned in `deploy/compose/grafana/provisioning/plugins/`;
+Helm values `grafana.plugin.*`.
+
+`clearance` maps users to levels 0-5: `roles`, `teams`, `users` (login wins; else the highest of
+role and teams; else 0; default roles Viewer 1, Editor 3, Admin 5), and `projects.<project>` with
+the same three maps, replacing the org level for that project when they match:
+
+```yaml
+clearance:
+  roles: {Viewer: 1, Editor: 3, Admin: 5}
+  teams: {support: 3}
+  users: {alice: 4}
+  projects:
+    payments: {roles: {Viewer: 0}, teams: {payments-oncall: 4}}
+```
+
+Teams are read through Grafana's API with the plugin's managed service account
+(`plugin.json` `iam`); Grafana needs `GF_FEATURE_TOGGLES_ENABLE=externalServiceAccounts` and
+`GF_AUTH_MANAGED_SERVICE_ACCOUNTS_ENABLED=true` (set in `deploy/compose/compose.yaml`).
 
 | Level | Sees |
 |---|---|
@@ -48,7 +66,8 @@ Backend resources, all `GET` under `/api/plugins/ouo11y-rum-app/resources/v1`: `
 | c1 | sessions and their timeline: times, event names, severity, ids, counts |
 | c2 | plus event attributes and bodies, except identity |
 | c3 | plus replays |
-| c4, c5 | plus identity (`enduser.*`, `user.*`, `client.address`, the session's user) |
+| c4 | plus identity (`enduser.*`, `user.*`, `client.address`, the session's user) |
+| c5 | plus replays recorded without masking (`ouo.replay.masked=false`) |
 
 ## Pages
 
