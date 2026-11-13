@@ -17,6 +17,9 @@ dist:
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.160.0
+  # file_storage: the persistent, fsync-ed sending queue of the replay exporter to Muninn
+  # (ADR-0019, spec COL-4; deploy/compose/collector/config.muninn.yaml).
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.160.0
   # ouoauth wraps basicauth/server and counts rejected requests (ouo_auth_failures_total).
   - gomod: github.com/ouo11y/ouo11y/collector/extension/ouoauthextension v0.0.0
   # ouoratelimit (extension): receiver middleware that charges every request with the

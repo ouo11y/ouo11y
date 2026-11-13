@@ -1,0 +1,18 @@
+{
+  "name": "ouo-e2e-muninn",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "End-to-end check of the spec-wire replay path (ADR-0019): the released @ouo11y/browser in Chromium -> ouo-collector -> Muninn, read back through Muninn's API. Not an npm workspace, so it installs the published SDK, not sdk/browser.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "@ouo11y/browser": "0.4.0",
+    "esbuild": "0.27.7",
+    "playwright": "1.64.1"
+  }
+}
