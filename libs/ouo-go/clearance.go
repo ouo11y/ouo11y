@@ -3,6 +3,7 @@ package ouogo
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -23,25 +24,27 @@ const (
 
 // Capabilities says which field groups a level may see.
 type Capabilities struct {
-	// Timeline: sessions and their events with time, name, severity, ids and counts.
+	// Timeline: sessions, their events and their traces with time, name, severity, ids and counts.
 	Timeline bool `json:"timeline"`
 	// Attributes: every event attribute and body, except identity.
 	Attributes bool `json:"attributes"`
-	// Replay: the replay list, manifests and chunks.
+	// Replay: the replay list, manifests and chunks of masked recordings.
 	Replay bool `json:"replay"`
 	// Identity: enduser.*, user.* and client.address, and the session's user.
 	Identity bool `json:"identity"`
+	// Unmasked: replays with a chunk recorded without masking (ouo.replay.masked=false).
+	Unmasked bool `json:"unmasked"`
 }
 
 // levels is THE Clearance table. Reordering what a level sees is a change here, and
-// clearance_test.go says what moved.
+// TestLevelsAgainstFields says what moved.
 var levels = [...]Capabilities{
 	None: {},
 	C1:   {Timeline: true},
 	C2:   {Timeline: true, Attributes: true},
 	C3:   {Timeline: true, Attributes: true, Replay: true},
 	C4:   {Timeline: true, Attributes: true, Replay: true, Identity: true},
-	C5:   {Timeline: true, Attributes: true, Replay: true, Identity: true},
+	C5:   {Timeline: true, Attributes: true, Replay: true, Identity: true, Unmasked: true},
 }
 
 // Can returns the level's capabilities. Out-of-range levels can do nothing.
@@ -64,43 +67,111 @@ func (l *Level) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// ClearanceConfig maps Grafana users to levels: by login first, then by org role, else 0.
-type ClearanceConfig struct {
+// Grants maps Grafana users to levels in one scope (the org, or one project).
+type Grants struct {
 	Roles map[string]Level `json:"roles,omitempty"`
 	Users map[string]Level `json:"users,omitempty"`
+	Teams map[string]Level `json:"teams,omitempty"`
 }
 
-// DefaultRoles applies when the configuration has no roles map: Viewer c1, Editor c3, Admin c5.
+// ClearanceConfig is the org's grants, plus per-project grants that replace them for one project.
+type ClearanceConfig struct {
+	Grants
+	Projects map[string]Grants `json:"projects,omitempty"`
+}
+
+// TeamNames lists every team the configuration names, so a caller looks up only those.
+func (cfg ClearanceConfig) TeamNames() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(g Grants) {
+		for t := range g.Teams {
+			if !seen[t] {
+				seen[t] = true
+				out = append(out, t)
+			}
+		}
+	}
+	add(cfg.Grants)
+	for _, g := range cfg.Projects {
+		add(g)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// DefaultRoles applies when the org grants have no roles map: Viewer c1, Editor c3, Admin c5.
 var DefaultRoles = map[string]Level{"Viewer": C1, "Editor": C3, "Admin": C5}
 
 // Clearance is the caller's resolved level. Every read function of this package takes one.
 type Clearance struct {
-	Login string `json:"login"`
-	Role  string `json:"role"`
-	Level Level  `json:"level"`
+	Login string   `json:"login"`
+	Role  string   `json:"role"`
+	Teams []string `json:"teams,omitempty"`
+	// Level is the org-wide level; Projects overrides it per project.
+	Level    Level            `json:"level"`
+	Projects map[string]Level `json:"projects,omitempty"`
 }
 
 // Can is shorthand for c.Level.Can().
 func (c Clearance) Can() Capabilities { return c.Level.Can() }
 
-// Resolve finds a user's level (ADR-0023 section 4.2). Deny by default: a user who is in
-// neither map gets 0. Logins compare without case, as Grafana's do.
-func Resolve(cfg ClearanceConfig, login, role string) Clearance {
-	c := Clearance{Login: login, Role: role}
+// For returns the clearance for one project.
+func (c Clearance) For(project string) Clearance {
+	if lv, ok := c.Projects[project]; ok {
+		c.Level = lv
+	}
+	return c
+}
+
+// Max is the highest level the caller has in any project.
+func (c Clearance) Max() Level {
+	m := c.Level
+	for _, lv := range c.Projects {
+		m = max(m, lv)
+	}
+	return m
+}
+
+// resolve finds the level in one scope: the user's entry wins (up or down); otherwise the
+// highest of the role's and the teams' entries. ok is false when nothing in the scope matched.
+func (g Grants) resolve(login, role string, teams []string, defaultRoles map[string]Level) (Level, bool) {
 	if login != "" {
-		for u, lv := range cfg.Users {
+		for u, lv := range g.Users {
 			if strings.EqualFold(u, login) {
-				c.Level = lv
-				return c
+				return lv, true
 			}
 		}
 	}
-	roles := cfg.Roles
+	roles := g.Roles
 	if roles == nil {
-		roles = DefaultRoles
+		roles = defaultRoles
 	}
-	if lv, ok := roles[role]; ok && role != "" {
-		c.Level = lv
+	lv, ok := None, false
+	if r, hit := roles[role]; hit && role != "" {
+		lv, ok = r, true
+	}
+	for _, t := range teams {
+		if r, hit := g.Teams[t]; hit {
+			lv, ok = max(lv, r), true
+		}
+	}
+	return lv, ok
+}
+
+// Resolve finds a user's levels (ADR-0023 section 4.2). Deny by default: a user nothing
+// matches gets 0. Logins compare without case, as Grafana's do. A project's grants replace
+// the org's for that project when something in them matches the user.
+func Resolve(cfg ClearanceConfig, login, role string, teams []string) Clearance {
+	c := Clearance{Login: login, Role: role, Teams: teams}
+	c.Level, _ = cfg.Grants.resolve(login, role, teams, DefaultRoles)
+	for p, g := range cfg.Projects {
+		if lv, ok := g.resolve(login, role, teams, nil); ok {
+			if c.Projects == nil {
+				c.Projects = map[string]Level{}
+			}
+			c.Projects[p] = lv
+		}
 	}
 	return c
 }

@@ -132,3 +132,49 @@ func TestBackendErrorsStayInTheLog(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamsFromGrafana(t *testing.T) {
+	var auth []string
+	grafana := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = append(auth, r.Header.Get("Authorization"))
+		switch {
+		case r.URL.Path == "/api/teams/search" && r.URL.Query().Get("name") == "support":
+			_, _ = w.Write([]byte(`{"teams":[{"id":7,"name":"support"},{"id":8,"name":"support-old"}]}`))
+		case r.URL.Path == "/api/teams/7/members":
+			_, _ = w.Write([]byte(`[{"login":"Sam"},{"login":"kim"}]`))
+		case r.URL.Path == "/api/teams/8/members":
+			t.Errorf("members of a team whose name only starts with the configured one were read")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer grafana.Close()
+	a := New(Settings{GrafanaURL: grafana.URL, Clearance: mustClearance(t, `{"teams":{"support":3},"projects":{"vip":{"teams":{"support":0}}}}`)}, "")
+	a.teams.token = func(context.Context) (string, error) { return "sa-token", nil }
+
+	_, b := call(t, a, &backend.User{Login: "sam", Role: "Viewer"}, "/v1/me")
+	if b["level"] != 3.0 || len(b["teams"].([]any)) != 1 {
+		t.Errorf("sam (Viewer, team support): %v", b)
+	}
+	if _, b := call(t, a, &backend.User{Login: "sam", Role: "Viewer"}, "/v1/me?project=vip"); b["level"] != 0.0 || b["can"].(map[string]any)["timeline"] != false {
+		t.Errorf("sam in vip: %v", b)
+	}
+	if _, b := call(t, a, &backend.User{Login: "lee", Role: "Viewer"}, "/v1/me"); b["level"] != 1.0 {
+		t.Errorf("lee (Viewer, no team): %v", b)
+	}
+	if auth[0] != "Bearer sa-token" {
+		t.Errorf("team lookup sent %q", auth[0])
+	}
+	calls := len(auth)
+	call(t, a, &backend.User{Login: "kim", Role: "Viewer"}, "/v1/me")
+	if len(auth) != calls {
+		t.Errorf("members were read again within the cache time")
+	}
+
+	// No token (managed service accounts off): resolved without teams, never higher.
+	b2 := New(Settings{GrafanaURL: grafana.URL, Clearance: mustClearance(t, `{"teams":{"support":3}}`)}, "")
+	b2.teams.token = func(context.Context) (string, error) { return "", nil }
+	if _, b := call(t, b2, &backend.User{Login: "sam", Role: "Viewer"}, "/v1/me"); b["level"] != 1.0 {
+		t.Errorf("sam without a token: %v", b)
+	}
+}

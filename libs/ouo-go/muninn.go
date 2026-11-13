@@ -79,6 +79,19 @@ type Chunk struct {
 	Attributes   map[string]any `json:"attributes"`
 }
 
+// unmasked says whether any chunk was recorded without masking (ouo.replay.masked false or
+// absent: absent counts as unmasked, deny by default).
+func (m *Manifest) unmasked() bool {
+	for _, st := range m.Streams {
+		for _, ch := range st.Chunks {
+			if v, ok := ch.Attributes["ouo.replay.masked"].(bool); !ok || !v {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ChunkBytes is a chunk's body, decompressed when it was stored gzip.
 type ChunkBytes struct {
 	Format string

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,8 @@ import (
 type Client struct {
 	Loki   *Loki
 	Muninn *Muninn
+	// Tempo is optional: without it a session has no traces.
+	Tempo *Tempo
 	// ListLimit bounds the Loki records a session list reads (default 5000, Loki's default
 	// max_entries_limit_per_query). A list that hit it says Truncated.
 	ListLimit int
@@ -24,12 +27,25 @@ type Client struct {
 	EventLimit int
 	// Now is for tests; time.Now when nil.
 	Now func() time.Time
+
+	// unmasked caches, per replay, whether any chunk was recorded unmasked (Q10), so a chunk
+	// request below c5 does not fetch the manifest every time.
+	unmasked sync.Map // replay key -> unmaskedEntry
 }
+
+type unmaskedEntry struct {
+	unmasked bool
+	until    time.Time
+}
+
+const unmaskedTTL = 5 * time.Minute
 
 // Errors a caller maps to HTTP statuses.
 var (
 	ErrForbidden = errors.New("clearance too low")
 	ErrNotFound  = errors.New("not found")
+	// ErrUnmasked is an ErrForbidden: the replay holds a chunk recorded without masking.
+	ErrUnmasked = fmt.Errorf("%w: the replay was recorded without masking and needs c5", ErrForbidden)
 )
 
 // BadRequestError is an invalid identifier or parameter.
@@ -74,13 +90,9 @@ type TimeRange struct {
 }
 
 func (c *Client) window(r TimeRange) (time.Time, time.Time, error) {
-	now := time.Now
-	if c.Now != nil {
-		now = c.Now
-	}
 	to := r.To
 	if to.IsZero() {
-		to = now()
+		to = c.now()
 	}
 	from := r.From
 	if from.IsZero() {
@@ -141,6 +153,10 @@ type SessionDetail struct {
 	Session Session         `json:"session"`
 	Events  []Event         `json:"events"`
 	Replays []ReplaySummary `json:"replays"`
+	// Traces of the session in Tempo (by span attribute session.id); nil without Tempo.
+	Traces      []TraceSummary `json:"traces"`
+	TracesError string         `json:"traces_error,omitempty"`
+	TracesErr   error          `json:"-"`
 	// ReplaysError is set when Muninn could not be read; the timeline is still answered.
 	// ReplaysErr holds the detail for the caller's log; it is never serialised.
 	ReplaysError string `json:"replays_error,omitempty"`
@@ -213,7 +229,7 @@ func (c Clearance) session(a *sessionAgg) Session {
 // at most ListLimit records (newest first) and groups them by session, so with heavy
 // traffic the oldest sessions of the range may be missing or undercounted: Truncated says so.
 func (c *Client) ListSessions(ctx context.Context, cl Clearance, q SessionQuery) (*SessionList, error) {
-	if !cl.Can().Timeline {
+	if !cl.Max().Can().Timeline {
 		return nil, ErrForbidden
 	}
 	from, to, err := c.window(q.TimeRange)
@@ -253,9 +269,27 @@ func (c *Client) ListSessions(ctx context.Context, cl Clearance, q SessionQuery)
 			}
 		}
 	}
-	out := &SessionList{Sessions: []Session{}, Truncated: len(lines) >= limit, Redacted: cl.redactedGroups()}
+	out := &SessionList{Sessions: []Session{}, Truncated: len(lines) >= limit}
+	redacted := map[string]bool{}
 	for _, a := range aggs {
-		out.Sessions = append(out.Sessions, cl.session(a))
+		pc := cl.For(a.Project)
+		if !pc.Can().Timeline {
+			continue // a project this user may not see at all
+		}
+		for _, g := range pc.redactedGroups() {
+			redacted[g] = true
+		}
+		out.Sessions = append(out.Sessions, pc.session(a))
+	}
+	// The groups hidden in at least one listed session (all of them when none is listed).
+	out.Redacted = cl.redactedGroups()
+	if len(out.Sessions) > 0 {
+		out.Redacted = []string{}
+		for _, g := range []string{GroupAttributes, GroupReplay, GroupIdentity} {
+			if redacted[g] {
+				out.Redacted = append(out.Redacted, g)
+			}
+		}
 	}
 	sort.Slice(out.Sessions, func(i, j int) bool { return out.Sessions[i].End > out.Sessions[j].End })
 	if n := orDefault(q.Limit, 200); len(out.Sessions) > n {
@@ -268,6 +302,7 @@ func (c *Client) ListSessions(ctx context.Context, cl Clearance, q SessionQuery)
 // GetSession returns one session's summary, its event timeline and, with Replay clearance,
 // its replays from Muninn. ErrNotFound when Loki has no record of it in the range.
 func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session string, r TimeRange) (*SessionDetail, error) {
+	cl = cl.For(project)
 	if !cl.Can().Timeline {
 		return nil, ErrForbidden
 	}
@@ -306,6 +341,14 @@ func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session 
 			agg.HasReplay = len(replays) > 0
 		}
 	}
+	if c.Tempo != nil {
+		traces, err := c.Tempo.search(ctx, session, from, to)
+		if err != nil {
+			out.TracesError, out.TracesErr = "traces could not be read", err
+		} else {
+			out.Traces = traces
+		}
+	}
 	out.Session = cl.session(agg)
 	return out, nil
 }
@@ -332,15 +375,19 @@ func (c Clearance) event(l lokiLine) Event {
 
 // GetManifest returns one replay's manifest. Needs Replay clearance.
 func (c *Client) GetManifest(ctx context.Context, cl Clearance, project, session, replay string) (*Manifest, error) {
+	cl = cl.For(project)
 	if !cl.Can().Replay {
 		return nil, ErrForbidden
 	}
 	if err := checkReplayIDs(project, session, replay); err != nil {
 		return nil, err
 	}
-	m, err := c.Muninn.manifest(ctx, project, session, replay)
+	m, err := c.manifest(ctx, project, session, replay)
 	if err != nil {
 		return nil, err
+	}
+	if !cl.Can().Unmasked && m.unmasked() {
+		return nil, ErrUnmasked
 	}
 	// Muninn returns every stored chunk attribute (MUN-6); an SDK or a bridge may have put
 	// identity there.
@@ -360,6 +407,7 @@ func (c *Client) GetManifest(ctx context.Context, cl Clearance, project, session
 
 // GetChunk returns one chunk's bytes, decompressed. Needs Replay clearance.
 func (c *Client) GetChunk(ctx context.Context, cl Clearance, project, session, replay, stream string, seq int64) (*ChunkBytes, error) {
+	cl = cl.For(project)
 	if !cl.Can().Replay {
 		return nil, ErrForbidden
 	}
@@ -372,7 +420,46 @@ func (c *Client) GetChunk(ctx context.Context, cl Clearance, project, session, r
 	if seq < 0 || seq > 999_999_999 {
 		return nil, &BadRequestError{Msg: "sequence out of range"}
 	}
+	if !cl.Can().Unmasked {
+		unmasked, err := c.isUnmasked(ctx, project, session, replay)
+		if err != nil {
+			return nil, err
+		}
+		if unmasked {
+			return nil, ErrUnmasked
+		}
+	}
 	return c.Muninn.chunk(ctx, project, session, replay, stream, seq)
+}
+
+// manifest reads a manifest from Muninn and records whether the replay is unmasked.
+func (c *Client) manifest(ctx context.Context, project, session, replay string) (*Manifest, error) {
+	m, err := c.Muninn.manifest(ctx, project, session, replay)
+	if err != nil {
+		return nil, err
+	}
+	c.unmasked.Store(project+"/"+session+"/"+replay, unmaskedEntry{unmasked: m.unmasked(), until: c.now().Add(unmaskedTTL)})
+	return m, nil
+}
+
+// isUnmasked answers from the cache, or reads the manifest. A late unmasked chunk is seen
+// within unmaskedTTL.
+func (c *Client) isUnmasked(ctx context.Context, project, session, replay string) (bool, error) {
+	if e, ok := c.unmasked.Load(project + "/" + session + "/" + replay); ok && c.now().Before(e.(unmaskedEntry).until) {
+		return e.(unmaskedEntry).unmasked, nil
+	}
+	m, err := c.manifest(ctx, project, session, replay)
+	if err != nil {
+		return false, err
+	}
+	return m.unmasked(), nil
+}
+
+func (c *Client) now() time.Time {
+	if c.Now != nil {
+		return c.Now()
+	}
+	return time.Now()
 }
 
 func checkReplayIDs(project, session, replay string) error {

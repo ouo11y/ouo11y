@@ -19,6 +19,8 @@ const (
 	replay  = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	stream  = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	readTok = "mrt_test"
+	// unmaskedReplay holds a chunk recorded without masking (Q10: c5 only).
+	unmaskedReplay = "dddddddddddddddddddddddddddddddd"
 )
 
 // labels of one record as Loki answers them: stream labels and structured metadata merged.
@@ -94,7 +96,9 @@ func (f *fakeMuninn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Muninn gzips JSON when the request accepts it.
 		w.Header().Set("Content-Encoding", "gzip")
 		_, _ = w.Write(gz([]byte(`{"session_id":"` + sess + `","replay_id":"` + replay + `","project":"demo","state":"complete","streams":[{"stream_id":"` + stream + `","state":"complete","end":null,"missing":[],"chunks":[{"sequence":0,"keyframe":true,"format":"rrweb/2","encoding":"gzip","attributes":{"ouo.replay.masked":true,"enduser.id":"user-42"},"path":"/x"}]}]}`)))
-	case base + "/" + replay + "/streams/" + stream + "/chunks/0":
+	case base + "/" + unmaskedReplay:
+		_, _ = w.Write([]byte(`{"session_id":"` + sess + `","replay_id":"` + unmaskedReplay + `","project":"demo","state":"complete","streams":[{"stream_id":"` + stream + `","state":"complete","end":null,"missing":[],"chunks":[{"sequence":0,"keyframe":true,"format":"rrweb/2","encoding":"gzip","attributes":{"ouo.replay.masked":false}}]}]}`))
+	case base + "/" + replay + "/streams/" + stream + "/chunks/0", base + "/" + unmaskedReplay + "/streams/" + stream + "/chunks/0":
 		if r.Header.Get("Accept-Encoding") != "gzip" {
 			http.Error(w, "want Accept-Encoding gzip", http.StatusBadRequest)
 			return
@@ -107,22 +111,35 @@ func (f *fakeMuninn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var tempoQueries []string
+
+func fakeTempo(w http.ResponseWriter, r *http.Request) {
+	tempoQueries = append(tempoQueries, r.URL.Query().Get("q"))
+	if r.URL.Path != "/api/search" {
+		http.NotFound(w, r)
+		return
+	}
+	_, _ = w.Write([]byte(`{"traces":[{"traceID":"abc123","rootServiceName":"shop-web","rootTraceName":"GET","startTimeUnixNano":"1794400001000000000","durationMs":42}]}`))
+}
+
 func newClient(t *testing.T) (*Client, *fakeLoki, *fakeMuninn) {
 	t.Helper()
 	fl, fm := &fakeLoki{}, &fakeMuninn{}
-	ls, ms := httptest.NewServer(fl), httptest.NewServer(fm)
+	ls, ms, ts := httptest.NewServer(fl), httptest.NewServer(fm), httptest.NewServer(http.HandlerFunc(fakeTempo))
 	t.Cleanup(ls.Close)
 	t.Cleanup(ms.Close)
+	t.Cleanup(ts.Close)
 	now := time.Unix(1794400010, 0)
 	return &Client{
 		Loki:   &Loki{URL: ls.URL},
 		Muninn: &Muninn{URL: ms.URL, ReadToken: readTok},
+		Tempo:  &Tempo{URL: ts.URL},
 		Now:    func() time.Time { return now },
 	}, fl, fm
 }
 
 func TestResolve(t *testing.T) {
-	cfg := ClearanceConfig{Users: map[string]Level{"alice": C4, "mallory": None}}
+	cfg := ClearanceConfig{Grants: Grants{Users: map[string]Level{"alice": C4, "mallory": None}}}
 	cases := []struct {
 		login, role string
 		want        Level
@@ -138,12 +155,12 @@ func TestResolve(t *testing.T) {
 		{"Alice", "Viewer", C4},    // logins compare without case, as Grafana's do
 	}
 	for _, c := range cases {
-		if got := Resolve(cfg, c.login, c.role).Level; got != c.want {
+		if got := Resolve(cfg, c.login, c.role, nil).Level; got != c.want {
 			t.Errorf("Resolve(%q, %q) = %v, want %v", c.login, c.role, got, c.want)
 		}
 	}
 	// An explicit roles map replaces the default one: deny by default for roles it lacks.
-	if got := Resolve(ClearanceConfig{Roles: map[string]Level{"Admin": C2}}, "x", "Viewer").Level; got != None {
+	if got := Resolve(ClearanceConfig{Grants: Grants{Roles: map[string]Level{"Admin": C2}}}, "x", "Viewer", nil).Level; got != None {
 		t.Errorf("Viewer with a roles map that omits it = %v, want c0", got)
 	}
 }
@@ -167,15 +184,15 @@ func TestLevelJSON(t *testing.T) {
 // the BFF's answers are present. A change to `levels` must change this table.
 func TestLevelsAgainstFields(t *testing.T) {
 	type seen struct {
-		list, timeline, attributes, body, identityAttr, user, replays, manifest, chunk, chunkIdentity bool
+		list, timeline, attributes, body, identityAttr, user, replays, manifest, chunk, chunkIdentity, unmasked, traces bool
 	}
 	want := map[Level]seen{
 		None: {},
-		C1:   {list: true, timeline: true},
-		C2:   {list: true, timeline: true, attributes: true, body: true},
-		C3:   {list: true, timeline: true, attributes: true, body: true, replays: true, manifest: true, chunk: true},
-		C4:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true},
-		C5:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true},
+		C1:   {list: true, timeline: true, traces: true},
+		C2:   {list: true, timeline: true, attributes: true, body: true, traces: true},
+		C3:   {list: true, timeline: true, attributes: true, body: true, replays: true, manifest: true, chunk: true, traces: true},
+		C4:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true, traces: true},
+		C5:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true, unmasked: true, traces: true},
 	}
 	ctx := context.Background()
 	for lv := None; lv <= C5; lv++ {
@@ -202,6 +219,7 @@ func TestLevelsAgainstFields(t *testing.T) {
 			got.identityAttr = nav["enduser_id"] != ""
 			got.body = d.Events[2].Body == "stack body"
 			got.replays = d.Replays != nil && len(d.Replays) == 1
+			got.traces = len(d.Traces) == 1 && d.Traces[0].TraceID == "abc123" && d.Traces[0].DurationMs == 42 && d.Traces[0].Start == 1794400001000
 			if got.user != (d.Session.User == "user-42") {
 				t.Errorf("%v: list and detail disagree on the user", lv)
 			}
@@ -229,6 +247,14 @@ func TestLevelsAgainstFields(t *testing.T) {
 			got.chunk = string(ch.Body) == chunkBody && ch.Format == "rrweb/2"
 		} else if !errors.Is(err, ErrForbidden) {
 			t.Fatalf("%v: chunk: %v", lv, err)
+		}
+		_, errM := c.GetManifest(ctx, cl, proj, sess, unmaskedReplay)
+		_, errC := c.GetChunk(ctx, cl, proj, sess, unmaskedReplay, stream, 0)
+		got.unmasked = errM == nil && errC == nil
+		if lv == C3 || lv == C4 {
+			if !errors.Is(errM, ErrUnmasked) || !errors.Is(errC, ErrUnmasked) || !errors.Is(errC, ErrForbidden) {
+				t.Errorf("%v: unmasked replay: %v / %v, want ErrUnmasked", lv, errM, errC)
+			}
 		}
 		if !lv.Can().Replay && fm.calls != before {
 			t.Errorf("%v: Muninn was called without replay clearance", lv)
@@ -351,5 +377,76 @@ func TestReplaysErrorIsGeneric(t *testing.T) {
 	}
 	if d.ReplaysError != "replays could not be read" || d.ReplaysErr == nil || strings.Contains(d.ReplaysError, "http") {
 		t.Errorf("replays error %q / %v", d.ReplaysError, d.ReplaysErr)
+	}
+}
+
+func TestTeamsAndProjects(t *testing.T) {
+	cfg := ClearanceConfig{
+		Grants: Grants{Teams: map[string]Level{"support": C3, "eng": C2}},
+		Projects: map[string]Grants{
+			"payments": {Roles: map[string]Level{"Viewer": None}, Teams: map[string]Level{"payments-oncall": C4}},
+			"public":   {Users: map[string]Level{"bob": C5}},
+		},
+	}
+	if names := cfg.TeamNames(); strings.Join(names, ",") != "eng,payments-oncall,support" {
+		t.Errorf("team names %v", names)
+	}
+	// Highest of role and teams in a scope.
+	bob := Resolve(cfg, "bob", "Viewer", []string{"eng", "support"})
+	if bob.Level != C3 {
+		t.Errorf("bob org level %v, want c3 (team support)", bob.Level)
+	}
+	// A project's grants replace the org's when they match; otherwise the org level holds.
+	if got := bob.For("payments").Level; got != None {
+		t.Errorf("bob in payments %v, want c0 (Viewer there)", got)
+	}
+	if got := bob.For("public").Level; got != C5 {
+		t.Errorf("bob in public %v, want c5", got)
+	}
+	if got := bob.For("shop").Level; got != C3 {
+		t.Errorf("bob in shop %v, want the org level c3", got)
+	}
+	carol := Resolve(cfg, "carol", "Editor", []string{"payments-oncall"})
+	if carol.Level != C3 || carol.For("payments").Level != C4 {
+		t.Errorf("carol %v / payments %v", carol.Level, carol.For("payments").Level)
+	}
+	// Level 0 in the org but cleared in one project: may list, sees that project only.
+	dave := Resolve(ClearanceConfig{Grants: Grants{Roles: map[string]Level{}}, Projects: map[string]Grants{proj: {Users: map[string]Level{"dave": C1}}}}, "dave", "Viewer", nil)
+	if dave.Level != None || dave.Max() != C1 {
+		t.Errorf("dave %v max %v", dave.Level, dave.Max())
+	}
+	c, _, _ := newClient(t)
+	ctx := context.Background()
+	list, err := c.ListSessions(ctx, dave, SessionQuery{})
+	if err != nil || len(list.Sessions) != 1 {
+		t.Fatalf("dave list: %v %+v", err, list)
+	}
+	// And the other way: cleared in the org, 0 in the session's project.
+	erin := Resolve(ClearanceConfig{Grants: Grants{Roles: map[string]Level{"Viewer": C4}}, Projects: map[string]Grants{proj: {Users: map[string]Level{"erin": None}}}}, "erin", "Viewer", nil)
+	list, err = c.ListSessions(ctx, erin, SessionQuery{})
+	if err != nil || len(list.Sessions) != 0 {
+		t.Errorf("erin list: %v %+v", err, list)
+	}
+	if _, err := c.GetSession(ctx, erin, proj, sess, TimeRange{}); !errors.Is(err, ErrForbidden) {
+		t.Errorf("erin session: %v", err)
+	}
+	if _, err := c.GetChunk(ctx, erin, proj, sess, replay, stream, 0); !errors.Is(err, ErrForbidden) {
+		t.Errorf("erin chunk: %v", err)
+	}
+}
+
+func TestTempoQueryAndError(t *testing.T) {
+	c, _, _ := newClient(t)
+	tempoQueries = nil
+	if _, err := c.GetSession(context.Background(), Clearance{Level: C1}, proj, sess, TimeRange{}); err != nil {
+		t.Fatal(err)
+	}
+	if want := `{ span.session.id = "` + sess + `" }`; len(tempoQueries) != 1 || tempoQueries[0] != want {
+		t.Errorf("tempo queries %q", tempoQueries)
+	}
+	c.Tempo.URL = "http://127.0.0.1:1"
+	d, err := c.GetSession(context.Background(), Clearance{Level: C1}, proj, sess, TimeRange{})
+	if err != nil || d.Traces != nil || d.TracesError != "traces could not be read" || d.TracesErr == nil {
+		t.Errorf("tempo down: %v %+v", err, d)
 	}
 }

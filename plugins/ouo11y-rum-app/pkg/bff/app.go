@@ -22,10 +22,14 @@ import (
 // Settings is the plugin's jsonData as far as the BFF reads it. The MVP pages' keys
 // (rumApiUrl, featureToggles) sit beside these.
 type Settings struct {
-	LokiURL      string                `json:"lokiUrl"`
-	MuninnURL    string                `json:"muninnUrl"`
-	MuninnTenant string                `json:"muninnTenant"`
-	Clearance    ouogo.ClearanceConfig `json:"clearance"`
+	LokiURL      string `json:"lokiUrl"`
+	MuninnURL    string `json:"muninnUrl"`
+	MuninnTenant string `json:"muninnTenant"`
+	TempoURL     string `json:"tempoUrl"`
+	// GrafanaURL is where the backend reaches Grafana's own API (team lookups). The backend
+	// runs inside Grafana's container, so the default is http://localhost:3000.
+	GrafanaURL string                `json:"grafanaUrl"`
+	Clearance  ouogo.ClearanceConfig `json:"clearance"`
 }
 
 // App is one plugin instance (one Grafana org).
@@ -33,6 +37,8 @@ type App struct {
 	backend.CallResourceHandler
 	client    *ouogo.Client
 	clearance ouogo.ClearanceConfig
+	teamNames []string
+	teams     *teams
 }
 
 // NewApp builds an instance from the app settings Grafana passes.
@@ -62,8 +68,11 @@ func New(cfg Settings, muninnReadToken string) *App {
 				Tenant:    def(cfg.MuninnTenant, "anonymous"),
 				ReadToken: muninnReadToken,
 			},
+			Tempo: &ouogo.Tempo{URL: def(cfg.TempoURL, "http://tempo:3200"), HTTP: &http.Client{Timeout: 30 * time.Second}},
 		},
 		clearance: cfg.Clearance,
+		teamNames: cfg.Clearance.TeamNames(),
+		teams:     newTeams(def(cfg.GrafanaURL, "http://localhost:3000")),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/me", a.me)
@@ -75,24 +84,35 @@ func New(cfg Settings, muninnReadToken string) *App {
 	return a
 }
 
-// clearanceOf resolves the calling user's level. No user (should not happen through
-// Grafana) is level 0.
+// clearanceOf resolves the calling user's levels. No user (should not happen through
+// Grafana) is level 0. When the settings name teams, the user's teams are looked up; if that
+// fails, the user is resolved without teams (never with more than role and login give).
 func (a *App) clearanceOf(r *http.Request) ouogo.Clearance {
 	u := backend.UserFromContext(r.Context())
 	if u == nil {
 		return ouogo.Clearance{}
 	}
-	return ouogo.Resolve(a.clearance, u.Login, u.Role)
+	teams, err := a.teams.of(r.Context(), a.teamNames, u.Login)
+	if err != nil {
+		log.DefaultLogger.FromContext(r.Context()).Error("team lookup failed; resolving without teams", "error", err.Error())
+	}
+	return ouogo.Resolve(a.clearance, u.Login, u.Role, teams)
 }
 
 type meAnswer struct {
 	ouogo.Clearance
-	Can ouogo.Capabilities `json:"can"`
+	// Project is the project level and can are for (?project=), or empty for the org.
+	Project string             `json:"project,omitempty"`
+	Can     ouogo.Capabilities `json:"can"`
 }
 
 func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	cl := a.clearanceOf(r)
-	writeJSON(w, meAnswer{Clearance: cl, Can: cl.Can()})
+	p := r.URL.Query().Get("project")
+	if p != "" {
+		cl = cl.For(p)
+	}
+	writeJSON(w, meAnswer{Clearance: cl, Project: p, Can: cl.Can()})
 }
 
 func (a *App) sessions(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +145,9 @@ func (a *App) session(w http.ResponseWriter, r *http.Request) {
 	}
 	if out.ReplaysErr != nil {
 		log.DefaultLogger.FromContext(r.Context()).Error("replay list failed", "path", r.URL.Path, "error", out.ReplaysErr.Error())
+	}
+	if out.TracesErr != nil {
+		log.DefaultLogger.FromContext(r.Context()).Error("trace search failed", "path", r.URL.Path, "error", out.TracesErr.Error())
 	}
 	writeJSON(w, out)
 }
@@ -189,7 +212,7 @@ func writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	var bad *ouogo.BadRequestError
 	var be *ouogo.BackendError
 	switch {
-	case errors.Is(err, ouogo.ErrForbidden):
+	case errors.Is(err, ouogo.ErrForbidden): // includes ErrUnmasked, whose message says why
 		status, msg = http.StatusForbidden, err.Error()
 	case errors.Is(err, ouogo.ErrNotFound):
 		status, msg = http.StatusNotFound, err.Error()
