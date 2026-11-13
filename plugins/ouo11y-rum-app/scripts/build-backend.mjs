@@ -29,7 +29,8 @@ for (const p of platforms) {
   } else {
     // The module replaces ouo-go with ../../libs/ouo-go, so the whole repository is mounted.
     // Module and build caches are host directories owned by this user, kept between builds.
-    const cache = path.join(os.tmpdir(), "ouo-go-cache");
+    // One directory per user: the CI runners are separate users sharing /tmp.
+    const cache = path.join(os.tmpdir(), `ouo-go-cache-${process.getuid()}`);
     fs.mkdirSync(path.join(cache, "mod"), { recursive: true });
     fs.mkdirSync(path.join(cache, "build"), { recursive: true });
     // Rootless Docker (the CI runners) maps container root to this user, so run as root there;
