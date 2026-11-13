@@ -30,5 +30,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [sdk-state](sdk-state/) | Step 5 of the post-MVP plan: `project/kb/client-sdk-state/`, the SDKs' spec compliance, gaps against Sentry and measured overhead, with the harnesses in `measure/` | post-MVP step 5 |
 | [sdk-safety](sdk-safety/) | The golden rule, "the app must not pay for the SDK's failures": `project/kb/client-sdk-safety/`, checklist, incidents, SDK grades and spec proposal | before post-MVP step 7 |
 | [vendor-research](vendor-research/) | Step 6 of the post-MVP plan: `project/kb/vendor-internals/`, Sentry, Datadog and PostHog internals (SDKs, wire formats, storage, read APIs) and the capture demos | post-MVP step 6 |
+| [muninn-design](muninn-design/) | Step 8 design of the post-MVP plan: ADR-0019, `docs/specs/muninn.md` and `project/kb/muninn/`, the Collector to Muninn replay path | post-MVP step 8 (design) |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.
