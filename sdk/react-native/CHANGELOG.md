@@ -119,12 +119,10 @@ telemetry are step B).
 
 * **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184))
 * **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183))
-* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens
 
 ### Added
 
 * **android:** native crashes, hangs, terminations and FrameMetrics frames (W9 part 2) ([c525b91](https://github.com/ouo11y/ouo11y/commit/c525b91d34fc85d01a2afeb180a8e6406a0cb4f7))
-* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens ([3af96e4](https://github.com/ouo11y/ouo11y/commit/3af96e42e1ed199c31989d907b57bfaf0ca6ca96))
 * **react-native:** Android replay capture, gzip delivery and vitals (W9 part 1) ([de2b3bc](https://github.com/ouo11y/ouo11y/commit/de2b3bc4e3522f7136720db0d2be1edbea099e1e))
 * **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183)) ([670e3df](https://github.com/ouo11y/ouo11y/commit/670e3df93817c75f0062d22eac85f0ede42b583f))
 * **react-native:** Hermes debug ids and OTA-safe source maps ([a30fc0c](https://github.com/ouo11y/ouo11y/commit/a30fc0cc324efd24b07bbb952738eb727b2be429))
