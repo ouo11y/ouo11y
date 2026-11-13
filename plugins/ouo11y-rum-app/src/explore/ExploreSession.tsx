@@ -4,12 +4,19 @@ import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
 import { Alert, Badge, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
-import { ReplayPlayer, type Event, type ReplaySummary, type TraceSummary } from '@ouo11y/kit';
+import {
+  formatDuration as duration,
+  formatTime as time,
+  ReplayPlayer,
+  Timeline,
+  type ReplaySummary,
+  type TraceSummary,
+} from '@ouo11y/kit';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useSearchParams } from '../hooks/useSearchParams';
 import { bff, useBff } from './bff';
 import { ClearanceNote } from './ClearanceNote';
-import { duration, time } from './format';
+import { KitTheme } from './KitTheme';
 
 /** One session: its event timeline from Loki and, with replay clearance, its replay from Muninn. */
 export default function ExploreSession() {
@@ -43,7 +50,9 @@ export default function ExploreSession() {
               <span>{time(detail.data.session.start)}</span>
               <span>{duration(detail.data.session.end - detail.data.session.start)}</span>
               <span>{detail.data.session.event_count} events</span>
-              {detail.data.session.error_count > 0 && <Badge color="red" text={`${detail.data.session.error_count} errors`} />}
+              {detail.data.session.error_count > 0 && (
+                <Badge color="red" text={`${detail.data.session.error_count} errors`} />
+              )}
               {detail.data.session.user && <Badge color="purple" text={`user ${detail.data.session.user}`} />}
             </Stack>
             <ClearanceNote me={me.data} redacted={detail.data.redacted} />
@@ -55,7 +64,9 @@ export default function ExploreSession() {
             <div className={styles.columns}>
               <section className={styles.timeline} data-testid="explore-timeline">
                 <h4>Timeline</h4>
-                <Timeline events={detail.data.events} start={detail.data.session.start} />
+                <KitTheme>
+                  <Timeline events={detail.data.events} start={detail.data.session.start} />
+                </KitTheme>
                 {(detail.data.traces?.length || detail.data.traces_error) && (
                   <>
                     <h4>Traces</h4>
@@ -76,7 +87,9 @@ export default function ExploreSession() {
                     {detail.data.replays_error}
                   </Alert>
                 )}
-                {replays && replays.length === 0 && <div className={styles.muted}>No replay stored for this session.</div>}
+                {replays && replays.length === 0 && (
+                  <div className={styles.muted}>No replay stored for this session.</div>
+                )}
                 {replays && replays.length > 1 && (
                   <select value={replay?.replay_id} onChange={(e) => setReplayId(e.target.value)}>
                     {replays.map((r) => (
@@ -98,7 +111,10 @@ export default function ExploreSession() {
 
 function Replay({ project, session, replay }: { project: string; session: string; replay: ReplaySummary }) {
   const manifest = useBff(() => bff.manifest(project, session, replay.replay_id), replay.replay_id);
-  const fetchChunk = useMemo(() => bff.chunkFetcher(project, session, replay.replay_id), [project, session, replay.replay_id]);
+  const fetchChunk = useMemo(
+    () => bff.chunkFetcher(project, session, replay.replay_id),
+    [project, session, replay.replay_id]
+  );
   if (manifest.error) {
     return (
       <Alert severity="error" title="Replay could not be read">
@@ -153,43 +169,6 @@ function Traces({ traces, start }: { traces: TraceSummary[]; start: number }) {
   );
 }
 
-function Timeline({ events, start }: { events: Event[]; start: number }) {
-  const styles = useStyles2(getStyles);
-  const [open, setOpen] = useState<number>();
-  return (
-    <table className={styles.table}>
-      <tbody>
-        {events.map((e, i) => (
-          <React.Fragment key={i}>
-            <tr
-              data-testid="timeline-event"
-              className={e.attributes || e.body ? styles.clickable : undefined}
-              onClick={() => setOpen(open === i ? undefined : i)}
-            >
-              <td className={styles.muted}>+{duration(e.time - start)}</td>
-              <td>{e.name}</td>
-              <td>{e.severity && e.severity !== 'INFO' ? <Badge color="red" text={e.severity} /> : null}</td>
-            </tr>
-            {open === i && (e.attributes || e.body) && (
-              <tr>
-                <td colSpan={3}>
-                  <pre className={styles.attrs}>
-                    {Object.entries(e.attributes ?? {})
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([k, v]) => `${k}: ${v}`)
-                      .join('\n')}
-                    {e.body ? `\n\n${e.body}` : ''}
-                  </pre>
-                </td>
-              </tr>
-            )}
-          </React.Fragment>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
 const getStyles = (theme: GrafanaTheme2) => ({
   columns: css({
     display: 'grid',
@@ -204,7 +183,5 @@ const getStyles = (theme: GrafanaTheme2) => ({
     borderCollapse: 'collapse',
     td: { padding: theme.spacing(0.5, 1), borderBottom: `1px solid ${theme.colors.border.weak}`, verticalAlign: 'top' },
   }),
-  clickable: css({ cursor: 'pointer', '&:hover': { background: theme.colors.action.hover } }),
   muted: css({ color: theme.colors.text.secondary }),
-  attrs: css({ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: theme.typography.bodySmall.fontSize }),
 });

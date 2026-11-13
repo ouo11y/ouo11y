@@ -5,7 +5,7 @@
   "id": "ouo11y-rum-app",
   "info": {
     "keywords": ["app", "rum", "opentelemetry", "session replay", "ouo"],
-    "description": "Real User Monitoring on OpenTelemetry: session explorer and replay on the spec wire through the plugin backend, and the MVP pages served by rum-api.",
+    "description": "Real User Monitoring on OpenTelemetry: home, session explorer, replay and business flows on the spec wire through the plugin backend, and the MVP pages served by rum-api.",
     "author": {
       "name": "ouo11y"
     },
@@ -20,6 +20,15 @@
   "includes": [
     {
       "type": "page",
+      "name": "Home",
+      "icon": "heart-rate",
+      "path": "/a/%PLUGIN_ID%/home",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": true
+    },
+    {
+      "type": "page",
       "name": "Session explorer",
       "icon": "play",
       "path": "/a/%PLUGIN_ID%/explore",
@@ -29,16 +38,25 @@
     },
     {
       "type": "page",
-      "name": "Overview",
+      "name": "Business flows",
+      "icon": "filter",
+      "path": "/a/%PLUGIN_ID%/flows",
+      "role": "Viewer",
+      "addToNav": true,
+      "defaultNav": false
+    },
+    {
+      "type": "page",
+      "name": "Overview (MVP)",
       "icon": "heart-rate",
       "path": "/a/%PLUGIN_ID%/overview",
       "role": "Viewer",
       "addToNav": true,
-      "defaultNav": true
+      "defaultNav": false
     },
     {
       "type": "page",
-      "name": "Sessions",
+      "name": "Sessions (MVP)",
       "icon": "list-ul",
       "path": "/a/%PLUGIN_ID%/sessions",
       "role": "Viewer",
@@ -47,7 +65,7 @@
     },
     {
       "type": "page",
-      "name": "Funnels",
+      "name": "Funnels (MVP)",
       "icon": "filter",
       "path": "/a/%PLUGIN_ID%/funnels",
       "role": "Viewer",
@@ -75,9 +93,18 @@
   "executable": "gpx_ouo11y-rum-app",
   "iam": {
     "permissions": [
-      { "action": "teams:read", "scope": "teams:*" },
-      { "action": "teams.permissions:read", "scope": "teams:*" },
-      { "action": "org.users:read", "scope": "users:*" }
+      {
+        "action": "teams:read",
+        "scope": "teams:*"
+      },
+      {
+        "action": "teams.permissions:read",
+        "scope": "teams:*"
+      },
+      {
+        "action": "org.users:read",
+        "scope": "users:*"
+      }
     ]
   },
   "routes": [

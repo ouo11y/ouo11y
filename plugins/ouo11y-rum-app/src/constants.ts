@@ -19,4 +19,8 @@ export enum ROUTES {
   Funnels = 'funnels',
   /** Session explorer on the BFF (ADR-0023). */
   Explore = 'explore',
+  /** Landing page on the spec wire (ADR-0025). */
+  Home = 'home',
+  /** Funnels on the spec wire (ADR-0025). */
+  Flows = 'flows',
 }

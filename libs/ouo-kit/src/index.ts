@@ -1,4 +1,11 @@
 export * from './api';
+export { createBffClient, BffError, type BffClient, type BffClientOptions, type Query } from './client';
+export { useBff, type Async } from './useBff';
+export { formatTime, formatDuration, formatValue } from './format';
+export { SessionTable, type SessionTableProps } from './components/SessionTable';
+export { Timeline, type TimelineProps } from './components/Timeline';
+export { FunnelChart, type FunnelChartProps } from './components/FunnelChart';
+export { themeVars, themeStyle, type ThemeVar } from './components/theme';
 export { ReplayPlayer, type ReplayPlayerProps } from './replay/ReplayPlayer';
 export { RrwebPlayer, type RrwebPlayerProps } from './replay/RrwebPlayer';
 export { FramesPlayer, VideoPlayer } from './replay/PixelPlayers';

@@ -11,6 +11,8 @@ const SessionDetail = React.lazy(() => import('../pages/SessionDetail'));
 const Funnels = React.lazy(() => import('../pages/Funnels'));
 const ExploreSessions = React.lazy(() => import('../explore/ExploreSessions'));
 const ExploreSession = React.lazy(() => import('../explore/ExploreSession'));
+const Home = React.lazy(() => import('../explore/Home'));
+const Flows = React.lazy(() => import('../explore/Flows'));
 
 export default function App({ meta }: AppRootProps<AppSettings>) {
   const toggles = useMemo(() => parseFeatureToggles(meta?.jsonData?.featureToggles), [meta?.jsonData?.featureToggles]);
@@ -23,7 +25,9 @@ export default function App({ meta }: AppRootProps<AppSettings>) {
         <Route path={ROUTES.Funnels} element={<Funnels />} />
         <Route path={ROUTES.Explore} element={<ExploreSessions />} />
         <Route path={`${ROUTES.Explore}/:project/:sessionId`} element={<ExploreSession />} />
-        <Route path="*" element={<Navigate to={ROUTES.Overview} replace />} />
+        <Route path={ROUTES.Home} element={<Home />} />
+        <Route path={ROUTES.Flows} element={<Flows />} />
+        <Route path="*" element={<Navigate to={ROUTES.Home} replace />} />
       </Routes>
     </FeatureTogglesContext.Provider>
   );
