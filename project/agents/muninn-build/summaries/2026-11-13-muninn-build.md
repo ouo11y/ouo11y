@@ -92,7 +92,7 @@ None of these diverges from a MUST; each is a choice the spec leaves open, liste
 
 - **Founder**: confirm Q1 to Q15 and merge PR #180 first or together; this PR's docs name its files without links until then. When #180 merges, `project/kb/muninn/index.md` gets its `collector-path/` row back (both PRs add the file; a two-line conflict).
 - Not tested (see `project/kb/muninn/implementation/collector-path-verified.md`): Collector kill -9 right after a 2xx; full queue answering 503; queue throughput on a real disk; memory with 1 MiB chunks; spec 12's conformance suite as a separate harness (the Go tests and the e2e cover most of its rows).
-- **Release**: no `muninn-v*` tag pattern in `release-images.yml` or release-please component yet, and no license file (rum-api is AGPL, the rest Apache 2.0): the founder picks Muninn's before its first image is published.
+- **Release**: wired after #180 merged (see "Release" below): manifest and changelog at 0.1.0, `muninn-v*` in `release-images.yml` and `release-please.yml`, AGPL-3.0 like every server under `services/` (root `LICENSE`).
 - **Helm** (out of scope here): a Muninn Deployment and ClusterIP Service on port 3400 with an S3 secret (bucket, keys) and the ingest and read tokens; the collector as a StatefulSet with a PersistentVolumeClaim at `/var/lib/otelcol/replay-queue` (Q12) running `config.muninn.yaml`; `MUNINN_ENDPOINT`, `MUNINN_INGEST_TOKEN`, `MUNINN_TENANT` in its environment; alert on the Collector's failed-send counter for `otlp_http/muninn`.
 - The MVP path (`config.yaml`, `ouoreplay*`, rum-api's replay code) stays until the founder removes it. Without `--muninn`, nothing changes for any env.
 
@@ -114,3 +114,7 @@ The app could not start a separate reviewer session from this run (Remote Contro
 ## Env
 
 `muninn-collector-build-43a659` was used for all runs. After the review fixes it was rebuilt, and the end-to-end check passed 25 of 25 again in 64 s. The env was then taken down with `ouo-env down`; its volumes are kept, and `--purge` removes them.
+
+## Release
+
+Wired in this PR: `services/muninn` in `.github/release-please/{config,manifest}.json` (component `muninn`, 0.1.0), `muninn-v*` tags in `release-images.yml` (image `ghcr.io/ouo11y/muninn`, OCI license `AGPL-3.0-only`) and in `release-please.yml`, `services/muninn/{LICENSE,CHANGELOG.md}`, a `muninn | 0.1` row in `docs/compatibility.md` (`node .github/scripts/compat-check.mjs` passes) and a row in `docs/releasing.md`. The first release is a hand tag like the first SDK releases: after #185 merges, rehearse (Actions > release-images > Run workflow, tag `muninn-v0.1.0`), push the tag `muninn-v0.1.0` on the merge commit, then link the new package to the repository and make it public (`docs/releasing.md` sections 5 and 7). Later: pin it in `compose.images.yaml`, `.env.example`, the quickstart and the chart once the chart runs it.

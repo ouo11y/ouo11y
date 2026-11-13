@@ -9,6 +9,8 @@ ouo is licensed per directory, not as a single work.
   examples/                  Apache License 2.0           same text as sdk/browser/LICENSE
   services/rum-api/          GNU Affero General Public    services/rum-api/LICENSE
                              License, version 3
+  services/muninn/           GNU Affero General Public    services/muninn/LICENSE
+                             License, version 3
   deploy/, project/          Apache License 2.0           same text as sdk/browser/LICENSE
   docs/                      PROPOSED: Creative Commons   not applied yet; docs fall under
                              Attribution 4.0 (CC-BY-4.0)  Apache-2.0 until a decision is
