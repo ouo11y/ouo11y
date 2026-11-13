@@ -25,6 +25,11 @@ type Client struct {
 	ListLimit int
 	// EventLimit bounds the events of one session (default 5000).
 	EventLimit int
+	// FunnelLimit bounds the records of each Loki read of a funnel or the overview (default
+	// 5000); a report that hit it says Truncated.
+	FunnelLimit int
+	// Mimir is optional: without it the overview has no backend section.
+	Mimir *Mimir
 	// Now is for tests; time.Now when nil.
 	Now func() time.Time
 
