@@ -8,14 +8,31 @@ export interface Capabilities {
   attributes: boolean;
   replay: boolean;
   identity: boolean;
+  /** Replays recorded without masking (c5). */
+  unmasked: boolean;
 }
 
-/** GET v1/me */
+/** GET v1/me[?project=] */
 export interface Me {
   login: string;
   role: string;
+  /** The Clearance teams the user is in. */
+  teams?: string[];
+  /** The level for `project` when asked, else the org level. */
   level: number;
+  /** Per-project levels that differ from the org's. */
+  projects?: Record<string, number>;
+  project?: string;
   can: Capabilities;
+}
+
+/** One trace of a session, from Tempo's search (timeline-level: c1). */
+export interface TraceSummary {
+  trace_id: string;
+  root_service: string;
+  root_name: string;
+  start: number;
+  duration_ms: number;
 }
 
 export interface Session {
@@ -70,6 +87,9 @@ export interface SessionDetail {
   /** null without replay clearance (c3). */
   replays: ReplaySummary[] | null;
   replays_error?: string;
+  /** null when the BFF has no Tempo. */
+  traces: TraceSummary[] | null;
+  traces_error?: string;
   /** More events in the range than one read returns. */
   truncated: boolean;
   redacted: FieldGroup[];

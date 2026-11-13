@@ -21,6 +21,16 @@ data:
           rumApiUrl: {{ include "ouo.rumApiUrl" . }}
           # From OUO_FEATURE_TOGGLES_ENABLE (grafana.plugin.featureToggles, comma separated).
           featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"
+          # The plugin's backend (ADR-0023): stores it reads, and Clearance.
+          lokiUrl: {{ include "ouo.lokiUrl" . }}
+          tempoUrl: {{ include "ouo.tempoUrl" . }}
+          {{- with .Values.grafana.plugin.muninnUrl }}
+          muninnUrl: {{ . | trimSuffix "/" }}
+          {{- end }}
+          muninnTenant: {{ .Values.grafana.plugin.muninnTenant | quote }}
+          clearance:
+            {{- toYaml .Values.grafana.plugin.clearance | nindent 12 }}
         secureJsonData:
           readToken: ${OUO_READ_TOKEN}
+          muninnReadToken: ${OUO_MUNINN_READ_TOKEN}
 {{- end }}

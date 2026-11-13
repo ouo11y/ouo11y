@@ -23,7 +23,8 @@ async function get(path: string, query?: Record<string, string | number | undefi
       q.set(k, String(v));
     }
   }
-  const url = `${BFF_BASE}/${path}${q.size ? `?${q}` : ''}`;
+  const qs = q.toString(); // not q.size: older browsers and jsdom lack it
+  const url = `${BFF_BASE}/${path}${qs ? `?${qs}` : ''}`;
   const r = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json, */*' } });
   if (!r.ok) {
     let msg = r.statusText;
@@ -38,7 +39,7 @@ async function get(path: string, query?: Record<string, string | number | undefi
 }
 
 export const bff = {
-  me: async () => (await get(bffPaths.me())).json() as Promise<Me>,
+  me: async (project?: string) => (await get(bffPaths.me(), { project })).json() as Promise<Me>,
   sessions: async (from: number, to: number) =>
     (await get(bffPaths.sessions(), { from, to })).json() as Promise<SessionList>,
   session: async (project: string, session: string, from?: number, to?: number) =>

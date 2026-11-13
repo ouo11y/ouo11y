@@ -328,6 +328,28 @@ grafana:
     # [sessionTimelinePanel]. Passed to Grafana as OUO_FEATURE_TOGGLES_ENABLE and provisioned
     # into the plugin's jsonData.featureToggles.
     featureToggles: []
+    # The plugin's backend (the BFF, ADR-0023) reads Loki and Tempo at the chart's URLs
+    # (bundled or lgtm.external) and Muninn at muninnUrl. Muninn is not in this chart yet:
+    # empty muninnUrl means the Session explorer shows no replays.
+    muninnUrl: ""
+    # X-Scope-OrgID the backend sends to Muninn: one tenant per Grafana org.
+    muninnTenant: anonymous
+    # Pre-created Secret holding Muninn's read token (key below); none: reads without a token.
+    muninnReadTokenSecret:
+      name: ""
+      key: read-token
+    # Clearance (ADR-0023 section 4): levels 0-5 by org role, team and login, optionally per
+    # project. Anyone nothing matches gets 0. Teams need Grafana's managed service accounts
+    # (set below in grafana.env when teams are used). Example:
+    #   roles: {Viewer: 1, Editor: 3, Admin: 5}
+    #   teams: {support: 3}
+    #   users: {alice: 4}
+    #   projects: {payments: {roles: {Viewer: 0}, teams: {payments-oncall: 4}}}
+    clearance:
+      roles:
+        Viewer: 1
+        Editor: 3
+        Admin: 5
   datasources:
     # Provision Loki, Tempo and Mimir datasources (uids loki, tempo, mimir).
     enabled: true

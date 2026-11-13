@@ -73,6 +73,12 @@
   ],
   "backend": true,
   "executable": "gpx_ouo11y-rum-app",
+  "iam": {
+    "permissions": [
+      { "action": "teams:read", "scope": "teams:*" },
+      { "action": "teams.permissions:read", "scope": "teams:*" }
+    ]
+  },
   "routes": [
     {
       "path": "rum/*",

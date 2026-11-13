@@ -95,6 +95,16 @@ spec:
                   name: {{ include "ouo.rumApi.secretName" . }}
                   key: read-token
                   optional: true
+            # Expanded by the plugin provisioning file (secureJsonData.muninnReadToken).
+            {{- with .Values.grafana.plugin.muninnReadTokenSecret }}
+            {{- if .name }}
+            - name: OUO_MUNINN_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+            {{- end }}
+            {{- end }}
             # Expanded by the plugin provisioning file (jsonData.featureToggles).
             - name: OUO_FEATURE_TOGGLES_ENABLE
               value: {{ join "," .Values.grafana.plugin.featureToggles | quote }}

@@ -4,7 +4,7 @@ import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
 import { Alert, Badge, LoadingPlaceholder, Stack, useStyles2 } from '@grafana/ui';
-import { ReplayPlayer, type Event, type ReplaySummary } from '@ouo11y/kit';
+import { ReplayPlayer, type Event, type ReplaySummary, type TraceSummary } from '@ouo11y/kit';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { useSearchParams } from '../hooks/useSearchParams';
 import { bff, useBff } from './bff';
@@ -18,7 +18,7 @@ export default function ExploreSession() {
   const search = useSearchParams();
   const from = Number(search.get('from')) || undefined;
   const to = Number(search.get('to')) || undefined;
-  const me = useBff(() => bff.me(), 'me');
+  const me = useBff(() => bff.me(project), `me/${project}`);
   const detail = useBff(() => bff.session(project, sessionId, from, to), `${project}/${sessionId}/${from}/${to}`);
   const replays = detail.data?.replays ?? null;
   const [replayId, setReplayId] = useState<string>();
@@ -56,6 +56,13 @@ export default function ExploreSession() {
               <section className={styles.timeline} data-testid="explore-timeline">
                 <h4>Timeline</h4>
                 <Timeline events={detail.data.events} start={detail.data.session.start} />
+                {(detail.data.traces?.length || detail.data.traces_error) && (
+                  <>
+                    <h4>Traces</h4>
+                    {detail.data.traces_error && <Alert severity="warning" title={detail.data.traces_error} />}
+                    {detail.data.traces && <Traces traces={detail.data.traces} start={detail.data.session.start} />}
+                  </>
+                )}
               </section>
               <section className={styles.replay}>
                 <h4>Replay</h4>
@@ -109,6 +116,40 @@ function Replay({ project, session, replay }: { project: string; session: string
       </div>
       <ReplayPlayer manifest={manifest.data} fetchChunk={fetchChunk} />
     </>
+  );
+}
+
+/** Grafana Explore on the Tempo datasource (uid tempo, as provisioned) for one trace. */
+export function traceHref(traceId: string): string {
+  const panes = {
+    a: {
+      datasource: 'tempo',
+      queries: [{ refId: 'A', datasource: { type: 'tempo', uid: 'tempo' }, queryType: 'traceql', query: traceId }],
+      range: { from: 'now-7d', to: 'now' },
+    },
+  };
+  return `/explore?schemaVersion=1&panes=${encodeURIComponent(JSON.stringify(panes))}`;
+}
+
+function Traces({ traces, start }: { traces: TraceSummary[]; start: number }) {
+  const styles = useStyles2(getStyles);
+  return (
+    <table className={styles.table} data-testid="explore-traces">
+      <tbody>
+        {[...traces]
+          .sort((a, b) => a.start - b.start)
+          .map((t) => (
+            <tr key={t.trace_id}>
+              <td className={styles.muted}>+{duration(t.start - start)}</td>
+              <td>
+                <a href={traceHref(t.trace_id)}>{t.root_name || t.trace_id}</a>
+              </td>
+              <td className={styles.muted}>{t.root_service}</td>
+              <td>{t.duration_ms} ms</td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
   );
 }
 

@@ -444,6 +444,10 @@ deploy/README.md).
 | `grafana.defaultTheme`, `grafana.anonymousEnabled` | `dark`, `false` | |
 | `grafana.env` (map) / `grafana.extraEnv` (list) | `{}` / `[]` | any `GF_*` setting (SSO, external database, SMTP) |
 | `grafana.plugin.rumApiUrl` | in-cluster rum-api | what the plugin route proxy calls |
+| `grafana.plugin.muninnUrl` | empty (no replays in the Session explorer) | Muninn's URL for the plugin's backend (ADR-0023); Muninn itself is not in this chart yet |
+| `grafana.plugin.muninnTenant` | `anonymous` | `X-Scope-OrgID` the backend sends to Muninn |
+| `grafana.plugin.muninnReadTokenSecret` | none | Secret `name` and `key` holding Muninn's read token |
+| `grafana.plugin.clearance` | Viewer 1, Editor 3, Admin 5 | Clearance levels by `roles`, `teams`, `users` and per `projects` (plugin README); teams also need Grafana's managed service accounts in `grafana.env` |
 | `grafana.datasources.enabled` | `true` | provision Loki, Tempo, Mimir (uids `loki`, `tempo`, `mimir`) |
 | `grafana.persistence.*`, `grafana.service.*`, `grafana.ingress.*`, `grafana.resources`, ... | `5Gi`, `3000`, disabled | |
 | `lgtm.mode` | `bundled` | `bundled` or `external` |

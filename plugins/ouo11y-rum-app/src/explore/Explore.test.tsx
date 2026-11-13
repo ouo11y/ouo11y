@@ -19,7 +19,7 @@ const SESSION = '0123456789abcdef0123456789abcdef';
 const viewerMe = { login: 'v', role: 'Viewer', level: 1, can: { timeline: true, attributes: false, replay: false, identity: false } };
 
 function answer(path: string): unknown {
-  if (path.endsWith('/v1/me')) {
+  if (path.includes('/v1/me')) {
     return viewerMe;
   }
   if (path.includes('/v1/sessions')) {
@@ -33,6 +33,7 @@ function answer(path: string): unknown {
     session: { project: 'demo', id: SESSION, service: 'shop', start: 1, end: 2, event_count: 1, error_count: 0, has_replay: false },
     events: [{ time: 1, name: 'session.start' }],
     replays: null,
+    traces: [{ trace_id: 'abc', root_service: 'shop', root_name: 'documentLoad', start: 1, duration_ms: 12 }],
     redacted: ['attributes', 'replay', 'identity'],
   };
 }
@@ -68,7 +69,10 @@ test('below replay clearance the session page asks for no replay', async () => {
   );
   expect(await screen.findByTestId('replay-hidden')).toBeInTheDocument();
   expect(screen.getAllByTestId('timeline-event')).toHaveLength(1);
+  expect(screen.getByTestId('explore-traces')).toHaveTextContent('documentLoad');
+  expect(screen.getByText('documentLoad').closest('a')).toHaveAttribute('href', expect.stringContaining('/explore?schemaVersion=1&panes='));
   await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
   const urls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
   expect(urls.some((u) => u.includes('/replays/'))).toBe(false);
+  expect(urls).toContain('/api/plugins/ouo11y-rum-app/resources/v1/me?project=demo');
 });
