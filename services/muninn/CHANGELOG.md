@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+## [0.2.0](https://github.com/ouo11y/ouo11y/compare/muninn-v0.1.0...muninn-v0.2.0) (2026-11-13)
+
+
+### Added
+
+* **muninn:** replay store and spec-wire Collector config for the pilot ([#185](https://github.com/ouo11y/ouo11y/issues/185)) ([e39a938](https://github.com/ouo11y/ouo11y/commit/e39a938d8f4e9c4e580e57653bd537f95adb9335))
+
 ## 0.1.0 - unreleased
 
 ### Added
