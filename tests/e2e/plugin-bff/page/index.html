@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Plugin BFF e2e</title>
+  </head>
+  <body>
+    <main data-ouo-unmask>
+      <h1>Plugin BFF end-to-end page</h1>
+      <p id="marker">plugin-bff-marker-__MARKER__</p>
+      <button id="add" type="button">Add a row</button>
+      <ul id="rows"></ul>
+    </main>
+    <script>
+      window.__OUO__ = __CONFIG__;
+      document.getElementById("add").addEventListener("click", () => {
+        const li = document.createElement("li");
+        li.textContent = "row " + (document.querySelectorAll("#rows li").length + 1);
+        document.getElementById("rows").appendChild(li);
+      });
+    </script>
+    <script src="/page.js"></script>
+  </body>
+</html>

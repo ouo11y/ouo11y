@@ -94,6 +94,7 @@ Both maps are in the plugin's settings (`jsonData.clearance`), provisioned like 
 - **It cannot redact inside a recording.** A chunk is shown whole or not at all. Text, inputs and images in an rrweb chunk are as masked as the SDK made them at record time (PRV-5 to PRV-8), no more. Redacting inside a chunk means parsing each format in the BFF; the decompress step of section 3 is the place it will go.
 - **It does not find personal data inside values.** Identity is a list of attribute names. A URL or an exception message that contains an email address is shown at c2.
 - **It is per Grafana org, not per project.** A user's level applies to every project the plugin can read (Q9).
+- **Its configuration is not secret.** Grafana gives every signed-in user the plugin's `jsonData`, so the level map, logins included, is readable by Viewers. It holds no data and no credential; the Muninn token is in `secureJsonData`.
 - **It does not cover Grafana's own Explore.** A user who can query the Loki datasource directly sees what Loki holds. Clearance protects the plugin's API; operators restrict the datasources to Admins (or remove them) where that matters (Q3).
 
 ## 5. Reaching the stores

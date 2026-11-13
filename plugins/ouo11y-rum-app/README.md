@@ -21,6 +21,35 @@ without a route with 404 and a role below the route's `reqRole` with 403):
 | `POST rum/v1/funnels/*` | Viewer | `POST /v1/funnels/query` (a read with a JSON body) |
 | `DELETE rum/v1/sessions/*` | Admin | `DELETE /v1/sessions/{id}/replay`, erasing one replay (no button in the UI) |
 
+## Session explorer and the backend (ADR-0023)
+
+The pages under `/a/ouo11y-rum-app/explore` read the spec wire (Loki, Muninn) through the plugin's
+own Go backend, the BFF of [ADR-0023](../../docs/adr/0023-plugin-bff-and-clearance.md), and nothing
+else. The backend (`pkg/`, built on [`ouo-go`](../../libs/ouo-go/README.md)) resolves the signed-in
+user's Clearance level and redacts every answer before it leaves; the frontend uses the replay player
+of [`@ouo11y/kit`](../../libs/ouo-kit/README.md). The MVP pages below still read rum-api and are
+deleted with it.
+
+| URL | What |
+|---|---|
+| `/a/ouo11y-rum-app/explore` | sessions with records in the last 1 h / 6 h / 24 h / 7 d, newest first |
+| `/a/ouo11y-rum-app/explore/<project>/<session_id>?from&to` | the session's event timeline (click an event for its attributes) and its replay |
+
+Backend resources, all `GET` under `/api/plugins/ouo11y-rum-app/resources/v1`: `me`, `sessions`,
+`projects/{p}/sessions/{s}`, `.../replays/{r}` (manifest), `.../streams/{st}/chunks/{seq}`
+(decompressed bytes). Settings (`jsonData`): `lokiUrl` (default `http://loki:3100`), `muninnUrl`
+(`http://muninn:3400`), `muninnTenant` (`anonymous`), `clearance.roles` and `clearance.users`
+(levels 0-5 by org role and by login; default Viewer 1, Editor 3, Admin 5; anyone else 0), and
+`secureJsonData.muninnReadToken`. All provisioned in `deploy/compose/grafana/provisioning/plugins/`.
+
+| Level | Sees |
+|---|---|
+| 0 | nothing (every data resource answers 403) |
+| c1 | sessions and their timeline: times, event names, severity, ids, counts |
+| c2 | plus event attributes and bodies, except identity |
+| c3 | plus replays |
+| c4, c5 | plus identity (`enduser.*`, `user.*`, `client.address`, the session's user) |
+
 ## Pages
 
 | URL | What |
@@ -129,7 +158,9 @@ page, so in a provisioned install the token is rotated in `.env` and Grafana is 
 
 ```bash
 npm install                                   # repo root (npm workspaces)
-npm run -w plugins/ouo11y-rum-app build          # -> plugins/ouo11y-rum-app/dist (plugin.json gets the version)
+npm run -w plugins/ouo11y-rum-app build          # -> dist/: webpack, then the Go backend (scripts/build-backend.mjs)
+                                              #    gpx_ouo11y-rum-app_linux_{amd64,arm64}; local Go or the golang image
+(cd plugins/ouo11y-rum-app && go vet ./... && go test ./...)   # the backend
 npm run -w plugins/ouo11y-rum-app test           # jest: formatting, marker math, tables, config page, 401 banner
 npm run -w plugins/ouo11y-rum-app typecheck
 npm run -w plugins/ouo11y-rum-app lint
@@ -153,7 +184,10 @@ src/components/AppConfig     configuration page (rumApiUrl, readToken SecretInpu
 src/components/ApiErrorAlert one banner per failed call; dedicated wording + settings link on 401
 src/components/              TimeRangeBar, HealthTiles, VersionTable, SessionsTable, Timeline,
                              TracesTable, ReplayPlayer (rrweb-player), FramePlayer, ReplayMarkers, ...
-src/pages/                   Overview, Sessions, SessionDetail, Funnels
+src/pages/                   Overview, Sessions, SessionDetail, Funnels (MVP, rum-api)
+src/explore/                 Session explorer (the BFF's only client: bff.ts)
+pkg/                         Go backend: main.go, bff/ (resource handlers over ouo-go)
+scripts/build-backend.mjs    builds pkg/ into dist/ for linux amd64 and arm64
 src/utils/format.ts          percentages, durations, relative times (tested)
 src/utils/markers.ts         replay marker positioning / seek / active-event math (tested)
 src/utils/timerange.ts       URL <-> Grafana TimeRange
