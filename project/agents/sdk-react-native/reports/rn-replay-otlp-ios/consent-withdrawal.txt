@@ -1,0 +1,69 @@
+# frames build: journey of consent.sh, then requests.jsonl of the fake Collector (protobuf = replay, JSON = telemetry)
+2026-11-13T00:19:06.870Z launch
+2026-11-13T00:19:13.148Z cmd screen/Product?id=p-1001
+2026-11-13T00:19:15.353Z cmd screen/Products
+2026-11-13T00:19:17.619Z cmd action/flush
+2026-11-13T00:19:21.825Z withdraw
+2026-11-13T00:19:21.830Z cmd action/consent?replay=false
+2026-11-13T00:19:25.035Z cmd screen/Product?id=p-1002
+2026-11-13T00:19:27.233Z cmd screen/Cart
+2026-11-13T00:19:29.516Z cmd screen/Chaos
+2026-11-13T00:19:31.744Z cmd action/flush
+2026-11-13T00:19:35.940Z background
+2026-11-13T00:19:41.463Z relaunch
+2026-11-13T00:19:52.628Z done
+
+{"n":1,"at":"2026-11-13T00:19:08.393Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"6ca409e0160b2a93fd9f385a5f0ea1ae064dd1e59c82b112595bad886ea15488","bytes":886}
+{"n":2,"at":"2026-11-13T00:19:09.379Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"8248d123942cf81d6db8b34acc584832d8af8c2f7698aab0c0ea4a920fba0438","bytes":1436}
+{"n":3,"at":"2026-11-13T00:19:10.427Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"b54c24607c563de8497263c87ee50a7d590df6ec8f3ab6a7f708b5e86e4bf891","bytes":702}
+{"n":4,"at":"2026-11-13T00:19:13.335Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"2273b88d6ba8287a1661ffb4d220a79b42c9568c96bbfcffe6e14558c15b0e39","bytes":9994}
+{"n":5,"at":"2026-11-13T00:19:14.746Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"5737590409b5f9deb65fd5e27102356d450e278d00ee3767b6add66f3c5844ef","bytes":903}
+{"n":6,"at":"2026-11-13T00:19:15.741Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"3d526081a5dbfe428e4ba2dcba2e7fe75c690161d5eaf77fb54da9faf2920fbe","bytes":705}
+{"n":7,"at":"2026-11-13T00:19:16.826Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"a220380193a7efc3b5cf0c472aefcec2b8266fd862eb822356b68da61b23a9d9","bytes":985}
+{"n":8,"at":"2026-11-13T00:19:17.859Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"d57876b387b8b9bd15de4e76913899f9df2c6328a29c0c8eb53900f3f376dcc5","bytes":701}
+{"n":9,"at":"2026-11-13T00:19:17.895Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"dad509e875023acdf26929618a1eed6b21d18da7e2f33a288c05547ec142e6a1","bytes":14321}
+{"n":10,"at":"2026-11-13T00:19:26.412Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"e51673cdf9ebd5bd3ba169c5392084cb01a564c517438ec57845fd2ea02fda96","bytes":908}
+{"n":11,"at":"2026-11-13T00:19:27.409Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"006ef33ef3562133f3bb8e03ae7ca5d7ca3ab3ae168b86a18ef489a35963bb8e","bytes":705}
+{"n":12,"at":"2026-11-13T00:19:28.908Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"e8b9dd28c14ea1e0b1d722557d3918c86d6cd5830d8147927a0530d7a4d6a42e","bytes":939}
+{"n":13,"at":"2026-11-13T00:19:29.909Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"fcc4e79260d6de19708521543707c982b069cdbaaa089d4f1ece0ec5d9f98745","bytes":699}
+{"n":14,"at":"2026-11-13T00:19:30.992Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"f1a544a696f996b7882964e9088c66727d1c304238ab371929680daf291ed869","bytes":789}
+{"n":15,"at":"2026-11-13T00:19:37.144Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"928d2261e78e89167a96aad8b74a21d5bd4bfe3d0a88898a9538c4a4fb3f0434","bytes":557}
+{"n":16,"at":"2026-11-13T00:19:45.214Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"61aad1f8caadef8cda24f7624db7bdb294db8af1594d1976551093db8877281b","bytes":1172}
+{"n":17,"at":"2026-11-13T00:19:46.292Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"27392fce61f19867be88ebad0ac5c49fb4890bf147e53353555a01a1be50d55f","bytes":702}
+{"n":18,"at":"2026-11-13T00:19:50.167Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"cfe00e28d5d0bc69e6f44ea6e81109af875fc0667f526b8b198ae0ca698068f7","bytes":9993}
+
+# video build
+2026-11-13T00:25:58.761Z launch
+2026-11-13T00:26:05.023Z cmd screen/Product?id=p-1001
+2026-11-13T00:26:07.331Z cmd screen/Products
+2026-11-13T00:26:09.631Z cmd action/flush
+2026-11-13T00:26:13.915Z withdraw
+2026-11-13T00:26:13.921Z cmd action/consent?replay=false
+2026-11-13T00:26:17.157Z cmd screen/Product?id=p-1002
+2026-11-13T00:26:19.395Z cmd screen/Cart
+2026-11-13T00:26:21.676Z cmd screen/Chaos
+2026-11-13T00:26:23.958Z cmd action/flush
+2026-11-13T00:26:28.249Z background
+2026-11-13T00:26:33.795Z relaunch
+2026-11-13T00:26:47.419Z done
+
+{"n":1,"at":"2026-11-13T00:26:00.276Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"0d31d34795d3f5c12212f874ccd8761caf9bf5567af49d9a0f4de554fa1c3027","bytes":886}
+{"n":2,"at":"2026-11-13T00:26:01.297Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"baf776c4d324ed8cb7947a5a2fd7279c416658d6eda852271e817d09bffc2e4f","bytes":1452}
+{"n":3,"at":"2026-11-13T00:26:02.362Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"5dfccfdb5663eb188e50236432b1bbe40d78db2d963ef76c29790942b1b56155","bytes":699}
+{"n":4,"at":"2026-11-13T00:26:05.905Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"88c3682902e2c3e90e9ebef40c9765bc49d0fa4f104da64a1fc481401d5ce2db","bytes":6852}
+{"n":5,"at":"2026-11-13T00:26:06.699Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"2ae19d714a753cb6142157965116ae05c1bff339fa19c45002b5befb56eb5033","bytes":907}
+{"n":6,"at":"2026-11-13T00:26:07.726Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"fa7eff5f24d0ebae61cdf314b359984879cb072938d9c63253ab28150efea7c7","bytes":708}
+{"n":7,"at":"2026-11-13T00:26:08.761Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"b01662833c14f6072dbf16b215db490a2b0cd50493034df7ab8d8f9ed89ef083","bytes":981}
+{"n":8,"at":"2026-11-13T00:26:09.793Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"ffab3db53719151655a7ce367e0283c127d0d68991884eaa128704388794422d","bytes":701}
+{"n":9,"at":"2026-11-13T00:26:11.322Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"4d90a437710036930405d339e1725fc1bbba83ae62e7e63dbe13bf7ab2c41238","bytes":9545}
+{"n":10,"at":"2026-11-13T00:26:18.716Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"7435453a7b951fa9e3d0f309453c7b17438d2bf74b322986b753542e127ea824","bytes":907}
+{"n":11,"at":"2026-11-13T00:26:19.722Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"0c89fbd4284695dce0a83c1c618ee7df18bc9305690ad7a7597f910693e23b0b","bytes":707}
+{"n":12,"at":"2026-11-13T00:26:20.795Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"9abe851043c4dcf8a532f16d1b8fdfc9768628109b2da093bf701c18f7387378","bytes":945}
+{"n":13,"at":"2026-11-13T00:26:21.794Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"4945b048a89415f7957299c66d74bb9308c4a30a071568de164d826aa32874c3","bytes":696}
+{"n":14,"at":"2026-11-13T00:26:23.295Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"820553a42e9be3818ea24b45472b84a936d6832f7af768c4c6b4fcb00818f05d","bytes":782}
+{"n":15,"at":"2026-11-13T00:26:29.473Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"e3ce71bb6b8b8b1ebdf636e5e220ed7ef4946b14acd002181c2c4e629f112f5b","bytes":558}
+{"n":16,"at":"2026-11-13T00:26:39.734Z","path":"/v1/logs","contentType":"application/json","status":200,"sha256":"abd149c3db04def06693d8f297fb5be7c9a71a7026efae62027fda70284181eb","bytes":1168}
+{"n":17,"at":"2026-11-13T00:26:40.851Z","path":"/v1/traces","contentType":"application/json","status":200,"sha256":"02920534bef809c73daea10d21a16e5b8ed28d87a632bd498bc24c5758902778","bytes":703}
+{"n":18,"at":"2026-11-13T00:26:44.044Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"4db7eb5509c4314632e6028655815c8685abb052cdf4d9a318c991000780f091","bytes":6852}
+{"n":19,"at":"2026-11-13T00:26:49.865Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"c1655caaf9f5931f6d6a4c3d1e0d6db7e702dcb4cde56ee4fb2635840a11998b","bytes":6921}
+{"n":20,"at":"2026-11-13T00:26:55.707Z","path":"/v1/logs","contentType":"application/x-protobuf","status":200,"sha256":"6a9c5b2514ad36a83a156007c61ced5109845b6e33de416287622b6f7b445035","bytes":5550}

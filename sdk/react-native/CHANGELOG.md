@@ -2,6 +2,137 @@
 
 ## Unreleased
 
+Implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`); not yet conformant (ADR-0021 step
+A plus replay over OTLP: the names, scope, session id and sampling rules and protobuf for
+telemetry are step B).
+
+### Breaking: replay over OTLP (ADR-0021 decision 5)
+
+- **`session.id` and feedback ids are 32 lowercase hex characters** (a UUID v4 without its
+  dashes, SES-1), as `@ouo11y/browser` writes them. Muninn rejects a replay chunk whose
+  `session.id` has any other form, so with dashed ids every replay chunk was dropped after the
+  Collector had answered 2xx. A session persisted by an older version keeps its id until it
+  rotates.
+- **Replay chunks are OTLP log records.** The native module sends each chunk as one protobuf
+  request to `${endpoint}/v1/logs` (scope `ouo.replay`, event `ouo.replay.chunk`) and ends a
+  stream with `ouo.replay.ended`. The custom upload to `/v1/replay/chunks` is gone from the
+  package, so replay needs a collector route for these records: the MVP replay receiver on
+  port 4319 no longer gets anything from this SDK.
+- **Removed `replayEndpoint`** (and the derived port 4319, `defaultReplayEndpoint`,
+  `DEFAULT_REPLAY_PORT`, `ResolvedEndpoints.replayEndpoint` / `replayChunks` /
+  `replayEndpointDerived`). Replaced by `endpoint`: chunks go to its logs route. A
+  `replayEndpoint` still passed is ignored, with a diagnostic.
+- **`replay.mode` now says what is recorded**: `pixel/frames` (default), `pixel/video`,
+  `structure/wireframe`; `pixel/frames` and `pixel/video` are in this build. `pixel/video` (H.264
+  segments, `ouo-video/1`) uses sentry-cocoa's recorder core on iOS and sentry-java's video encoder on
+  Android 8 and later, both with ouo's masking, so the two pixel modes hide the same pixels. A value that is not a mode, or
+  a mode this build cannot record, leaves replay off with one warning. The old values `auto`,
+  `session`, `navigation` moved to the new **`replay.cadence`**; passed as `mode` they are read
+  as the cadence, with a deprecation warning.
+- **Removed `replay.keepAtNextLaunch`** and the `HeldReplaySession` type (next-launch
+  keep/drop). Replaced by buffer on error: `replay.onErrorSampleRate` with the new
+  `replay.bufferSeconds` keeps the last seconds on the device and sends them at the first
+  unhandled exception, crash or hang, or on `rum.replay.capture()`.
+- `replay.onErrorSampleRate` changed meaning accordingly: the session records into a buffer
+  from its start and the replay begins before the error; it used to start recording at the
+  error. Only the bypass set triggers it now (not a handled `captureError` or `console.error`).
+- A session rotation into a session that is not recorded ends the replay stream; it used to
+  pause the recorder.
+
+### Added (replay)
+
+- `rum.replay.capture()`, `rum.replay.mask(ref)` / `unmask(ref)` reach the native recorder
+  (refs are resolved with `findNodeHandle`); every screen change sets a fresh `ouo.view.id` on
+  the chunks; `shutdown()` ends the stream with reason `session_end`; withdrawing replay
+  consent stops the recorder with one native call, `discardPending()`, that sends no
+  `ouo.replay.ended` and deletes every replay record not yet accepted (PRV-4).
+- Replay drops are reported as `ouo.sdk.dropped` with `ouo.sdk.drop.signal` `replay` and the
+  reasons `frame_dropped`, `event_dropped`, `store_refused`, `rejected_status`,
+  `partial_rejected` and `outbox_evicted`, read from the native counters once per report
+  interval (ERR-7).
+- Native replay never makes the main thread wait for encoding or a disk write, nor the
+  JavaScript thread for the main thread; a `mask()` beyond the registry's 10 000 tags masks
+  every tagged view instead of being refused; a `Retry-After` waits at least 100 ms.
+- The replay records carry the telemetry's resource attributes and
+  `schema_url = https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev`; the native side is
+  told how the previous run ended (`crash`, `background_kill`) and ends its open stream so.
+- `examples/ouo-mobile/scripts/fake-collector.mjs`: a dependency-free fake Collector that
+  injects faults and checks the replay rules of the SDK spec on what it receives.
+
+### Changed
+
+- `session.backgroundTimeoutMs` defaults to 15 minutes (spec section 3.2), not 30 s. The old default sat below the one-minute minimum of CFG-2.
+
+- `initRUM` no longer throws on a missing or invalid `endpoint`, `projectId`, `projectToken` or
+  `service.name`: it returns a no-op instance and says why when `debug` is on.
+- `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` below one minute are raised to
+  one minute, `session.maxDurationMs` above 24 hours is lowered to 24 hours.
+- App-supplied event names and attribute keys starting with `session.` or `ouo.` are dropped and
+  counted (except `ouo.exception.fingerprint`).
+- The SDK no longer registers its providers, propagator and context manager as OpenTelemetry
+  globals; `otel.registerGlobal: true` restores that.
+- `withSpan` reports an error as an `exception` log record with the span's ids, not as a span
+  event. String attributes are truncated (stack 25 KiB, others 4 KiB, 64 KB per record).
+- Next to Sentry, ouo hands unhandled rejections to Sentry itself when
+  `errors.onUnhandledRejection` is not set.
+- Debug output no longer prints event attributes, the user id or the first characters of the
+  project token; the double-init warning is printed only with `debug`.
+
+- Sessions start only on activity (touch, navigation, foreground): requests, timers and
+  telemetry no longer extend or start one, and while none is valid records are dropped
+  (`no_session`). A background launch starts no session. At the maximum duration in the
+  foreground the next session starts at once. The last activity is persisted every 5 s at most.
+- An unsampled session now sends its bypass set (unhandled exceptions, crashes, hangs, marked
+  `ouo.sampling.bypass`), capped per session (only a native crash and a termination are exempt); the sampling decision is persisted with the
+  session; unsampled requests propagate `traceparent` with the sampled flag clear.
+- No `baggage` header unless `propagation.sessionBaggage` is set, and then only `session.id`;
+  a request that already has a `traceparent` is never changed.
+- No anonymous `user.id`: records carry `user.id` only after `setUser`; `session.userId()` is
+  `""` until then.
+- Recorded URLs are sanitised where they are captured (request URLs, the `trackNavigation`
+  path, URLs inside `exception.stacktrace` and `exception.message`): credentials, query values
+  and query parts without `=` become `REDACTED`, fragments are removed.
+- A fatal error reaches the previous global handler after at most `errors.fatalFlushTimeoutMs`,
+  also when storage does not answer.
+- Uninstalling (shutdown, self-disable) no longer removes a `fetch`, `XMLHttpRequest`,
+  `console.error` or global-handler patch that another SDK installed after ouo's.
+- Delivery: backoff with full jitter up to 300 s (was a fixed doubling up to 30 s),
+  `Retry-After` capped at 300 s.
+
+### Added
+
+- Consent: `consent.required`, `setConsent({ telemetry, replay })`.
+- `privacy.urlQueryAllow`, `privacy.keepUrlFragment`, `sanitizeUrl`.
+- `sampling.sessionRate`, `sampling.bypass.perSessionCap`, `ouo.session.sample_rate` on
+  `session.start`, `propagation.sessionBaggage`, `transport.maxRequestBytes`.
+- Failure isolation: one guard around every entry point, a fault-injection suite, self-disable
+  after `diagnostics.selfDisableThreshold` internal errors.
+- Spec API: `init`, `shutdown`, `flush`, `getSessionId`, `restartSession`, `setUser(id | null)`,
+  `setGlobalAttributes`, `recordEvent`, `recordException`, `trackNavigation`,
+  `getTracerProvider`, `getLoggerProvider`, `replay.start/stop/capture/mask/unmask`.
+- `beforeSend`, drop counting with the `ouo.sdk.dropped` event, `transport.shutdownDeadlineMs`.
+
+## [0.4.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.3.0...react-native-v0.4.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184))
+* **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183))
+
+### Added
+
+* **android:** native crashes, hangs, terminations and FrameMetrics frames (W9 part 2) ([c525b91](https://github.com/ouo11y/ouo11y/commit/c525b91d34fc85d01a2afeb180a8e6406a0cb4f7))
+* **react-native:** Android replay capture, gzip delivery and vitals (W9 part 1) ([de2b3bc](https://github.com/ouo11y/ouo11y/commit/de2b3bc4e3522f7136720db0d2be1edbea099e1e))
+* **react-native:** failure isolation, consent, beforeSend, bypass sampling and the spec API (ADR-0021, step A) ([#183](https://github.com/ouo11y/ouo11y/issues/183)) ([670e3df](https://github.com/ouo11y/ouo11y/commit/670e3df93817c75f0062d22eac85f0ede42b583f))
+* **react-native:** Hermes debug ids and OTA-safe source maps ([a30fc0c](https://github.com/ouo11y/ouo11y/commit/a30fc0cc324efd24b07bbb952738eb727b2be429))
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184)) ([edd3fa2](https://github.com/ouo11y/ouo11y/commit/edd3fa28889c4252de4c12e9a08c8091d177ca13))
+
+
+### Fixed
+
+* **sdk:** mobile delivery retries only 429 and 502-504, React Native outbox keeps no age ([1959cc0](https://github.com/ouo11y/ouo11y/commit/1959cc04057b84bd503f8d7ced31aeb3218b8e15))
+
 ## [0.3.0](https://github.com/ouo11y/ouo11y/compare/react-native-v0.2.1...react-native-v0.3.0) (2026-11-01)
 
 ### Breaking

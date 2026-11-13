@@ -69,6 +69,12 @@ public class OuoReplayModule: Module {
     )
   }
 
+  /// A React tag from JavaScript: a positive whole number, anything else is ignored.
+  private static func tag(_ value: Double?) -> Int? {
+    guard let value, value.isFinite, value >= 1, value <= 2_147_483_647, value == value.rounded() else { return nil }
+    return Int(value)
+  }
+
   public func definition() -> ModuleDefinition {
     Name("OuoReplay")
 
@@ -80,14 +86,113 @@ public class OuoReplayModule: Module {
     OnCreate {
       OuoVitals.startFrameTracking()
       ErrorContext.start()
+      // A new JavaScript runtime hands out React tags again: masks set by the last one are void.
+      ReplayMaskRegistry.shared.reset()
     }
 
-    Function("start") { (endpoint: String, options: StartOptions) in
-      let config = try self.config(endpoint, options)
-      if !options.sessionId.isEmpty {
-        self.sessionId.set(options.sessionId)
+    /// `start(endpoint: string, options: object)`.
+    ///
+    /// Without `options.otlp` this is the upload path that existed before, with the options read
+    /// as before (`StartOptions`; `mode` is `auto | session | navigation`).
+    ///
+    /// With `options.otlp` replay goes out as OTLP log records (ADR-0021 decision 5) and nothing
+    /// here throws: a value that cannot be used falls back to its default and is counted
+    /// (`replayDiagnostics()`), and options replay cannot run with leave it off. Keys:
+    /// - `otlp: { logsUrl: string, resource?: { [key]: string | number | boolean }, schemaUrl?: string,
+    ///   scopeVersion?: string, previousExit?: "crash" | "background_kill" }`
+    /// - `mode?: "pixel/frames" | "pixel/video"` (default `pixel/frames`, `ouo-frames/3`;
+    ///   `pixel/video` records H.264 segments, `ouo-video/1`, with the same masking;
+    ///   `structure/wireframe` is not in this build and leaves replay off)
+    /// - `cadence?: "auto" | "session" | "navigation"` (what `mode` means on the legacy path)
+    /// - `buffer?: { seconds?: number }` (present: keep a ring of that many seconds, default 60,
+    ///   and send on `capture(trigger)`; absent: record the whole session)
+    /// - `replayId?: string` (32 lowercase hex), `keyframeIntervalMs?: number`, `chunkMaxBytes?: number`
+    /// - `sessionId`, `projectId`, `projectToken`, `frameInterval`, `maskText`, `maskInputs`,
+    ///   `maskImages`, `maskWebViews`, `debug` as before
+    Function("start") { (endpoint: String, options: [String: Any]) in
+      switch ReplayOTLPOptions.parse(options) {
+      case .legacy:
+        guard let appContext = self.appContext else { throw Exceptions.AppContextLost() }
+        let legacy = try StartOptions(from: options, appContext: appContext)
+        let config = try self.config(endpoint, legacy)
+        if !legacy.sessionId.isEmpty {
+          self.sessionId.set(legacy.sessionId)
+        }
+        OuoReplay.start(config)
+      case .off(let problems):
+        OuoReplay.noteOptionProblems(problems, debug: ReplayOTLPOptions.bool(options["debug"]) ?? false)
+      case .otlp(let otlp, var problems):
+        let (common, more) = ReplayOTLPOptions.Common.parse(options)
+        problems += more
+        guard !common.projectId.isEmpty, !common.projectToken.isEmpty else {
+          // The collector answers 401 without the credential: nothing would arrive.
+          OuoReplay.noteOptionProblems(problems + ["projectId and projectToken are required"], debug: common.debug)
+          return
+        }
+        if !common.sessionId.isEmpty {
+          self.sessionId.set(common.sessionId)
+        }
+        let box = self.sessionId
+        var config = OuoReplayConfig(
+          endpoint: URL(string: endpoint) ?? otlp.logsUrl,
+          projectId: common.projectId,
+          projectToken: common.projectToken,
+          sessionId: { box.get() },
+          frameInterval: common.frameInterval,
+          maskText: common.maskText,
+          maskInputs: common.maskInputs,
+          maskImages: common.maskImages,
+          maskWebViews: common.maskWebViews,
+          debug: common.debug
+        )
+        config.otlp = otlp
+        OuoReplay.noteOptionProblems(problems, debug: common.debug)
+        OuoReplay.start(config)
       }
-      OuoReplay.start(config)
+    }
+
+    // ---- OTLP replay (ADR-0021 decision 5) ----
+
+    /// `capture(trigger: string)`: buffer mode only. Sends the ring and records on as a session.
+    /// `trigger` is `error`, `crash`, `anr`, `hang` or `manual`; anything else counts as `manual`.
+    Function("capture") { (trigger: String?) in
+      OuoReplay.capture(trigger: trigger ?? "manual")
+    }
+
+    /// `setViewId(id: string)`: the screen the next chunks belong to (`ouo.view.id`).
+    Function("setViewId") { (id: String?) in
+      OuoReplay.setViewId(id ?? "")
+    }
+
+    /// `mask(reactTag: number)`: masks that view in every recorder. Mask wins over unmask.
+    Function("mask") { (reactTag: Double?) in
+      if let tag = Self.tag(reactTag) { OuoReplay.mask(reactTag: tag) }
+    }
+
+    /// `unmask(reactTag: number)`: shows that view and what is inside it. A mask inside it still
+    /// masks, and a secure field is always masked.
+    Function("unmask") { (reactTag: Double?) in
+      if let tag = Self.tag(reactTag) { OuoReplay.unmask(reactTag: tag) }
+    }
+
+    /// `endSession()`: stops and ends the stream with `ouo.replay.ended`, reason `session_end`
+    /// (`stop()` ends it with reason `stop`).
+    Function("endSession") {
+      OuoReplay.stop(reason: .sessionEnd)
+    }
+
+    /// `discardPending(): Promise<void>`: stops the recorder without an end record and deletes
+    /// every replay record not yet accepted (consent withdrawn).
+    AsyncFunction("discardPending") { (promise: Promise) in
+      OuoReplay.discardPending {
+        promise.resolve(nil)
+      }
+    }
+
+    /// `replayDiagnostics(): { [counter: string]: number }`: what replay dropped or could not do
+    /// in this process, by reason (frames, events, chunks lost or rejected, option problems).
+    Function("replayDiagnostics") { () -> [String: Int] in
+      OuoReplay.diagnostics()
     }
 
     /// Sends the chunk a crash left open in the previous run; JS calls it before its sampling

@@ -57,17 +57,15 @@ function setup(opts: { propagateTo?: Array<RegExp | string>; ignoreUrls?: Array<
   const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
   const emitted: Array<{ name: string; attrs: Record<string, unknown> }> = [];
   const events = { emit: (name: string, attrs: Record<string, unknown> = {}) => emitted.push({ name, attrs }) } as unknown as EventEmitter;
-  const onActivity = vi.fn();
   const networkOptions = {
     tracer: provider.getTracer("test"),
     events,
     logger: createLogger(false),
     propagateTo: opts.propagateTo ?? [],
     ignoreUrls: opts.ignoreUrls ?? [],
-    onActivity,
   };
   const uninstall = installXhrInstrumentation(networkOptions);
-  return { exporter, emitted, onActivity, uninstall, networkOptions };
+  return { exporter, emitted, uninstall, networkOptions };
 }
 
 function request(method: string, url: string, headers: Record<string, string> = {}): FakeXHR {
@@ -97,7 +95,7 @@ afterEach(() => {
 
 describe("XMLHttpRequest instrumentation (axios and other XHR clients)", () => {
   it("creates a CLIENT span per request with the fetch wrapper's attributes", () => {
-    const { exporter, emitted, onActivity, uninstall } = setup();
+    const { exporter, emitted, uninstall } = setup();
     const xhr = request("get", "http://localhost:8084/api/cart");
     expect(exporter.getFinishedSpans()).toHaveLength(0); // ends on loadend
     xhr.respond(200);
@@ -114,7 +112,6 @@ describe("XMLHttpRequest instrumentation (axios and other XHR clients)", () => {
     });
     expect(span!.status.code).toBe(0);
     expect(emitted).toHaveLength(0);
-    expect(onActivity).toHaveBeenCalledTimes(1);
     uninstall();
   });
 
@@ -170,16 +167,15 @@ describe("XMLHttpRequest instrumentation (axios and other XHR clients)", () => {
     };
     const xhr = request("GET", "http://api/products");
     expect(xhr.header("traceparent")).toEqual(["00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"]);
-    // XHR joins repeated headers: "sentry-trace_id=..., session.id=s1" is one valid baggage list.
-    expect(xhr.header("baggage")).toEqual(["sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "session.id=s1"]);
+    // Spec PRP-3: a request that already has a traceparent gets nothing from ouo, baggage included.
+    expect(xhr.header("baggage")).toEqual(["sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
     uninstall();
   });
 
   it("skips ignored URLs (the SDK's own uploads)", () => {
-    const { exporter, onActivity, uninstall } = setup({ ignoreUrls: [/^http:\/\/collector\/v1\/traces/] });
+    const { exporter, uninstall } = setup({ ignoreUrls: [/^http:\/\/collector\/v1\/traces/] });
     request("POST", "http://collector/v1/traces").respond(200);
     expect(exporter.getFinishedSpans()).toHaveLength(0);
-    expect(onActivity).not.toHaveBeenCalled();
     uninstall();
   });
 

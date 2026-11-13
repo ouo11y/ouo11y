@@ -1,0 +1,357 @@
+{
+ "summary": {
+  "frames": {
+   "n": 5,
+   "kib_per_min": {
+    "median": 282.6,
+    "min": 278.4,
+    "max": 288.9
+   },
+   "bytes_sent": {
+    "median": 245693,
+    "min": 240427,
+    "max": 249903
+   },
+   "requests": {
+    "median": 8,
+    "min": 8,
+    "max": 8
+   },
+   "frames": {
+    "median": 37,
+    "min": 37,
+    "max": 37
+   },
+   "captures": {
+    "median": 48,
+    "min": 47,
+    "max": 49
+   },
+   "main_ms_mean": {
+    "median": 28.47,
+    "min": 24.48,
+    "max": 28.68
+   },
+   "main_ms_p50": {
+    "median": 29.39,
+    "min": 22.91,
+    "max": 30.3
+   },
+   "main_ms_p90": {
+    "median": 33.88,
+    "min": 32.32,
+    "max": 35.02
+   },
+   "main_ms_max": {
+    "median": 36.47,
+    "min": 35.01,
+    "max": 42.21
+   },
+   "main_ms_total": {
+    "median": 1367.9,
+    "min": 1150.43,
+    "max": 1395.03
+   },
+   "runs_with_text_frames": 5
+  },
+  "sentry-video": {
+   "n": 5,
+   "kib_per_min": {
+    "median": 169.7,
+    "min": 154.3,
+    "max": 187.0
+   },
+   "bytes_sent": {
+    "median": 146871,
+    "min": 135421,
+    "max": 161295
+   },
+   "requests": {
+    "median": 10,
+    "min": 10,
+    "max": 10
+   },
+   "frames": {
+    "median": 55,
+    "min": 53,
+    "max": 55
+   },
+   "captures": {
+    "median": 43,
+    "min": 38,
+    "max": 44
+   },
+   "main_ms_mean": {
+    "median": 48.83,
+    "min": 46.38,
+    "max": 50.37
+   },
+   "main_ms_p50": {
+    "median": 47.64,
+    "min": 41.83,
+    "max": 49.97
+   },
+   "main_ms_p90": {
+    "median": 51.34,
+    "min": 50.68,
+    "max": 54.1
+   },
+   "main_ms_max": {
+    "median": 192.79,
+    "min": 56.79,
+    "max": 203.21
+   },
+   "main_ms_total": {
+    "median": 2148.6,
+    "min": 1762.48,
+    "max": 2165.93
+   },
+   "runs_with_text_frames": 2
+  }
+ },
+ "runs": [
+  {
+   "run": "frames-1",
+   "variant": "frames",
+   "round": 1,
+   "load1": 6.52,
+   "window_s": 50.7,
+   "requests": 8,
+   "bytes_sent": 249903,
+   "bytes_decoded": 1058270,
+   "kib_per_min": 288.9,
+   "frames": 37,
+   "captures": 47,
+   "main_ms_mean": 27.792859044758245,
+   "main_ms_p50": 28.085833182558417,
+   "main_ms_p90": 33.82675000466406,
+   "main_ms_max": 36.268374882638454,
+   "main_ms_total": 1306.2643751036376,
+   "frames_with_text": [
+    {
+     "file": "00001-001.png",
+     "text": [
+      "Total 4.50"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "frames-2",
+   "variant": "frames",
+   "round": 2,
+   "load1": 7.39,
+   "window_s": 51.8,
+   "requests": 8,
+   "bytes_sent": 247171,
+   "bytes_decoded": 1064342,
+   "kib_per_min": 279.8,
+   "frames": 37,
+   "captures": 47,
+   "main_ms_mean": 24.477297886017155,
+   "main_ms_p50": 22.905874997377396,
+   "main_ms_p90": 32.322666607797146,
+   "main_ms_max": 35.005625104531646,
+   "main_ms_total": 1150.4330006428063,
+   "frames_with_text": [
+    {
+     "file": "00001-001.png",
+     "text": [
+      "Total 4.50"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "frames-3",
+   "variant": "frames",
+   "round": 3,
+   "load1": 10.96,
+   "window_s": 50.6,
+   "requests": 8,
+   "bytes_sent": 240427,
+   "bytes_decoded": 1055894,
+   "kib_per_min": 278.4,
+   "frames": 37,
+   "captures": 48,
+   "main_ms_mean": 28.49787238422626,
+   "main_ms_p50": 30.3036249242723,
+   "main_ms_p90": 34.114375011995435,
+   "main_ms_max": 36.4699165802449,
+   "main_ms_total": 1367.8978744428605,
+   "frames_with_text": [
+    {
+     "file": "00001-001.png",
+     "text": [
+      "Total 4.50"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "frames-4",
+   "variant": "frames",
+   "round": 4,
+   "load1": 6.17,
+   "window_s": 50.6,
+   "requests": 8,
+   "bytes_sent": 243951,
+   "bytes_decoded": 1050374,
+   "kib_per_min": 282.6,
+   "frames": 37,
+   "captures": 49,
+   "main_ms_mean": 28.47002038009921,
+   "main_ms_p50": 29.388749971985817,
+   "main_ms_p90": 33.88283331878483,
+   "main_ms_max": 42.207208229228854,
+   "main_ms_total": 1395.0309986248612,
+   "frames_with_text": [
+    {
+     "file": "00001-001.png",
+     "text": [
+      "Total 4.50"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "frames-5",
+   "variant": "frames",
+   "round": 5,
+   "load1": 4.46,
+   "window_s": 50.9,
+   "requests": 8,
+   "bytes_sent": 245693,
+   "bytes_decoded": 1057182,
+   "kib_per_min": 283.1,
+   "frames": 37,
+   "captures": 48,
+   "main_ms_mean": 28.67674738323937,
+   "main_ms_p50": 29.673875076696277,
+   "main_ms_p90": 35.01637512817979,
+   "main_ms_max": 37.9527083132416,
+   "main_ms_total": 1376.4838743954897,
+   "frames_with_text": [
+    {
+     "file": "00001-001.png",
+     "text": [
+      "Total 4.50"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "sentry-video-1",
+   "variant": "sentry-video",
+   "round": 1,
+   "load1": 7.24,
+   "window_s": 50.7,
+   "requests": 10,
+   "bytes_sent": 146871,
+   "bytes_decoded": 200114,
+   "kib_per_min": 169.7,
+   "frames": 55,
+   "captures": 43,
+   "main_ms_mean": 50.08297090697675,
+   "main_ms_p50": 47.635999999999996,
+   "main_ms_p90": 51.08325,
+   "main_ms_max": 196.491708,
+   "main_ms_total": 2153.5677490000003,
+   "frames_with_text": []
+  },
+  {
+   "run": "sentry-video-2",
+   "variant": "sentry-video",
+   "round": 2,
+   "load1": 14.04,
+   "window_s": 51.4,
+   "requests": 10,
+   "bytes_sent": 135421,
+   "bytes_decoded": 184922,
+   "kib_per_min": 154.3,
+   "frames": 53,
+   "captures": 38,
+   "main_ms_mean": 46.381103026315785,
+   "main_ms_p50": 41.832833,
+   "main_ms_p90": 50.679416,
+   "main_ms_max": 192.79162499999998,
+   "main_ms_total": 1762.4819149999998,
+   "frames_with_text": []
+  },
+  {
+   "run": "sentry-video-3",
+   "variant": "sentry-video",
+   "round": 3,
+   "load1": 17.71,
+   "window_s": 51.3,
+   "requests": 10,
+   "bytes_sent": 143950,
+   "bytes_decoded": 196222,
+   "kib_per_min": 164.3,
+   "frames": 55,
+   "captures": 43,
+   "main_ms_mean": 50.37037702325581,
+   "main_ms_p50": 47.19875,
+   "main_ms_p90": 51.336417,
+   "main_ms_max": 203.21187500000002,
+   "main_ms_total": 2165.926212,
+   "frames_with_text": [
+    {
+     "file": "00009-001.png",
+     "text": [
+      "Hello, Ada Lovelace",
+      "Products"
+     ]
+    }
+   ]
+  },
+  {
+   "run": "sentry-video-4",
+   "variant": "sentry-video",
+   "round": 4,
+   "load1": 5.91,
+   "window_s": 50.7,
+   "requests": 10,
+   "bytes_sent": 151890,
+   "bytes_decoded": 206534,
+   "kib_per_min": 175.7,
+   "frames": 54,
+   "captures": 44,
+   "main_ms_mean": 47.51581720454545,
+   "main_ms_p50": 48.906542,
+   "main_ms_p90": 52.293917,
+   "main_ms_max": 56.793333000000004,
+   "main_ms_total": 2090.695957,
+   "frames_with_text": []
+  },
+  {
+   "run": "sentry-video-5",
+   "variant": "sentry-video",
+   "round": 5,
+   "load1": 5.04,
+   "window_s": 50.6,
+   "requests": 10,
+   "bytes_sent": 161295,
+   "bytes_decoded": 218822,
+   "kib_per_min": 187.0,
+   "frames": 55,
+   "captures": 44,
+   "main_ms_mean": 48.83175288636364,
+   "main_ms_p50": 49.968333,
+   "main_ms_p90": 54.0955,
+   "main_ms_max": 59.58925,
+   "main_ms_total": 2148.597127,
+   "frames_with_text": [
+    {
+     "file": "00001-002.png",
+     "text": [
+      "Espresso cup, 4.50",
+      "Card ending 4242",
+      "Total 4.50",
+      "Add to cart"
+     ]
+    }
+   ]
+  }
+ ]
+}

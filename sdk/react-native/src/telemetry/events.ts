@@ -2,6 +2,7 @@ import type { Context } from "@opentelemetry/api";
 import { SeverityNumber, type Logger } from "@opentelemetry/api-logs";
 import type { DebugLogger } from "../logger";
 import type { Attrs } from "../types";
+import { sdkContext } from "./context";
 
 export type Severity = "info" | "warn" | "error";
 
@@ -24,6 +25,7 @@ export type EmitListener = (name: string, attributes: Attrs, timestamp: number) 
 /** Emits ouo events as OTel log records with `event.name` (top-level and as attribute). */
 export class EventEmitter {
   private readonly listeners = new Set<EmitListener>();
+  private closed = false;
 
   constructor(
     private readonly logger: Logger,
@@ -31,8 +33,10 @@ export class EventEmitter {
   ) {}
 
   emit(name: string, attributes: Attrs = {}, severity: Severity = "info", timestamp: number = Date.now(), options: EmitOptions = {}): void {
-    const sev = SEVERITY[severity];
-    this.debug.log("event", name, attributes);
+    if (this.closed) return;
+    const sev = SEVERITY[severity] ?? SEVERITY.info;
+    // The name only: diagnostics never carry record payloads (spec ERR-8).
+    this.debug.log("event", name);
     for (const l of this.listeners) {
       try {
         l(name, attributes, timestamp);
@@ -47,13 +51,21 @@ export class EventEmitter {
       severityNumber: sev.number,
       severityText: sev.text,
       attributes: { "event.name": name, ...attributes },
-      ...(options.context ? { context: options.context } : {}),
+      // Explicit: the SDK's active context (inside `withSpan`), not the OpenTelemetry global's.
+      context: options.context ?? sdkContext.active(),
     });
   }
 
   /** Raw log record (the public log API): any severity, no `event.name` unless given. */
   emitRecord(record: Parameters<Logger["emit"]>[0]): void {
+    if (this.closed) return;
     this.logger.emit(record);
+  }
+
+  /** After `shutdown()`: nothing is emitted any more, whatever still calls. */
+  close(): void {
+    this.closed = true;
+    this.listeners.clear();
   }
 
   onEmit(listener: EmitListener): () => void {

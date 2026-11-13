@@ -1,0 +1,20 @@
+
+verdict: PASS
+requests: 32 (faults injected: 0; accepted logs 26, traces 6)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (10 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (7 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (7 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (7 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (7 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (14 checked)
+  [PASS] sequence: per stream the sequences are 0, 1, 2, ... with no gap (3 checked)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (4 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (3 checked)
+  [PASS] same_session: every replay record's session.id is one the telemetry (logs, spans) of this collector carries (4 checked)
+  [ -- ] view_ids: every chunk's ouo.view.id is one the telemetry of this collector carries (0 checked)
+  stream a748fe0337ca3453d38db6a071fafcd1: 0 chunk(s), highest sequence null, 0 bytes, 0 duplicate(s), ended: partial/background_kill/last=5
+  stream e63a32a889c6e763406a45acc752b113: 3 chunk(s), highest sequence 2, 27298 bytes, 0 duplicate(s), ended: complete/session_end/last=2
+  stream 42d37f3d6ff5235d6f4afb18d9b655c6: 3 chunk(s), highest sequence 2, 53513 bytes, 0 duplicate(s), ended: complete/session_end/last=2
+  stream 5c0bb6ffea2dd9269eade1b221dfd7e0: 1 chunk(s), highest sequence 0, 23785 bytes, 0 duplicate(s), ended: no
+  telemetry events: session.end=3, session.start=3, navigation=8, app.jank=11, ouo.app.start=2, http.request=6, ouo.screen.display=8, exception=1, app.lifecycle=6
+  spans: HTTP GET=5, HTTP POST=1

@@ -1,3 +1,5 @@
+// Spawns OuoCrashProbe with Process: macOS only (the package's iOS test build skips it).
+#if os(macOS)
 import Foundation
 import Testing
 @testable import OuoCrash
@@ -145,3 +147,4 @@ private final class BundleToken {}
         #expect(run.report == nil)
     }
 }
+#endif

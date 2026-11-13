@@ -18,7 +18,7 @@
  *   reject       Home, then Products, each flushed, while the collector answers the first OTLP
  *                request 500 every time and the second 503 once (OUO_E2E_REJECT=1)
  *   relaunch     the next launch: takes the previous run's state, then flushes
- * Env: OUO_OTLP_URL, OUO_REPLAY_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
+ * Env: OUO_OTLP_URL, OUO_PROJECT_ID, OUO_PROJECT_TOKEN, OUO_BACKEND_URL,
  *      OUO_E2E_SERVICE (service.name of the run), OUO_STORAGE_FILE (the device's AsyncStorage).
  */
 const { initRUM, RUMProvider } = require("../../../sdk/react-native/dist/index.js");
@@ -26,10 +26,11 @@ const { AppState } = require("react-native");
 
 const env = process.env;
 const OTLP = (env.OUO_OTLP_URL ?? "http://localhost:4318").replace(/\/$/, "");
-const REPLAY = (env.OUO_REPLAY_URL ?? "http://localhost:4319").replace(/\/$/, "");
 const BACKEND = (env.OUO_BACKEND_URL ?? "http://localhost:8081").replace(/\/$/, "");
 const LAUNCH = env.OUO_E2E_LAUNCH ?? "main";
-const BACKGROUND_TIMEOUT_MS = 2000;
+// Spec CFG-2 clamps every session timeout to at least 60 s, so the background stay is a real
+// 61 s wait: the conformance job pays it once, in the main launch.
+const BACKGROUND_TIMEOUT_MS = 60_000;
 const os = globalThis.__ouoStandin;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -51,11 +52,11 @@ async function touch(root, { label, role, component, screen }, ms = 60, dy = 0) 
 async function main() {
   const rum = initRUM({
     endpoint: OTLP,
-    replayEndpoint: REPLAY,
     projectId: env.OUO_PROJECT_ID ?? "demo",
     projectToken: env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     service: { name: env.OUO_E2E_SERVICE ?? "qa-rn-ios", version: "1.0.0", environment: "qa" },
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
+    propagation: { sessionBaggage: true }, // C5.1: the backend reads session.id from baggage (opt-in)
     session: { backgroundTimeoutMs: BACKGROUND_TIMEOUT_MS },
     replay: { enabled: true },
     device: { modelIdentifier: "iPhone17,2", modelName: "iPhone 16 Pro Max", manufacturer: "Apple" },
@@ -88,7 +89,7 @@ async function main() {
       os.blockMainThread(3000);
       await sleep(4000); // the hang is reported once the block is over
       AppState.__emit("background");
-      await sleep(BACKGROUND_TIMEOUT_MS + 600);
+      await sleep(BACKGROUND_TIMEOUT_MS + 1000);
       AppState.__emit("active");
       rum.trackNavigation("/Home");
       // The resume frame lands in the first session (native resumes before the JS rotation); the

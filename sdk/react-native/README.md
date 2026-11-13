@@ -41,7 +41,7 @@ to resolve their `browser` field remaps.
    import * as Device from "expo-device";
 
    export const rum = initRUM({
-     endpoint: "http://localhost:4318",              // collector OTLP/HTTP base (ADR-0007); replay defaults to :4319
+     endpoint: "http://localhost:4318",              // collector OTLP/HTTP base (ADR-0007); replay chunks go to /v1/logs too
      projectId: "demo",                              // user name of the Basic credential; required
      projectToken: "pt_dev_demo_0000000000000000",   // password of the Basic credential; required, public by nature
      service: { name: "mobile-store", version: Constants.expoConfig?.version ?? "0.0.0", environment: "local" },
@@ -88,55 +88,112 @@ From them the SDK derives:
 |---|---|---|
 | traces | `${endpoint}/v1/traces` | `Authorization: Basic base64("<projectId>:<projectToken>")` |
 | events (logs) | `${endpoint}/v1/logs` | same |
-| replay chunks (native) | `${replayEndpoint}/v1/replay/chunks` | same, plus `x-ouo-session-id`, `x-ouo-seq` |
+| replay chunks (native) | `${endpoint}/v1/logs`, one `ouo.replay.chunk` log record per request (protobuf) | same |
 
-`replayEndpoint` is optional: it defaults to `endpoint` with port 4318 replaced by 4319 (the
-collector's `ouoreplay` receiver listens next to OTLP), or to `endpoint` itself when it uses any
-other port or none (a proxy such as `https://otel.example.com` routes `/v1/replay/*` to the
-receiver). The collector's `basicauth` extension checks the credential (401 when missing or
+There is no separate replay endpoint: a chunk is an OTLP log record (ADR-0021 decision 5). The
+collector's `basicauth` extension checks the credential (401 when missing or
 unknown; the user name is the project id, the password the token), its rate limiter and body
 limits apply, and it stamps `ouo.project.id` on every resource from the authenticated user name.
-`initRUM` throws a `TypeError` when `projectId` or `projectToken` is missing or empty. The token
+`initRUM` never throws: when `endpoint`, `projectId`, `projectToken` or `service.name` is missing
+or invalid it returns an instance whose every function is a no-op, and says why in the console
+when `debug` is on. The token never appears in a diagnostic, a URL or a record. The token
 is public (it only allows writing telemetry into one project), so shipping it in the app bundle
 is expected, exactly like every RUM vendor's key. The header value is built with the SDK's own
 base64 encoder (`basicAuthorization`, `base64Encode`): `btoa` is not available on every React
 Native runtime.
 
-`resolveEndpoints({ endpoint, replayEndpoint })` and `defaultReplayEndpoint(endpoint)` are
-exported so hosts and tests can see the derived URLs. Requests to the derived URLs are never traced.
+`resolveEndpoints({ endpoint })` is exported so hosts and tests can see the derived URLs.
+Requests to the derived URLs are never traced.
 
-### Session replay (iOS, ADR-0006)
+### Session replay (iOS and Android, ADR-0021)
 
 ```ts
+import { Platform } from "react-native";
+
 initRUM({
-  endpoint: "http://localhost:4318",              // chunks go to http://localhost:4319/v1/replay/chunks
+  endpoint: "http://localhost:4318",              // chunks go to http://localhost:4318/v1/logs
   projectId: "demo",
   projectToken: "pt_dev_demo_0000000000000000",
-  replay: { enabled: true, mode: "auto", frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true },
+  replay: {
+    enabled: true,
+    mode: "pixel/frames",                         // what is recorded; the default
+    cadence: "auto",                              // when a frame is taken
+    frameInterval: 1, maskText: true, maskInputs: true, maskImages: true, maskWebViews: true,
+    sampleRate: 1, onErrorSampleRate: 0, bufferSeconds: 60,
+  },
   // ...
 });
 rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 rum.replay.hideScreen(); rum.replay.showScreen();   // never-record screens, see below
+rum.replay.stop(); rum.replay.start();              // end the replay stream, start a new one
+rum.replay.capture();                               // send a buffered replay now (trigger `manual`)
+rum.replay.mask(ref); rum.replay.unmask(ref);       // one view, whatever the mask* options say
 ```
 
-`mode`: `session` records a frame at most every `frameInterval` seconds while the screen changes;
-`navigation` records one frame per screen (start, resume, and every route change the SDK tracks:
-`onStateChange` or `rum.trackNavigation`); `auto` (default) picks `navigation` on devices with
-less than 3.5 GiB of RAM and `session` otherwise. Frames are taken after the run loop's UI work, a
-due frame waits up to 1 s while animations run, and the capture's main-thread time is bounded at
-100 ms per second. A frame where a masked view is moving (a screen sliding in) is dropped rather
-than risk an unmasked pixel. The open chunk is kept on disk and sent on the next launch after a
-crash.
+`mode` is one string and says what a replay holds. There is no shorthand (`pixel` or `structure`
+alone is not a mode) and the SDK never chooses between two.
+
+| `replay.mode` | Recorded | On the wire (`ouo.replay.format`) | Platforms | In this build |
+|---|---|---|---|---|
+| `pixel/frames` (default) | masked JPEG frames and tile patches | `ouo-frames/3` | iOS, Android | yes |
+| `pixel/video` | masked frames encoded as H.264 segments, masks identical to `pixel/frames` | `ouo-video/1` | iOS, Android 8+ | yes |
+| `structure/wireframe` | the view tree as rectangles, text as `***` | `ouo-wireframe/1` | iOS, Android | not yet |
+| `structure/dom` | rrweb | `rrweb/2` | web only (`@ouo11y/browser`) | no |
+
+A value that is not in the table, or a mode this build cannot record, leaves replay off with one
+warning in the debug log; it never throws. A per-OS choice is the app's code:
+
+```ts
+replay: { enabled: true, mode: Platform.select({ ios: "pixel/video", android: "pixel/frames" }) },
+```
+
+Which to pick: on a scroll-heavy iOS journey `pixel/video` sent about half the bytes of `pixel/frames` (98 against 209 KiB per minute) for more main-thread time per capture (45 against 28 ms); on a mostly still screen `pixel/frames` is smaller. Measurements and method: `project/kb/session-replay/borrowing/`.
+
+`cadence`: `session` records a frame at most every `frameInterval` seconds while the screen
+changes; `navigation` records one frame per screen (start, resume, and every route change the
+SDK tracks: `onStateChange` or `rum.trackNavigation`); `auto` (default) picks `navigation` on
+devices with less than 3.5 GiB of RAM and `session` otherwise. Before 0.4 these were the values
+of `replay.mode`: `mode: "session"` still works, is read as `cadence: "session"` and logs a
+deprecation warning. Frames are taken after the run loop's UI work, a due frame waits up to 1 s
+while animations run, and the capture's main-thread time is bounded at 100 ms per second. A
+frame where a masked view is moving (a screen sliding in) is dropped rather than risk an
+unmasked pixel.
+
+**Delivery.** The native module cuts the recording into chunks and sends each as one OTLP/HTTP
+protobuf request to `${endpoint}/v1/logs`: one log record, scope `ouo.replay`, event
+`ouo.replay.chunk`, the compressed chunk as its bytes body, on the same resource attributes as
+the telemetry. It has its own disk queue, so a replay backlog never delays telemetry and a chunk
+survives a crash; the stream ends with one `ouo.replay.ended` record (`session_end` at a session
+rotation or `shutdown()`, `stop` at `replay.stop()`, `crash` or `background_kill` sent by the
+next launch when the previous run died).
+
+**Masking one view.** `rum.replay.mask(target)` and `unmask(target)` take a ref (`useRef`), a
+component instance or a native tag, resolved with `findNodeHandle`. Mask wins over unmask, a
+mask inside an unmasked view still masks, and secure fields are always masked. The registration
+belongs to the native view: after a JS reload, or when the view is unmounted and mounted again,
+register it again (an effect does that). Without code, `testID="ouo-mask"` or
+`testID="ouo-unmask"` on a view does the same.
+
+```tsx
+const ref = useRef<View>(null);
+useEffect(() => rum.replay.mask(ref), []);
+return <View ref={ref}>...</View>;
+```
+
+Every screen change (`trackNavigation`, `navigationStateListener`) gives the chunks that follow
+a fresh `ouo.view.id`. The id is made for replay only for now: the SDK's other records do not
+carry `ouo.view.id` yet.
 
 The package is an Expo module (`expo-module.config.json`): `ios/OuoReplayModule.swift` bridges
 the `OuoReplay` Swift package in `sdk/ios` (screenshot capture with view-hierarchy masking,
-gzip frame chunks to `POST /v1/replay/chunks` with the Basic `Authorization` header), and
+chunks as OTLP log records with the Basic `Authorization` header), and
 `android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt` the same functions over the Kotlin
-capture of `sdk/android` (`PixelCopy` into RGB_565, per-line text masks, the same schema 2 chunks;
+capture of `sdk/android` (`PixelCopy` into RGB_565, per-line text masks, the same chunks;
 its sources are vendored into `android/vendor` by `npm run build`, like the Swift ones). On Android
 the crash, hang and vitals functions are not there yet (W9 part 2): the JavaScript checks each one
-and the SDK emits only what JavaScript sees. The JS side calls native `start(replayEndpoint, { projectId, projectToken,
-sessionId, ... })`, forwards every session rotation (`sessionDidRotate`), flushes with
+and the SDK emits only what JavaScript sees. The JS side calls native `start(endpoint, { projectId, projectToken,
+sessionId, mode, cadence, otlp: { logsUrl, resource, schemaUrl, scopeVersion, previousExit }, ... })`,
+forwards every session rotation (`sessionDidRotate`), flushes with
 `rum.flush()`, and is a silent no-op where the native module is absent: Expo Go, web, Jest/Vitest,
 bare apps without `expo-modules-core` (a debug-only warning is logged once).
 
@@ -213,10 +270,15 @@ files under the podspec directory. Three pods are autolinked: `OuoReplayCore`, `
 Every OTLP batch is written to AsyncStorage before it is sent and removed when the collector
 answers, so an outage, a crash or a kill mid-request loses nothing. A network error, 429, 502, 503
 or 504 (OTLP/HTTP's retryable answers) keeps it: what is left is sent oldest first on the next
-launch, when the app comes back to the foreground, on `rum.flush()`, and after a backoff (1 s
-doubling to 30 s, `Retry-After` honoured). Any other answer is final: 2xx removes it as sent, and a
-4xx or another 5xx (a 500 the collector would give every time) drops it, counted as rejected,
-so it never blocks the requests behind it. The store keeps at most 5 MB or 500 requests (the oldest
+launch, when the app comes back to the foreground, on `rum.flush()`, and after a backoff (full
+jitter under a ceiling that doubles from 1 s to 300 s; `Retry-After` is honoured, capped at
+300 s). Any other answer is final: 2xx removes it as sent (records its `partial_success` rejected
+are counted `partial_rejected`, not retried; the native transport does not read the body yet), and
+a 4xx or another 5xx (a 500 the collector would give every time) drops it, counted
+`rejected_status`, so it never blocks the requests behind it. A request is at most
+`transport.maxRequestBytes` (1 MiB before gzip): a larger batch is split, a record that alone is
+larger is dropped (`too_large`). When the store is full, requests that hold an unhandled
+exception or a crash are evicted last. The store keeps at most 5 MB or 500 requests (the oldest
 dropped first) and has no age limit: the device clock can be moved, so an age would drop what is
 queued when it jumps forward; what is too old to ingest is the backend's call. If the
 stored queue cannot be read at launch (an AsyncStorage error, or no answer within 5 s), that run
@@ -234,20 +296,6 @@ initRUM({
 });
 ```
 
-**Next-launch keep/drop** (client-side tail sampling for replay, iOS). With
-`replay.keepAtNextLaunch`, chunks stay on the device; at the next launch the hook sees each finished
-session and its chunks are sent when it returns `true`, deleted otherwise (a throw keeps them):
-
-```ts
-replay: {
-  enabled: true,
-  keepAtNextLaunch: (s) => s.crashed || s.errors > 0 || s.feedback > 0,  // { sessionId, chunks, bytes, firstChunkAt, lastChunkAt, crashed, errors, feedback }
-},
-```
-
-A session's replay then arrives one launch later, never during the session itself. Held chunks
-beyond 10 MB are deleted, the oldest first. Spans and events are not held.
-
 ### Sampling
 
 ```ts
@@ -258,12 +306,23 @@ initRUM({
 });
 ```
 
-- `session.sampleRate` (default 1): a session outside it sends no spans, events, logs or replay.
+- `session.sampleRate` (default 1; `sampling.sessionRate` is the spec's name for it): decided
+  once when the session starts and kept with it. A session outside it sends no spans, events,
+  logs or replay, and no `session.start`; it still sends its **bypass set**: unhandled
+  exceptions, native crashes, terminations and hangs, marked `ouo.sampling.bypass = true`, at
+  most `sampling.bypass.perSessionCap` (10) per session (a native crash and a termination are
+  not capped). Its
+  requests still carry `traceparent`, with the sampled flag clear. `session.start` carries
+  `ouo.session.sample_rate`.
 - `replay.sampleRate` (default 1): sessions (inside the session sample) recorded from their start.
 - `replay.onErrorSampleRate` (default 0): of the sessions left out by `replay.sampleRate`, the
-  fraction that start recording at their first error (`captureError`, unhandled errors and
-  rejections). The recording covers the rest of the session from the error on: the native recorder
-  keeps no buffer of earlier frames.
+  fraction that record into a buffer: the last `replay.bufferSeconds` (default 60) stay on the
+  device and nothing is sent. The first unhandled exception, crash or hang of the session (the
+  bypass set; a handled `recordException` or a `console.error` does not count) or
+  `rum.replay.capture()` sends the buffer, and recording goes on for the rest of the session.
+  The chunks carry `ouo.replay.mode = buffer` and `ouo.replay.trigger` (`error`, `crash`,
+  `hang`, `manual`). The replay then starts before the error.
+- Replay records only in sessions inside the session sample, and only with replay consent.
 
 Each decision is a deterministic hash of the session id (`sampled(id, rate, salt)`, exported), the
 same rule rum-api uses for a per-project server-side cap, so a cap below the app's rate keeps a
@@ -276,13 +335,12 @@ import { initRUM, type RUM } from "@ouo11y/react-native";
 
 const rum: RUM = initRUM({
   endpoint: "http://localhost:4318",              // collector OTLP/HTTP base URL, required
-  replayEndpoint: undefined,                      // optional; default: endpoint with 4318 -> 4319, else endpoint
   projectId: "demo",                              // required
   projectToken: "pt_dev_demo_0000000000000000",   // required
   service: { name: "mobile-store", version: "2.3.0", environment: "local" },
   tracing: { propagateTo: [/^http:\/\/localhost:8081/], ignoreUrls: [] },
-  session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 30_000 },
-  user: { id: "user-1" },          // optional, otherwise an anonymous persisted id
+  session: { inactivityTimeoutMs: 30 * 60_000, maxDurationMs: 4 * 3_600_000, backgroundTimeoutMs: 15 * 60_000 },
+  user: { id: "user-1" },          // optional; without it records carry no user.id until setUser
   device: { modelIdentifier, modelName, manufacturer, osName, osVersion }, // optional; expo-device is read without it
   resource: { "ouo.rum.mode": "parallel" }, // optional extra resource attributes; the SDK's own win
   errors: { consoleErrors: true, fatalFlushTimeoutMs: 2000, forwardSentryErrors: undefined },
@@ -310,6 +368,95 @@ await rum.flush();                              // force export of spans and log
 
 `initRUM` returns the same instance on repeated calls; `getRUM()` returns it from anywhere.
 
+### Spec API
+
+The package implements the API of the ouo SDK spec (section 3.1) next to the names above, which
+stay as aliases. Each is a module-level function and a method of the instance:
+
+```ts
+import { init, shutdown, flush, getSessionId, restartSession, setUser, setGlobalAttributes, recordEvent,
+  recordException, trackNavigation, getTracerProvider, getLoggerProvider, replay } from "@ouo11y/react-native";
+
+init(options);                                   // = initRUM
+setUser("user-1"); setUser(null);                // null: no user.id from here on (none is made up)
+setConsent({ telemetry: true, replay: false });  // see Consent
+setGlobalAttributes({ tenant: "acme" });         // on every later span and log record
+recordEvent("cart.added", { "product.id": "p-1" }, "Added p-1"); // = addEvent, with an optional body
+recordException(err, { "ouo.exception.fingerprint": "cart-total" }); // = captureError; source=manual, handled=true
+restartSession();                                // session.end (reason manual), then a new session
+getTracerProvider().getTracer("app");            // OpenTelemetry access: records carry the session attributes
+getLoggerProvider().getLogger("app");
+replay.start(); replay.stop(); replay.capture(); replay.mask(ref); replay.unmask(ref);
+await shutdown();                                // stop capture, remove every hook, session.end (reason shutdown), bounded flush
+```
+
+- **Safe at any time.** Every function can be called before `init`, after `shutdown`, without
+  the native module and with any argument: it is then a no-op that does not throw.
+- **Reserved names.** Event names and attribute keys starting with `session.` or `ouo.` belong to
+  the SDK: an app-supplied one is dropped and counted (`ouo.exception.fingerprint` and, on
+  `recordException`, `ouo.exception.handled` are the exceptions). Resource attributes
+  (`resource`) are configuration and are not checked.
+- **`beforeSend`.** `init({ beforeSend: (record) => record })` runs on every log record and span
+  before it is kept anywhere or sent. Return the record (changed or not), or `null` / `false` to
+  drop it. A hook that throws sends the unmodified record; a record the hook itself emits
+  skips the hook. `exception.message` and
+  `exception.stacktrace` pass through it; replay chunks never do.
+- **Failure isolation.** No SDK failure reaches the app: every entry point runs inside one guard
+  (`src/guard.ts`), patched `fetch` / `XMLHttpRequest` return what the originals return, and the
+  previous global error handler always runs. After `diagnostics.selfDisableThreshold` (20)
+  internal errors the SDK removes its hooks and becomes a no-op until the next `init`.
+- **Dropped records are counted.** By signal and reason (`queue_full`, `outbox_evicted`,
+  `rejected_status`, `partial_rejected`, `too_large`, `sampling`, `no_session`, `before_send`,
+  `reserved_name`, `invalid`, `persistence_failed`, `self_disabled`), and reported as `ouo.sdk.dropped` events (`ouo.sdk.drop.reason`,
+  `ouo.sdk.drop.signal`, `ouo.sdk.drop.count`) at most once a second.
+- **No OpenTelemetry globals.** The SDK uses its own tracer and logger providers, propagator and
+  context manager and registers none of them globally, so it never replaces one the app
+  registered. `otel: { registerGlobal: true }` registers them (when the slot is free) for apps
+  that call `trace.getTracer(...)` themselves.
+- **Limits.** `exception.stacktrace` is cut to 25 KiB (top frames kept), other string attributes
+  and bodies to 4 KiB, and a record's attributes stay under 64 KB (the largest are removed).
+- **Clamps.** `session.inactivityTimeoutMs` and `session.backgroundTimeoutMs` are at least one
+  minute, `session.maxDurationMs` at most 24 hours, rates within 0 to 1.
+
+### Consent
+
+```ts
+init({ consent: { required: true }, /* ... */ });   // starts pending
+setConsent({ telemetry: true, replay: true });      // after the user chose
+setConsent({ replay: false });                      // categories are separate
+```
+
+With `consent.required` the SDK starts with consent pending: it sends nothing, writes nothing to
+persistent storage and starts no replay. What it records meanwhile waits in memory, within the
+offline store's bounds, and is sent on grant or discarded on denial. Withdrawing telemetry
+consent stops capture at once, deletes the offline store and the persisted session, user and
+error context, and forgets the session: a later grant starts a new one without
+`session.previous_id`. While telemetry is denied no session starts at all. Changes are applied
+in the order they are made, each to its end. Replay needs its own consent and telemetry consent (a replay belongs to
+a session); withdrawing it stops the recorder and deletes every replay chunk not yet accepted
+by the collector. Consent is not persisted by the
+SDK: call `setConsent` on every launch.
+
+### Privacy: URLs
+
+Every URL the SDK captures (`url.full` of request spans and request events, the path given to
+`trackNavigation`, URLs inside `exception.stacktrace` and `exception.message`) is sanitised
+before the record is kept or sent: `user:password@` becomes `REDACTED:REDACTED@`, every query
+value (and every query part without `=`) becomes `REDACTED` unless its key is listed in
+`privacy.urlQueryAllow`, and the fragment is removed (`privacy.keepUrlFragment` keeps it, with a
+query-shaped fragment sanitised). `sanitizeUrl: (url) => string` then runs on the result, for
+example to replace ids in paths. The request the app makes is never changed, and a `url.full`
+the app sets on its own spans is left as the app wrote it (`beforeSend` sees it).
+
+### Spec version
+
+This release implements the ouo SDK spec **0.1.0-draft** (`SPEC_VERSION`) and is **not yet
+conformant**: it is step A of the React Native SDK ADR. Still open, for step B: the spec's
+event and attribute names (`enduser.id`, `app.crash`, ...), the `ouo.rum` scope and
+`schema_url`, `ouo.view.id`, the session id format and sampling hash, OTLP protobuf for telemetry, `ouo.view.id` on the SDK's own records, the
+`structure/wireframe` replay mode, and reading `partial_success` on the
+native transport. Replay already goes out as `ouo.replay.chunk` over OTLP.
+
 ## Sessions (mobile rules)
 
 - Cold start: a new session is created synchronously (its id is usable at once). The
@@ -318,13 +465,22 @@ await rum.flush();                              // force export of spans and log
   `max_duration` when its deadlines passed, else `background` when it was killed while
   backgrounded for longer than the background timeout, else `terminated`. The new
   `session.start` then carries `session.previous_id`.
-- Activity: touches (`RUMProvider`), `trackNavigation`, outbound `fetch`, foreground.
-  `lastActivity` is persisted at most once per second and on every flush.
+- Activity: touches (`RUMProvider`), `trackNavigation`, `trackTap`, `recordActivity`,
+  `feedback` and a move to the foreground. Requests, timers and telemetry are not activity:
+  they neither extend nor start a session. `lastActivity` is persisted at most once per 5 s
+  and on every flush.
+- While no session is valid (after a timeout, until the next activity) records are dropped and
+  counted `no_session`; unhandled exceptions and hangs still go out, with the last session's id
+  and `ouo.session.expired = true`.
+- A background launch (a push, a background fetch) starts no session and no replay; the first
+  move to the foreground does.
 - `AppState`: `background` records the timestamp; `active` after more than
-  `backgroundTimeoutMs` (30 s) ends the session (`background`) and starts a new one.
+  `backgroundTimeoutMs` (15 min, at least 1 min) ends the session (`background`) and starts a new one.
   `inactive` is ignored. An in-process timer ends an expired session even without a
-  foreground event; the replacement is created on the next activity.
-- Inactivity (30 min) and max duration (4 h) work as on web.
+  foreground event; the replacement is created on the next activity. At the maximum duration
+  with the app in the foreground the next session starts at once, linked to the old one.
+- Inactivity (30 min) and max duration (4 h) work as on web. Configured timeouts below one
+  minute are raised to one minute.
 
 ## Errors and crashes (ADR-0004)
 
@@ -421,24 +577,27 @@ bridge writes them, and frames of the app's code end with `[in app]` (not native
 `InternalBytecode`, not `node_modules`), so the same error groups across devices.
 
 Hermes keeps one promise rejection tracker: every `enablePromiseRejectionTracker` call replaces
-the previous one, and `HermesInternal` is frozen, so the tracker cannot be shared. The SDK
-initialised last gets unhandled rejections. `errors.onUnhandledRejection` hands each rejection
-on after ouo recorded it (to Sentry, see "Next to Sentry").
+the previous one, there is no getter for it and `HermesInternal` is frozen, so the tracker
+registered before cannot be called. The SDK initialised last gets unhandled rejections. After
+recording one, ouo hands it on: to `errors.onUnhandledRejection` when the app set it, else to
+the current scope of an initialised Sentry SDK (see "Next to Sentry").
 
 ## Network
 
 `globalThis.fetch` and `XMLHttpRequest` (axios, superagent and other XHR clients) are wrapped:
 one `CLIENT` span `HTTP <METHOD>` per request with
 `http.request.method`, `url.full`, `url.scheme`, `url.path`, `server.address`, `server.port`,
-`http.response.status_code` (`error.type` on failure); `traceparent` and `baggage`
-(`session.id`, `user.id`, `ouo.platform=mobile`) on URLs matching `propagateTo`;
+`http.response.status_code` (`error.type` on failure); `traceparent` on URLs matching
+`propagateTo`, and with `propagation: { sessionBaggage: true }` also `baggage: session.id=<id>`
+(off by default, and nothing but the session id); a request that already has a `traceparent` is
+never changed;
 `http.request.failed` on 5xx or a network failure (status 0), not on 4xx or aborts. The
 SDK's own ingest URLs are never traced and the exporter uses the unwrapped `fetch.__original`.
 In dev (`__DEV__`) Metro's `/symbolicate` (LogBox) and `/__sentry/…` (@sentry/react-native's
 middleware) calls are not traced either.
 React Native's `fetch` runs on `XMLHttpRequest`; the XHR that a wrapped `fetch` call opens is
-skipped, so a fetch is one span, not two. On XHR, `traceparent` is only added when the request
-has none yet (XHR would join two into one invalid header); `baggage` is merged.
+skipped, so a fetch is one span, not two. On XHR too, nothing is added when the request has a
+`traceparent` already (XHR would join two into one invalid header).
 
 ## Next to Sentry
 
@@ -446,7 +605,10 @@ The SDK runs in an app that keeps `@sentry/react-native`, the way an APM agent a
 OpenTelemetry SDK can run side by side while a team moves over. Verified on the iOS Simulator
 with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-native 8.30.0, Hermes).
 
-1. **Initialise ouo after Sentry** and forward unhandled rejections to it:
+1. **Initialise ouo after Sentry.** Unhandled rejections are handed to Sentry by ouo itself
+   (`scope.captureException(e, { mechanism: { type: "onunhandledrejection", handled: true } })`
+   on Sentry's current scope, unit-tested against the `__SENTRY__` carrier of @sentry/core 8 to
+   10; not yet re-verified on a device). To forward them yourself instead:
 
    ```js
    // index.js: imports run in order, and before any code in this file
@@ -466,8 +628,8 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
    ```
 
    Hermes keeps one rejection tracker and the SDK initialised last owns it; ouo records each
-   rejection and hands it to Sentry, so both report it once. Without the hook, the SDK warns in
-   debug mode that Sentry stopped getting rejections. Initialised the other way round, Sentry
+   rejection and hands it to Sentry, so both report it once. With the hook set, ouo calls only
+   the hook. Initialised the other way round, Sentry
    owns the tracker and ouo never sees a rejection.
 2. **Trace headers**: initialised last, ouo's fetch and XHR wrappers run first and set
    `traceparent`; Sentry then adds `sentry-trace` and its `baggage` entries but no second
@@ -505,7 +667,8 @@ with `examples/sentry-mobile` in its `parallel` rollout mode (@sentry/react-nati
 tracer: every span gets the session attributes and is exported with the request spans.
 `options`: `attributes`, `kind` (`SpanKind`), `startTime`, `parent` (a span or span context;
 `null` starts a new trace). `withSpan` ends the span when `fn` returns or its promise settles; a
-throw or rejection sets the status to error, records the exception on the span and rethrows.
+throw or rejection sets the status to error, is reported as an `exception` log record with the
+span's trace id and span id (never as a span event) and is rethrown.
 
 React Native has no async context, so the span is the active one only while `fn` runs
 synchronously: requests started there are its children (and the backend joins its trace),
@@ -585,8 +748,7 @@ const id = rum.feedback({ message: text, contact: email, screenshot: true });
 | `ouo.feedback.screenshot` | `true` when `screenshot: true` and replay was recording: the recorder was asked, right after the record, for a frame of the current screen, masked like every frame, so the session's replay shows it just after the feedback time. No separate image is sent |
 | `ouo.last_events` | JSON array, by time oldest first, of the session's last 20 events and log lines before the feedback: `{"ts": <epoch ms>, "name": "ui.tap", "body": "Tap pay (button) on Cart"}`; the body is the readable step (the path of a navigation, `Type: message` of an error, `METHOD url status` of a request), cut at 200 bytes the same way |
 
-The feedback follows the session's sampling like every record. With `replay.keepAtNextLaunch`,
-keep the sessions with `feedback > 0`: their replay is the feedback's screenshot. The plugin lists a session's
+The feedback follows the session's sampling like every record. The plugin lists a session's
 feedback beside its replay, with these events and a link to the replay at the feedback time.
 
 ## Events (OTel log records, `event.name`)
@@ -596,7 +758,7 @@ feedback beside its replay, with these events and a link to the replay at the fe
 `navigation` (`url.path`, `ouo.navigation.from`, `ouo.navigation.kind = screen`), `ui.tap`, `app.lifecycle`, `http.request`,
 `log`, `feedback`, `ouo.replay.hidden` (`ouo.replay.hidden_reason`: `screen`, `manual`), the vitals `ouo.app.start`, `ouo.screen.display`, `app.jank`, `ouo.stall`, custom events
 from `addEvent` (`ouo.event.custom=true`). Every span and log record carries `session.id`,
-`session.previous_id` (when set), `user.id`, `ouo.user.anonymous`, `ouo.platform=mobile`
+`session.previous_id` (when set), `user.id` and `ouo.user.anonymous=false` (only after `setUser`), `ouo.platform=mobile`
 and `service.version`. Resource: `service.name`, `service.version`,
 `deployment.environment.name`, `ouo.platform`, `os.name`, `os.version`,
 `device.model.identifier`, `device.model.name`, `device.manufacturer`, `ouo.sdk.name`,

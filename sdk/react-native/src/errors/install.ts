@@ -1,9 +1,10 @@
+import { guard } from "../guard";
 import type { DebugLogger } from "../logger";
 import type { EventEmitter } from "../telemetry/events";
 import type { Attrs } from "../types";
 import { exceptionAttributes, serializeConsoleArgs } from "./classify";
 import { ReportedErrors } from "./dedupe";
-import { sentryClientPresent } from "./sentry";
+import { forwardRejectionToSentry } from "./sentry";
 
 /** React Native's global error hook (`global.ErrorUtils`). */
 export interface ErrorUtilsLike {
@@ -30,7 +31,10 @@ export interface ErrorCaptureOptions {
    */
   onFatal: (error: unknown) => Promise<void>;
   consoleErrors?: boolean;
-  /** Also hands every unhandled promise rejection to this function (see ErrorOptions). */
+  /**
+   * Also hands every unhandled promise rejection to this function (see ErrorOptions). Without
+   * it, a rejection is handed to the Sentry SDK when one is initialised (spec ERR-3).
+   */
   onUnhandledRejection?: (error: unknown) => void;
   /** Errors already reported, shared with the Sentry forwarder. */
   reported?: ReportedErrors;
@@ -50,6 +54,9 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
     HermesInternal?: Partial<RejectionTracker>;
   };
   const restores: Array<() => void> = [];
+  // False once uninstalled: a patch that could not be removed (another SDK patched after ouo,
+  // the Hermes rejection tracker) then only passes through.
+  let active = true;
   const reported = opts.reported ?? new ReportedErrors();
   const emitException = opts.emitException ?? ((_error: unknown, attrs: Attrs) => events.emit("exception", attrs, "error"));
 
@@ -58,13 +65,12 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   // both ErrorUtils and a window; a React Native error can reach ErrorUtils twice in dev; a
   // fatal's echoes, checklist Q1, src/errors/dedupe.ts).
   const firstSighting = (error: unknown): boolean => reported.add(error) && !reported.isFatalRepeat(error);
+  // An error already reported as non-fatal (it escaped `withSpan`, the app logged it) that now
+  // arrives as fatal is reported again: the crash must not be lost to de-duplication.
+  const reportable = (error: unknown, fatal: boolean): boolean => firstSighting(error) || (fatal && !reported.isFatalRepeat(error));
   const reportFatal = (error: unknown): void => {
-    try {
-      emitException(error, exceptionAttributes(error, "uncaught", true));
-      reported.markFatal(error);
-    } catch (e) {
-      logger.warn("exception capture failed", e);
-    }
+    emitException(error, exceptionAttributes(error, "uncaught", true));
+    reported.markFatal(error);
   };
 
   const errorUtils = g.ErrorUtils;
@@ -72,40 +78,37 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   if (errorUtils && hasErrorUtils) {
     const previous = errorUtils.getGlobalHandler?.();
     let reentrant = false;
+    // ERR-3: the previous handler (LogBox, the native crash, another SDK) always runs, exactly
+    // once, whatever the SDK's own part does: that part runs inside the guard.
     const handler: GlobalErrorHandler = (error, isFatal) => {
-      const fatal = isFatal === true;
+      let called = false;
       const callPrevious = (): void => {
+        if (called) return;
+        called = true;
         if (previous && previous !== handler) previous(error, isFatal);
       };
-      if (reentrant || !firstSighting(error)) {
-        callPrevious();
-        return;
-      }
-      reentrant = true;
-      try {
-        emitException(error, exceptionAttributes(error, "uncaught", fatal));
-        if (fatal) reported.markFatal(error);
-      } catch (e) {
-        logger.warn("exception capture failed", e);
-      } finally {
-        reentrant = false;
-      }
-      if (!fatal) {
-        callPrevious();
-        return;
-      }
-      // Fatal: persist the crash marker and flush before the app dies / shows the red box.
-      let done = false;
-      const finish = (): void => {
-        if (done) return;
-        done = true;
-        callPrevious();
-      };
-      opts.onFatal(error).then(finish, finish);
+      const wait = !active ? undefined : guard.run("errors.global", () => {
+        const fatal = isFatal === true;
+        if (reentrant || !reportable(error, fatal)) return undefined;
+        reentrant = true;
+        try {
+          emitException(error, exceptionAttributes(error, "uncaught", fatal));
+          if (fatal) reported.markFatal(error);
+        } finally {
+          reentrant = false;
+        }
+        // Fatal: persist the crash marker and flush before the app dies / shows the red box.
+        return fatal ? opts.onFatal(error) : undefined;
+      });
+      if (wait && typeof wait.then === "function") wait.then(callPrevious, callPrevious);
+      else callPrevious();
     };
     errorUtils.setGlobalHandler(handler);
     restores.push(() => {
-      if (previous) errorUtils.setGlobalHandler(previous);
+      // Only when ouo's handler is still the current one: a handler installed after it (Sentry
+      // initialised later) chains to ouo's and must not be removed.
+      const current = errorUtils.getGlobalHandler?.();
+      if (previous && (current === undefined || current === handler)) errorUtils.setGlobalHandler(previous);
     });
     logger.log("global error handler installed");
   }
@@ -116,13 +119,13 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   const hasWindowEvents = typeof (globalThis as { addEventListener?: unknown }).addEventListener === "function";
   if (hasWindowEvents) {
     const target = globalThis as unknown as EventTarget;
-    const onError = (event: Event): void => {
+    const onError = guard.wrap("errors.window", (event: Event): void => {
       const ev = event as { error?: unknown; message?: string };
       const error = ev.error ?? ev.message ?? "Unknown error";
       if (!firstSighting(error)) return;
       reportFatal(error);
       void opts.onFatal(error);
-    };
+    });
     target.addEventListener("error", onError);
     restores.push(() => target.removeEventListener("error", onError));
     logger.log(hasErrorUtils ? "window error listener installed alongside ErrorUtils" : "global error handler installed (window error event)");
@@ -133,31 +136,23 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
 
   // ---- unhandled promise rejections ----
   const onUnhandled = (_id: number, error: unknown): void => {
-    try {
+    if (active) guard.run("errors.rejection", () => {
       if (reported.add(error)) emitException(error, exceptionAttributes(error ?? "Unhandled rejection", "unhandledrejection", false));
-    } catch (e) {
-      logger.warn("rejection capture failed", e);
-    }
-    if (opts.onUnhandledRejection) {
-      try {
-        opts.onUnhandledRejection(error);
-      } catch (e) {
-        logger.warn("onUnhandledRejection threw", e);
-      }
-    }
+    });
+    // ERR-3: the rejection goes on. Hermes keeps one tracker and gives no way to read the one
+    // that was there (see below), so it goes to the app's function, else to Sentry when present.
+    const forward = opts.onUnhandledRejection;
+    if (forward) guard.host("errors.onUnhandledRejection", () => forward(error));
+    else guard.host("errors.rejection.sentry", () => forwardRejectionToSentry(error));
     // React Native's own tracker printed a warning; keep that behaviour visible when debugging.
     logger.warn("Possible unhandled promise rejection", error);
   };
   const hermes = g.HermesInternal;
   if (hermes && typeof hermes.enablePromiseRejectionTracker === "function" && (hermes.hasPromise?.() ?? true)) {
-    // Hermes keeps ONE tracker (HermesInternal is frozen, so it cannot be shared): this replaces
-    // any tracker registered before, e.g. Sentry's. errors.onUnhandledRejection hands the
-    // rejections on to it.
-    if (sentryClientPresent() && !opts.onUnhandledRejection) {
-      logger.warn(
-        "Sentry is initialised: ouo now owns the Hermes promise rejection tracker and Sentry no longer gets unhandled rejections. Forward them with errors.onUnhandledRejection (README, Next to Sentry).",
-      );
-    }
+    // Hermes keeps ONE tracker, has no getter for it, and HermesInternal is frozen, so the tracker
+    // registered before (Sentry's) can be neither read nor wrapped: this call replaces it.
+    // `onUnhandled` above hands every rejection to Sentry itself instead (or to the app's
+    // errors.onUnhandledRejection), which is what Sentry's own tracker did with it.
     hermes.enablePromiseRejectionTracker({ allRejections: true, onUnhandled });
     logger.log("promise rejection tracking: HermesInternal");
   } else if (hasWindowEvents) {
@@ -181,11 +176,12 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
   if (opts.consoleErrors !== false && typeof console !== "undefined") {
     const original = console.error;
     let reentrant = false;
-    console.error = function ouoConsoleError(this: unknown, ...args: unknown[]): void {
+    const patched = function ouoConsoleError(this: unknown, ...args: unknown[]): void {
+      // The app's call first, untouched; the SDK's part after it, inside the guard.
       original.apply(this === undefined ? console : this, args);
-      if (reentrant) return;
+      if (reentrant || !active) return;
       reentrant = true;
-      try {
+      guard.run("errors.console", () => {
         // React logs the error it caught (an error boundary, a render error) with the Error
         // object itself: already reported when the global handler or Sentry saw it.
         const errorArg = args.find((a) => a instanceof Error);
@@ -193,18 +189,18 @@ export function installErrorCapture(opts: ErrorCaptureOptions): () => void {
         if ((errorArg === undefined || reported.add(errorArg)) && !reported.isFatalEcho(message)) {
           emitException(errorArg ?? error, exceptionAttributes(error, "console", false));
         }
-      } catch (e) {
-        logger.warn("console.error capture failed", e);
-      } finally {
-        reentrant = false;
-      }
+      });
+      reentrant = false;
     };
+    console.error = patched;
     restores.push(() => {
-      console.error = original;
+      // Only when it is still ours: a patch installed after it calls ours and must stay.
+      if (console.error === patched) console.error = original;
     });
   }
 
   return () => {
-    for (const r of restores.splice(0)) r();
+    active = false;
+    for (const r of restores.splice(0)) guard.host("errors.uninstall", r);
   };
 }

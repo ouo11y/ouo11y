@@ -1,6 +1,16 @@
 import Foundation
 @_exported import OuoReplayCore
 
+/// Which recorder captures the replay (`OuoReplay.recorderKind`).
+public enum ReplayRecorderKind: String, Sendable {
+    /// ouo's own recorder: JPEG frames with tile patches (`kind: "frames"` on the legacy path,
+    /// `ouo-frames/3` over OTLP).
+    case frames
+    /// `replay.mode` `pixel/video` over OTLP (`ouo-video/1`): sentry-cocoa's recorder core
+    /// (OuoReplaySentryCore) with ouo's masking, 1 frame/s H.264 segments of 5 s.
+    case sentryVideo = "sentry-video"
+}
+
 /// Host configuration (docs/specs/mobile-replay.md, "Host API").
 public struct OuoReplayConfig {
     /// Replay receiver base URL (the collector's `ouoreplay` port, 4319 by default, or the proxy
@@ -43,6 +53,14 @@ public struct OuoReplayConfig {
     /// Keep chunks on the device until the host releases their session (`OuoReplay.releaseHeld`):
     /// the next-launch keep/drop decision. Default false: chunks are sent as they are cut.
     public var holdUploads: Bool
+    /// Set: replay goes out as OTLP log records (ADR-0021 decision 5) with these options, and
+    /// `mode`, `flushInterval`, `seqStore`, `spoolURL` and `holdUploads` above are not used (the
+    /// cadence is `otlp.cadence`). Nil (the default): the upload path to `/v1/replay/chunks`.
+    public var otlp: ReplayOTLPOptions?
+
+    /// The OTLP replay queue's folder and the open stream's file, beside `outboxURL`.
+    var otlpOutboxURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("outbox-otlp", isDirectory: true) }
+    var otlpStateURL: URL { outboxURL.deletingLastPathComponent().appendingPathComponent("open-stream.json") }
 
     public init(
         endpoint: URL,

@@ -1,82 +1,171 @@
+import { guard } from "./guard";
 import type { DebugLogger } from "./logger";
 import { SAMPLING_SALT, sampled, sampleRate } from "./sampling";
-import type { AsyncKeyValueStorage, HeldReplaySession, ReplayMode, ReplayOptions, RUMReplay } from "./types";
+import type { AttrValue, ReplayCadence, ReplayMode, ReplayOptions } from "./types";
 
 /**
- * Shape of the Expo native module `OuoReplay` (sdk/react-native/ios/OuoReplayModule.swift,
- * android/src/main/java/dev/ouo/reactnative/OuoReplayModule.kt). Every function is synchronous except `flush`.
+ * Session replay (ADR-0021 decision 5): the native module captures, masks, queues on disk and
+ * sends. A chunk is one OTLP/HTTP protobuf request to `${endpoint}/v1/logs` holding one
+ * `ouo.replay.chunk` log record (scope `ouo.replay`); the stream ends with `ouo.replay.ended`.
+ * This file is the JS side: which sessions record and how (whole session, or a buffer sent on
+ * the first error), consent, never-record screens, and the calls into the native module, every
+ * one of them inside the guard.
  */
-export interface NativeReplayModule {
-  start(endpoint: string, options: NativeStartOptions): void;
-  pause(): void;
-  resume(): void;
-  isRecording(): boolean;
-  flush(): Promise<void>;
-  sessionDidRotate(id: string): void;
-  setSessionId(id: string): void;
-  /** Missing on native builds older than the replay modes. */
-  screenDidChange?(): void;
-  /** Sends the chunk a crash left open in the previous run; missing on older native builds. */
-  recoverPendingChunk?(endpoint: string, options: NativeStartOptions): void;
-  stop?(): void;
-  /** Finished sessions whose chunks the device holds (`holdUploads`); missing on older native builds. */
-  heldReplaySessions?(endpoint: string, options: NativeStartOptions): Promise<NativeHeldSession[]>;
-  /** Sends (`keep`) or deletes a held session's chunks. */
-  releaseHeldReplay?(endpoint: string, options: NativeStartOptions, sessionId: string, keep: boolean): void;
-}
 
-export interface NativeHeldSession {
-  sessionId: string;
-  chunks: number;
-  bytes: number;
-  firstAt: number;
-  lastAt: number;
-}
+/** Trace of what `ouo.replay.trigger` may say when a buffered replay is sent. */
+export type ReplayTrigger = "error" | "crash" | "hang" | "manual";
 
-/** Options the native `start` receives; mirrors `OuoReplayConfig` (docs/specs/mobile-replay.md). */
+/** How the previous run ended, as far as the SDK knows: the native side ends that run's open stream with it. */
+export type PreviousExit = "crash" | "background_kill";
+
+/** `start(endpoint, options)` of the native module on the OTLP path (the `otlp` key selects it). */
 export interface NativeStartOptions {
   sessionId: string;
-  /**
-   * Project credential (ADR-0007): the native uploader sends
-   * `Authorization: Basic base64("<projectId>:<projectToken>")` on every chunk upload.
-   */
   projectId: string;
   projectToken: string;
+  /** What is recorded (`replay.mode`). */
   mode: ReplayMode;
+  /** When a frame is taken (`replay.cadence`). */
+  cadence: ReplayCadence;
   frameInterval: number;
   maskText: boolean;
   maskInputs: boolean;
   maskImages: boolean;
   maskWebViews: boolean;
   debug: boolean;
-  /** Keep chunks on the device until `releaseHeldReplay` (set when `replay.keepAtNextLaunch` is). */
-  holdUploads: boolean;
+  otlp: {
+    logsUrl: string;
+    resource?: Record<string, AttrValue>;
+    schemaUrl?: string;
+    scopeVersion?: string;
+    previousExit?: PreviousExit;
+  };
+  /** Present: keep a ring of that many seconds and send it on `capture(trigger)`. Absent: record the whole session. */
+  buffer?: { seconds: number };
 }
+
+/**
+ * Native module contract (iOS: `OuoReplayModule.swift` over `sdk/ios`; Android:
+ * `OuoReplayModule.kt` over `sdk/android`; the same on both). Only `start` is required: a module
+ * without one of the others is an older build, and the call is skipped.
+ */
+export interface NativeReplayModule {
+  start(endpoint: string, options: NativeStartOptions): void;
+  pause?(): void;
+  resume?(): void;
+  isRecording?(): boolean;
+  /** Resolves once the open chunk was cut and handed to the native queue. */
+  flush?(): Promise<void>;
+  /** Ends the stream with `ouo.replay.ended` (reason `session_end`) and starts a new replay for the new session. */
+  sessionDidRotate?(id: string): void;
+  setSessionId?(id: string): void;
+  /** A route change: the frame for the new screen with the `navigation` cadence. */
+  screenDidChange?(): void;
+  /** Stops; the stream ends with reason `stop`. */
+  stop?(): void;
+  /** Stops; the stream ends with reason `session_end`. */
+  endSession?(): void;
+  /** Buffer mode: sends the ring and records on as a session. */
+  capture?(trigger: string): void;
+  /** The screen the next chunks belong to (`ouo.view.id`). */
+  setViewId?(id: string): void;
+  mask?(reactTag: number): void;
+  unmask?(reactTag: number): void;
+  /**
+   * Consent withdrawn: stops without an end record and deletes every replay record not yet
+   * accepted, end records included. One call, so no record can be queued between a stop and the
+   * delete.
+   */
+  discardPending?(): Promise<void>;
+  /** What replay dropped or could not do in this process, by reason (cumulative counters). */
+  replayDiagnostics?(): Record<string, number>;
+}
+
+/**
+ * The native counters that are records replay dropped (ERR-7), and the `ouo.sdk.drop.reason`
+ * each is reported under with signal `replay`. The other counters (`replay.chunks`,
+ * `replay.accepted`, option problems) are not drops.
+ */
+export const REPLAY_DROP_REASONS = {
+  "replay.frames_dropped": "frame_dropped",
+  "replay.events_dropped": "event_dropped",
+  "replay.store_refused": "store_refused",
+  "replay.rejected_status": "rejected_status",
+  "replay.partial_rejected": "partial_rejected",
+  "replay.evicted": "outbox_evicted",
+} as const;
+
+export type ReplayDropReason = (typeof REPLAY_DROP_REASONS)[keyof typeof REPLAY_DROP_REASONS];
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
 
-/** Capture comes back this long after a never-record screen was left (or `showScreen()`), when the transition is over. */
+/** How long capture stays paused after the last hidden screen was left (docs/specs/mobile-replay.md, "Never-record screens"). */
 export const SHOW_DELAY_MS = 500;
 
+/** The schema the replay records are written against. */
+export const REPLAY_SCHEMA_URL = "https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev";
+
+export const DEFAULT_REPLAY_MODE: ReplayMode = "pixel/frames";
+export const DEFAULT_BUFFER_SECONDS = 60;
+
+/** Every value `replay.mode` may have on mobile (`structure/dom` is web only). No shorthand. */
+export const REPLAY_MODES: readonly ReplayMode[] = ["pixel/frames", "pixel/video", "structure/wireframe"];
 /**
- * Loads the Expo native module. Returns undefined in Expo Go, on web, in Node and in tests
- * (anywhere `expo-modules-core` is missing or the module is not linked); the caller then runs
- * a no-op controller. The require is guarded so a bare React Native app without Expo still
- * bundles: Metro resolves the literal module name, so hosts without `expo-modules-core` must
- * alias it (see the README).
+ * The modes the native module of this package can record. The one place to add a
+ * mode when its recorder ships. Android before 8 (API 26) has no `pixel/video`: native leaves replay off there.
  */
-/** Why the last `loadNativeReplayModule()` returned undefined; surfaced in the debug warning. */
+export const NATIVE_REPLAY_MODES: ReadonlySet<ReplayMode> = new Set<ReplayMode>(["pixel/frames", "pixel/video"]);
+const CADENCES: readonly ReplayCadence[] = ["auto", "session", "navigation"];
+
+export interface ResolvedReplayMode {
+  /** Undefined: replay stays off. */
+  mode: ReplayMode | undefined;
+  cadence: ReplayCadence;
+  /** At most one, for the debug log: why replay is off, or what is deprecated. */
+  warning?: string;
+}
+
+/**
+ * `replay.mode` and `replay.cadence` as the SDK uses them. Never throws. A value that is not a
+ * mode, or a mode this build cannot record, leaves replay off with one warning. A cadence given
+ * as `mode` (`auto`, `session`, `navigation`: what `replay.mode` meant before 0.4) is read as
+ * `replay.cadence`, with a deprecation warning.
+ */
+export function resolveReplayMode(options: ReplayOptions | undefined, supported: ReadonlySet<ReplayMode> = NATIVE_REPLAY_MODES): ResolvedReplayMode {
+  const given: unknown = options?.mode;
+  const cadenceGiven: unknown = options?.cadence;
+  let cadence: ReplayCadence = CADENCES.includes(cadenceGiven as ReplayCadence) ? (cadenceGiven as ReplayCadence) : "auto";
+  if (given === undefined || given === null) return { mode: DEFAULT_REPLAY_MODE, cadence };
+  if (CADENCES.includes(given as ReplayCadence)) {
+    if (cadenceGiven === undefined) cadence = given as ReplayCadence;
+    return { mode: DEFAULT_REPLAY_MODE, cadence, warning: `replay.mode: "${String(given)}" is deprecated: it is now replay.cadence; replay.mode is what is recorded (default "${DEFAULT_REPLAY_MODE}")` };
+  }
+  if (!REPLAY_MODES.includes(given as ReplayMode)) {
+    const shown = typeof given === "string" ? `"${given.slice(0, 40)}"` : typeof given;
+    return { mode: undefined, cadence, warning: `replay.mode ${shown} is not a replay mode (${REPLAY_MODES.join(", ")}; no shorthand): replay is off` };
+  }
+  if (!supported.has(given as ReplayMode)) {
+    return { mode: undefined, cadence, warning: `replay.mode "${String(given)}" is not available in this build (available: ${Array.from(supported).join(", ")}): replay is off` };
+  }
+  return { mode: given as ReplayMode, cadence };
+}
+
+/** Why the native module could not be loaded, for the debug log (set by the last load attempt). */
 export let lastNativeLoadError: string | undefined;
 
+/**
+ * Loads the native Expo module, or returns undefined when it cannot exist (Expo Go, web, tests
+ * without the stand-in). Never throws.
+ */
 export function loadNativeReplayModule(): NativeReplayModule | undefined {
   lastNativeLoadError = undefined;
   try {
-    // Expo registers every native module on `globalThis.expo.modules`; reading it directly avoids a
-    // `require("expo-modules-core")` that Metro cannot resolve when this package is symlinked from
-    // outside the app (npm workspaces, `file:` links). The require is only a fallback.
+    // 1. The JSI host object installed by expo-modules-core at runtime start. Reading it
+    //    needs no JS dependency, so it also works when Metro did not bundle the package.
     const registry = (globalThis as { expo?: { modules?: Record<string, NativeReplayModule> } }).expo?.modules;
     let mod: NativeReplayModule | undefined = registry?.[NATIVE_MODULE_NAME];
     if (!mod) {
+      // 2. The documented API. Literal require so Metro bundles it when it is installed.
       const core = expoModulesCore();
       if (!core || typeof core.requireNativeModule !== "function") {
         lastNativeLoadError = "native module not registered and expo-modules-core not resolvable";
@@ -100,38 +189,76 @@ interface ExpoModulesCoreLike {
   requireNativeModule?: (name: string) => NativeReplayModule;
 }
 
+// Indirection so tests can simulate the package being absent.
 let expoModulesCore: () => ExpoModulesCoreLike | undefined = () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("expo-modules-core") as ExpoModulesCoreLike | undefined;
 
-/** Test hook: Vitest aliases `import`s but not this bare `require`, so tests inject the mock. */
+/** Test hook. */
 export function _setExpoModulesCore(resolver: (() => ExpoModulesCoreLike | undefined) | undefined): void {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   expoModulesCore = resolver ?? (() => require("expo-modules-core") as ExpoModulesCoreLike | undefined);
 }
 
+/** `findNodeHandle` of react-native, injectable for tests: a ref (or a component instance) to its native tag. */
+export type FindNodeHandle = (ref: unknown) => number | null | undefined;
+
+/**
+ * The native tag of what `replay.mask(target)` was given: a tag (a positive whole number), a
+ * ref object (`{ current }`) or a component instance, through `findNodeHandle`. Undefined when
+ * it is none of them or the view is not mounted.
+ */
+export function nativeTag(target: unknown, find: FindNodeHandle | undefined): number | undefined {
+  const valid = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 2_147_483_647;
+  if (valid(target)) return target;
+  if (!target || typeof target !== "object" || !find) return undefined;
+  const instance = "current" in (target as object) ? (target as { current: unknown }).current : target;
+  if (valid(instance)) return instance;
+  if (!instance) return undefined;
+  try {
+    const tag = find(instance);
+    return valid(tag) ? tag : undefined;
+  } catch {
+    // not a component instance
+    return undefined;
+  }
+}
+
+/** A fresh `ouo.view.id`: 32 lowercase hex characters. */
+export function newViewId(): string {
+  let out = "";
+  for (let i = 0; i < 32; i++) out += Math.floor(Math.random() * 16).toString(16);
+  return out;
+}
+
 export interface ReplayControllerOptions {
-  /** Replay receiver base URL (the collector's `ouoreplay` port); chunks go to `${endpoint}/v1/replay/chunks`. */
+  /** Collector OTLP/HTTP base URL; chunks go to `logsUrl`. */
   endpoint: string | undefined;
-  /** Project credential the native uploader turns into the Basic `Authorization` header. */
+  /** Where chunks go; default `${endpoint}/v1/logs`. */
+  logsUrl?: string | undefined;
+  /** Sent with every chunk request as `Authorization: Basic base64(projectId:projectToken)` (ADR-0007). */
   projectId: string;
   projectToken: string;
   options: ReplayOptions | undefined;
-  /** `session.sampleRate`: a session outside it is never recorded. Default 1. */
+  /** `session.sampleRate`: replay never records a session that is outside the session sample. */
   sessionSampleRate?: number;
-  /** Injected for tests; `undefined` means "load from expo-modules-core", `null` means "absent". */
+  /** The session's persisted sampling decision (spec SMP-1); the hash of the id when it gives none. */
+  sessionDecision?: (sessionId: string) => boolean | undefined;
+  /** The resource attributes telemetry carries (primitives): the replay records carry the same. */
+  resource?: Record<string, AttrValue>;
+  scopeVersion?: string;
+  previousExit?: PreviousExit;
+  /** Override for tests; default `loadNativeReplayModule()`. */
   native?: NativeReplayModule | null;
-  /** Where the error counts of held sessions persist (`replay.keepAtNextLaunch`). */
-  storage?: AsyncKeyValueStorage;
-  /** Capture stopped for a never-record screen (`screen`) or `hideScreen()` (`manual`) while the session records. */
+  findNodeHandle?: FindNodeHandle;
+  /** A stretch of the session is not recorded: `ouo.replay.hidden` on the timeline (spec section 5c, rule 3). */
   onHidden?: (reason: "screen" | "manual") => void;
+  /** Replay consent (spec PRV-3). False: the native recorder is not started and sends nothing until `setAllowed(true)`. Default true. */
+  allowed?: boolean;
   logger: DebugLogger;
 }
 
-/**
- * Whether a navigation `path` (`/Account/IdentityCheck`) or its screen name (the last segment)
- * matches one of `replay.excludeScreens`: exact, a prefix when the string ends with `*`, or a RegExp.
- */
+/** `excludeScreens`: a string matches the name or the path exactly, or as a prefix with a trailing `*`; a RegExp is tested against both. */
 export function screenExcluded(patterns: Array<string | RegExp> | undefined, path: string): boolean {
   if (!patterns || !path) return false;
   const values = [path, path.slice(path.lastIndexOf("/") + 1)];
@@ -146,181 +273,190 @@ export function screenExcluded(patterns: Array<string | RegExp> | undefined, pat
   );
 }
 
-/** What `initRUM` drives; `RUMReplay` is the public subset exposed as `rum.replay`. */
-export interface ReplayController extends RUMReplay {
-  /** True when the native recorder was started. */
+/** How a session is recorded: from its start, as a buffer sent on the first error, or not at all. */
+type Plan = "session" | "buffer" | undefined;
+
+export interface ReplayController {
+  /** True once native capture was started. */
   readonly active: boolean;
+  /** The mode in use; undefined when replay is off (not enabled, no native module, an unusable `replay.mode`). */
+  readonly mode: ReplayMode | undefined;
+  pause(): void;
+  resume(): void;
+  isRecording(): boolean;
+  hideScreen(): void;
+  showScreen(): void;
   start(sessionId: string): void;
   sessionDidRotate(id: string): void;
-  /** A new screen is showing: the frame for it in `navigation` mode. */
+  /** A route change: a new `ouo.view.id` for the chunks that follow, and the frame for the new screen. */
   screenDidChange(): void;
-  /** The navigation path of the screen now showing: capture stops while it matches `replay.excludeScreens`. */
+  /** The screen the app shows now (its navigation path): pauses native capture on a never-record screen. */
   setScreen(path: string): void;
-  /** A feedback in the current session (C10): counted for `keepAtNextLaunch`. */
-  onFeedback(): void;
-  /** An error in the current session: starts an error-triggered recording when sampled. */
-  onError(): void;
+  /** A buffered replay is sent: on the first bypass-set record (`error`, `crash`, `hang`) or on `replay.capture()` (`manual`). */
+  capture(trigger: ReplayTrigger): void;
+  mask(target: unknown): void;
+  unmask(target: unknown): void;
   flush(): Promise<void>;
+  /** Stops recording; the stream ends with reason `stop`. */
   stop(): void;
+  /** `shutdown()`: stops recording; the stream ends with reason `session_end`. */
+  end(): void;
+  /** Replay consent changed: false stops the recorder and deletes what was not sent, true starts it for the current session. */
+  setAllowed(allowed: boolean): void;
   /**
-   * Next-launch keep/drop: asks `replay.keepAtNextLaunch` about every held session but
-   * `currentId` and sends or deletes its chunks (all are sent when the hook is not set, so
-   * nothing stays behind after the hook is removed). `crashedId` is the session that crashed.
+   * What replay dropped since the last call, by reason (ERR-7), from the native counters. A
+   * counter that went down started over (a new stream after a rotation): its whole value is new.
    */
-  decideHeld(currentId: string, crashedId: string | undefined): Promise<void>;
+  takeDrops(): Array<{ reason: ReplayDropReason; count: number }>;
 }
 
-export const REPLAY_ERRORS_KEY = "ouo.replay.errors";
-export const REPLAY_FEEDBACK_KEY = "ouo.replay.feedback";
-
-/** A count per session (exceptions, feedback), persisted under `key` so the next launch can tell `keepAtNextLaunch`. */
-function sessionTally(storage: AsyncKeyValueStorage | undefined, key: string): { add(id: string): void; take(keepId: string): Promise<Record<string, number>> } {
-  let counts: Promise<Record<string, number>> = storage
-    ? storage.getItem(key).then(
-        (raw) => {
-          try {
-            const v = JSON.parse(raw ?? "{}") as Record<string, number>;
-            return v && typeof v === "object" ? v : {};
-          } catch {
-            return {};
-          }
-        },
-        () => ({}),
-      )
-    : Promise.resolve({});
-  const save = (c: Record<string, number>): Record<string, number> => {
-    void storage?.setItem(key, JSON.stringify(c)).catch(() => undefined);
-    return c;
-  };
-  return {
-    add(id) {
-      counts = counts.then((c) => save({ ...c, [id]: (c[id] ?? 0) + 1 }));
-    },
-    take(keepId) {
-      const all = counts;
-      counts = counts.then((c) => save(c[keepId] ? { [keepId]: c[keepId]! } : {}));
-      return all;
-    },
-  };
-}
-
-/**
- * Bridges `initRUM({ replay })` and the session manager to the native recorder. Replay is off
- * unless `replay.enabled === true` (ADR-0006: "Replay is off until the host enables it").
- *
- * Sampling (8b): a session is recorded when it is in the session sample and in the replay
- * sample (`replay.sampleRate`), or, failing the latter, from its first error when it is in
- * the on-error sample (`replay.onErrorSampleRate`). The native recorder is started for the
- * first recorded session and paused for sessions that are not recorded.
- */
 export function createReplayController(opts: ReplayControllerOptions): ReplayController {
   const { logger } = opts;
   const enabled = opts.options?.enabled === true;
-  const native = enabled ? (opts.native === undefined ? loadNativeReplayModule() : opts.native ?? undefined) : undefined;
+  const loaded = enabled ? (opts.native === undefined ? loadNativeReplayModule() : opts.native ?? undefined) : undefined;
+  const resolved = enabled ? resolveReplayMode(opts.options) : { mode: undefined, cadence: "auto" as ReplayCadence };
+  // The one warning: an unusable mode, or the old meaning of `replay.mode`.
+  if (resolved.warning) logger.warn(`replay: ${resolved.warning}`);
+  if (enabled && !loaded) {
+    logger.warn(`replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled. ${lastNativeLoadError ?? ""}`);
+  }
   const endpoint = opts.endpoint;
+  const logsUrl = opts.logsUrl ?? (endpoint ? `${endpoint.replace(/\/+$/, "")}/v1/logs` : undefined);
+  if (enabled && loaded && !(endpoint && logsUrl)) logger.warn("replay: no endpoint; replay disabled");
+  // Everything below runs only with a module, a usable mode and somewhere to send.
+  const mode = resolved.mode;
+  const native = mode && endpoint && logsUrl ? loaded : undefined;
+
   const sessionRate = sampleRate(opts.sessionSampleRate, 1);
   const replayRate = sampleRate(opts.options?.sampleRate, 1);
   const onErrorRate = sampleRate(opts.options?.onErrorSampleRate, 0);
+  const seconds = opts.options?.bufferSeconds;
+  const bufferSeconds = typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_BUFFER_SECONDS;
+
   let active = false;
+  /** How the native recorder was started for the active session. */
+  let activePlan: Plan;
+  /** The active buffer was sent already: one trigger per session. */
+  let captured = false;
   let currentId: string | undefined;
-  /** The host called `rum.replay.pause()`. */
   let userPaused = false;
-  /** Paused because the current session is not recorded. */
-  let samplePaused = false;
-  /** The current session started recording at an error. */
-  let errorTriggered = false;
-  /** The screen showing matches `excludeScreens`. */
+  let allowed = opts.allowed !== false;
   let screenHidden = false;
-  /** The host called `rum.replay.hideScreen()`. */
   let manualHidden = false;
-  /** Pending end of a hidden stretch (`SHOW_DELAY_MS`): capture stays paused until it fires. */
   let showing: ReturnType<typeof setTimeout> | undefined;
-  /** The session to start the native recorder for once nothing hides the screen. */
+  /** The session that starts recording once the screen is shown or consent is given. */
   let pendingStart: string | undefined;
   const hidden = (): boolean => screenHidden || manualHidden || showing !== undefined;
   const excludeScreens = opts.options?.excludeScreens;
-  const keepHook = opts.options?.keepAtNextLaunch;
-  const hold = typeof keepHook === "function";
-  const tally = sessionTally(hold ? opts.storage : undefined, REPLAY_ERRORS_KEY);
-  const feedbackTally = sessionTally(hold ? opts.storage : undefined, REPLAY_FEEDBACK_KEY);
 
-  if (enabled && !native) {
-    // One line, debug only: Expo Go, web and Jest/Vitest all land here.
-    logger.warn(`replay: native module OuoReplay unavailable (Expo Go, web or a build without the dev client); replay disabled. ${lastNativeLoadError ?? ""}`);
-  }
-  if (enabled && native && !endpoint) {
-    logger.warn("replay: no replay endpoint; replay disabled");
-  }
-
-  const call = (what: string, fn: () => void): void => {
+  /** A native call: skipped when this build has no such method, never throws, a rejection is swallowed. */
+  const call = <K extends keyof NativeReplayModule>(method: K, ...args: Parameters<NonNullable<NativeReplayModule[K]>>): unknown => {
+    const fn = native?.[method] as ((...a: unknown[]) => unknown) | undefined;
+    if (typeof fn !== "function") return undefined;
     try {
-      fn();
+      const out = fn.apply(native, args);
+      if (out && typeof (out as Promise<unknown>).then === "function") return (out as Promise<unknown>).then(undefined, (err: unknown) => logger.warn(`replay: native ${method} failed`, err));
+      return out;
     } catch (err) {
-      logger.warn(`replay: native ${what} failed`, err);
+      logger.warn(`replay: native ${method} failed`, err);
+      return undefined;
     }
   };
-  const inSessionSample = (id: string): boolean => sampled(id, sessionRate, SAMPLING_SALT.session);
-  const recorded = (id: string): boolean => inSessionSample(id) && sampled(id, replayRate, SAMPLING_SALT.replay);
 
-  const nativeOptions = (sessionId: string): NativeStartOptions => ({
+  // RPL-19: only in a session that is in the session sample, then by the replay rates.
+  const inSessionSample = (id: string): boolean => opts.sessionDecision?.(id) ?? sampled(id, sessionRate, SAMPLING_SALT.session);
+  const planFor = (id: string): Plan => {
+    if (!inSessionSample(id)) return undefined;
+    if (sampled(id, replayRate, SAMPLING_SALT.replay)) return "session";
+    return sampled(id, onErrorRate, SAMPLING_SALT.replayOnError) ? "buffer" : undefined;
+  };
+
+  const nativeOptions = (sessionId: string, plan: Plan): NativeStartOptions => ({
     sessionId,
     projectId: opts.projectId,
     projectToken: opts.projectToken,
-    mode: opts.options?.mode ?? "auto",
+    mode: mode!,
+    cadence: resolved.cadence,
     frameInterval: opts.options?.frameInterval ?? 1,
     maskText: opts.options?.maskText !== false,
     maskInputs: opts.options?.maskInputs !== false,
     maskImages: opts.options?.maskImages !== false,
     maskWebViews: opts.options?.maskWebViews !== false,
     debug: logger.enabled,
-    holdUploads: hold,
+    otlp: {
+      logsUrl: logsUrl!,
+      ...(opts.resource ? { resource: opts.resource } : {}),
+      schemaUrl: REPLAY_SCHEMA_URL,
+      ...(opts.scopeVersion ? { scopeVersion: opts.scopeVersion } : {}),
+      ...(opts.previousExit ? { previousExit: opts.previousExit } : {}),
+    },
+    ...(plan === "buffer" ? { buffer: { seconds: bufferSeconds } } : {}),
   });
-
-  // The chunk a crash left open goes out whatever this launch's sampling decides.
-  if (native && endpoint && typeof native.recoverPendingChunk === "function") {
-    call("recoverPendingChunk", () => native.recoverPendingChunk!(endpoint, nativeOptions("")));
-  }
 
   const hiddenReason = (): "screen" | "manual" => (screenHidden ? "screen" : "manual");
 
+  /** The native counters as last read by `takeDrops`. */
+  const lastDrops = new Map<string, number>();
+
   const startNative = (sessionId: string): void => {
-    if (!native || !endpoint || active) return;
+    if (!native || active) return;
+    const plan = planFor(sessionId);
+    if (!plan) {
+      logger.log("replay: session not in the replay sample", sessionId);
+      return;
+    }
+    if (!allowed) {
+      // Remembered: `setAllowed(true)` starts it.
+      pendingStart = sessionId;
+      return;
+    }
     // Native start takes a frame at once: on a hidden screen, start once it is shown.
     if (hidden()) {
+      // One mark per stretch and session; none while the host paused (the manual-pause semantics apply).
       if (pendingStart !== sessionId && !userPaused) opts.onHidden?.(hiddenReason());
       pendingStart = sessionId;
       return;
     }
     pendingStart = undefined;
-    const startOptions = nativeOptions(sessionId);
-    call("start", () => {
-      native.setSessionId(sessionId);
-      native.start(endpoint, startOptions);
+    const startOptions = nativeOptions(sessionId, plan);
+    try {
+      native.setSessionId?.(sessionId);
+      native.start(endpoint!, startOptions);
       active = true;
-      logger.log("replay: started", { endpoint, ...startOptions, projectToken: `${opts.projectToken.slice(0, 8)}…` });
-    });
-    if (active && userPaused) call("pause", () => native.pause());
+      activePlan = plan;
+      captured = false;
+      // Never the project token, not even a prefix (spec CFG-3).
+      const { projectToken: _token, ...shown } = startOptions;
+      logger.log(`replay: started (${plan === "buffer" ? `buffer of ${bufferSeconds} s, sent on the first error` : "whole session"})`, { endpoint, ...shown, otlp: { logsUrl } });
+    } catch (err) {
+      logger.warn("replay: native start failed", err);
+    }
+    if (active && userPaused) call("pause");
   };
 
-  /** The hidden stretch is over: start or resume what it held back. */
+  const stopNative = (how: "stop" | "endSession"): void => {
+    if (!native || !active) return;
+    active = false;
+    activePlan = undefined;
+    // An older build without `endSession` still stops.
+    if (how === "endSession" && typeof native.endSession === "function") call("endSession");
+    else if (typeof native.stop === "function") call("stop");
+    else call("pause");
+  };
+
   const show = (): void => {
     if (hidden() || !native) return;
     if (!active) {
       if (pendingStart !== undefined) startNative(pendingStart);
       return;
     }
-    if (samplePaused || userPaused) return;
-    call("resume", () => native.resume());
+    if (userPaused) return;
+    call("resume");
     logger.log("replay: shown");
   };
 
-  /**
-   * Never-record screens and `hideScreen()`: a third pause source next to the host's pause and
-   * the sampling pause. Native pause runs on the main thread's next turn (the open chunk is cut).
-   * Capture comes back `SHOW_DELAY_MS` after nothing hides the screen any more, with a full frame:
-   * a JS-driven stack transition (and any transition on Android, which has no transition check)
-   * would otherwise capture the never-record screen sliding out.
-   */
+  // Capture is held while a never-record screen or `hideScreen()` asks for it, and for
+  // SHOW_DELAY_MS after the last one stopped: one stretch, one `ouo.replay.hidden` mark.
   const setHidden = (screen: boolean, manual: boolean, reason: "screen" | "manual"): void => {
     const was = screenHidden || manualHidden;
     screenHidden = screen;
@@ -328,20 +464,24 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     const now = screenHidden || manualHidden;
     if (was === now) return;
     if (!now) {
-      showing = setTimeout(() => {
-        showing = undefined;
-        show();
-      }, SHOW_DELAY_MS);
+      // The transition out of the hidden screen can still show it: wait before the next frame.
+      showing = setTimeout(
+        guard.wrap("timer.replay", () => {
+          showing = undefined;
+          show();
+        }),
+        SHOW_DELAY_MS,
+      );
       return;
     }
     if (showing !== undefined) {
-      // Hidden again before the delay ran out: still the same paused stretch.
+      // Hidden again within the delay: capture never resumed, the stretch goes on.
       clearTimeout(showing);
       showing = undefined;
       return;
     }
-    if (!native || !active || samplePaused || userPaused) return;
-    call("pause", () => native.pause());
+    if (!native || !active || userPaused) return;
+    call("pause");
     logger.log(`replay: hidden (${reason})`);
     opts.onHidden?.(reason);
   };
@@ -350,44 +490,41 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     get active() {
       return active;
     },
+    get mode() {
+      return native ? mode : undefined;
+    },
     start(sessionId: string): void {
-      if (!native || !endpoint || active) return;
+      if (!native || active) return;
       currentId = sessionId;
-      if (recorded(sessionId)) {
-        startNative(sessionId);
-      } else {
-        logger.log("replay: session not in the replay sample", sessionId);
-      }
+      startNative(sessionId);
     },
     sessionDidRotate(id: string): void {
-      if (!native) return;
-      // The manager also reports the initial session (cold start resolution): same id, nothing to do.
-      if (id === currentId) return;
+      if (!native || id === currentId) return;
       currentId = id;
-      errorTriggered = false;
+      const plan = planFor(id);
       if (!active) {
         pendingStart = undefined;
-        if (recorded(id)) startNative(id);
+        startNative(id);
         return;
       }
-      call("sessionDidRotate", () => native.sessionDidRotate(id));
-      logger.log("replay: session rotated", id);
-      if (!recorded(id)) {
-        if (!samplePaused && !userPaused && !hidden()) call("pause", () => native.pause());
-        samplePaused = true;
-        logger.log("replay: session not in the replay sample", id);
+      if (plan === "session" && activePlan === "session") {
+        // Whole session to whole session: the native side ends the stream (`session_end`) and starts
+        // the next replay with the options it has.
+        call("sessionDidRotate", id);
+        logger.log("replay: session rotated", id);
+        if (hidden() && !userPaused) opts.onHidden?.(hiddenReason());
         return;
       }
-      if (samplePaused) {
-        samplePaused = false;
-        if (!userPaused && !hidden()) call("resume", () => native.resume());
-      }
-      // The new session starts on a hidden screen: its timeline gets the marker too.
-      if (hidden() && !userPaused) opts.onHidden?.(hiddenReason());
+      // The new session is recorded differently, or the recorder runs with buffer options (a
+      // buffer is per session, sent or not): end this one, start as planned.
+      stopNative("endSession");
+      startNative(id);
     },
     screenDidChange(): void {
-      if (!native || !active || !native.screenDidChange || hidden()) return;
-      call("screenDidChange", () => native.screenDidChange!());
+      if (!native || !active) return;
+      // No view id in the SDK's records yet (`ouo.view.id` is a later step): one is made here, for replay only.
+      call("setViewId", newViewId());
+      if (!hidden()) call("screenDidChange");
     },
     setScreen(path: string): void {
       setHidden(screenExcluded(excludeScreens, path), manualHidden, "screen");
@@ -398,90 +535,84 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
     showScreen(): void {
       setHidden(screenHidden, false, "manual");
     },
-    onFeedback(): void {
-      if (hold && currentId !== undefined) feedbackTally.add(currentId);
+    capture(trigger: ReplayTrigger): void {
+      // Only a buffer has something to send; a whole-session recording is already on its way.
+      if (!native || !active || activePlan !== "buffer" || captured) return;
+      captured = true;
+      call("capture", trigger);
+      logger.log("replay: buffer sent, recording on", trigger);
     },
-    onError(): void {
-      const id = currentId;
-      if (hold && id !== undefined) tally.add(id);
-      if (!native || !endpoint || id === undefined || errorTriggered) return;
-      if (!inSessionSample(id) || recorded(id) || !sampled(id, onErrorRate, SAMPLING_SALT.replayOnError)) return;
-      errorTriggered = true;
-      logger.log("replay: recording triggered by an error", id);
-      if (!active) {
-        startNative(id);
-      } else if (samplePaused) {
-        samplePaused = false;
-        if (!userPaused && !hidden()) call("resume", () => native.resume());
-      }
+    mask(target: unknown): void {
+      const tag = nativeTag(target, opts.findNodeHandle);
+      if (native && tag !== undefined) call("mask", tag);
+    },
+    unmask(target: unknown): void {
+      const tag = nativeTag(target, opts.findNodeHandle);
+      if (native && tag !== undefined) call("unmask", tag);
     },
     pause(): void {
       userPaused = true;
-      if (!native || !active || samplePaused || hidden()) return;
-      call("pause", () => native.pause());
+      if (!native || !active || hidden()) return;
+      call("pause");
     },
     resume(): void {
       userPaused = false;
-      if (!native || !active || samplePaused || hidden()) return;
-      call("resume", () => native.resume());
+      if (!native || !active || hidden()) return;
+      call("resume");
     },
     isRecording(): boolean {
-      if (!native || !active) return false;
-      try {
-        return native.isRecording() === true;
-      } catch {
-        return false;
-      }
+      return !!native && active && call("isRecording") === true;
     },
     async flush(): Promise<void> {
-      if (!native || !active) return;
-      try {
-        await native.flush();
-      } catch (err) {
-        logger.warn("replay: native flush failed", err);
-      }
+      if (!native) return;
+      await call("flush");
     },
     stop(): void {
       clearTimeout(showing);
       showing = undefined;
       pendingStart = undefined;
-      if (!native || !active) return;
-      active = false;
-      call("stop", () => (native.stop ? native.stop() : native.pause()));
+      stopNative("stop");
     },
-    async decideHeld(current: string, crashedId: string | undefined): Promise<void> {
-      if (!native || !endpoint || typeof native.heldReplaySessions !== "function" || typeof native.releaseHeldReplay !== "function") return;
-      let held: NativeHeldSession[];
-      try {
-        held = await native.heldReplaySessions(endpoint, nativeOptions(current));
-      } catch (err) {
-        logger.warn("replay: native heldReplaySessions failed", err);
+    end(): void {
+      clearTimeout(showing);
+      showing = undefined;
+      pendingStart = undefined;
+      stopNative("endSession");
+    },
+    takeDrops(): Array<{ reason: ReplayDropReason; count: number }> {
+      const out: Array<{ reason: ReplayDropReason; count: number }> = [];
+      if (!native) return out;
+      const counters = call("replayDiagnostics");
+      if (!counters || typeof counters !== "object") return out;
+      for (const [key, reason] of Object.entries(REPLAY_DROP_REASONS)) {
+        const value = (counters as Record<string, unknown>)[key];
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 0) continue;
+        const before = lastDrops.get(key) ?? 0;
+        lastDrops.set(key, value);
+        const count = value >= before ? value - before : value;
+        if (count > 0) out.push({ reason, count });
+      }
+      return out;
+    },
+    setAllowed(next: boolean): void {
+      if (next === allowed) return;
+      allowed = next;
+      if (!next) {
+        // Consent withdrawn (PRV-4): nothing further is sent. `discardPending` alone stops the
+        // recorder without an end record and deletes every replay record not yet accepted; a
+        // `stop` first would queue `ouo.replay.ended`. Only a build without it falls back to `stop`.
+        if (active) pendingStart = currentId;
+        if (native && typeof native.discardPending === "function") {
+          active = false;
+          activePlan = undefined;
+          void call("discardPending");
+        } else {
+          stopNative("stop");
+        }
         return;
       }
-      const [errors, feedback] = await Promise.all([tally.take(current), feedbackTally.take(current)]);
-      for (const h of held) {
-        if (h.sessionId === current) continue;
-        const summary: HeldReplaySession = {
-          sessionId: h.sessionId,
-          chunks: h.chunks,
-          bytes: h.bytes,
-          firstChunkAt: h.firstAt,
-          lastChunkAt: h.lastAt,
-          crashed: h.sessionId === crashedId,
-          errors: errors[h.sessionId] ?? 0,
-          feedback: feedback[h.sessionId] ?? 0,
-        };
-        let keep = true;
-        if (keepHook) {
-          try {
-            keep = (await keepHook(summary)) === true;
-          } catch (err) {
-            logger.warn("replay: keepAtNextLaunch threw; keeping the session", err);
-          }
-        }
-        call("releaseHeldReplay", () => native.releaseHeldReplay!(endpoint, nativeOptions(current), h.sessionId, keep));
-        logger.log(`replay: ${keep ? "sending" : "deleting"} the held replay of session ${h.sessionId}`, summary);
-      }
+      const id = pendingStart ?? currentId;
+      if (id !== undefined) startNative(id);
     },
   };
 }

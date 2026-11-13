@@ -1,4 +1,5 @@
-import type { Span, SpanContext } from "@opentelemetry/api";
+import type { Span, SpanContext, TracerProvider } from "@opentelemetry/api";
+import type { LoggerProvider } from "@opentelemetry/api-logs";
 import type { Gesture } from "./taps";
 
 /** Primitive attribute values accepted by the public API. */
@@ -16,12 +17,35 @@ export interface ServiceOptions {
 
 export interface TracingOptions {
   /**
-   * URL prefixes (RegExp or exact strings) that receive `traceparent` and `baggage`
-   * headers on outbound fetch requests. Requests to other hosts still get a client span.
+   * URL prefixes (RegExp or exact strings) that receive `traceparent` (and `baggage` with
+   * `propagation.sessionBaggage`) on outbound requests. Requests to other hosts still get a
+   * client span. A request that already carries a `traceparent` is never changed.
    */
   propagateTo?: Array<RegExp | string>;
-  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` / `replayEndpoint` are always ignored. */
+  /** URLs (RegExp or exact strings) never traced. The ingest URLs derived from `endpoint` are always ignored. */
   ignoreUrls?: Array<RegExp | string>;
+}
+
+export interface SamplingOptions {
+  /** The spec's name for `session.sampleRate`; wins when both are set. */
+  sessionRate?: number;
+  bypass?: {
+    /**
+     * An unsampled session still sends its unhandled exceptions, crashes and hangs, marked
+     * `ouo.sampling.bypass = true`: at most this many per session (crashes are not capped).
+     * Default 10.
+     */
+    perSessionCap?: number;
+  };
+}
+
+export interface PropagationOptions {
+  /**
+   * Also send W3C `baggage: session.id=<id>` on the requests that get `traceparent`
+   * (`tracing.propagateTo`), so a backend can put the session id on its own telemetry. Default
+   * false (spec PRP-6); nothing but the session id is ever sent.
+   */
+  sessionBaggage?: boolean;
 }
 
 export interface SessionOptions {
@@ -29,13 +53,15 @@ export interface SessionOptions {
   inactivityTimeoutMs?: number;
   /** Default 4 hours. */
   maxDurationMs?: number;
-  /** Background longer than this ends the session on foreground. Default 30 seconds. */
+  /** Background longer than this ends the session on foreground. Default 15 minutes, at least 1 minute (spec CFG-2). */
   backgroundTimeoutMs?: number;
   /**
    * Fraction of sessions whose telemetry (spans, events, logs, errors) and replay are sent,
    * 0 to 1. Default 1. The decision is a deterministic hash of the session id (the rule
-   * rum-api applies for a per-project server-side cap), so it holds for the whole session
-   * and a session never sends part of its signals.
+   * rum-api applies for a per-project server-side cap), made once when the session starts and
+   * kept with it. A session outside the sample sends only its bypass set (unhandled exceptions,
+   * crashes, hangs; see `sampling.bypass`), and its requests still carry `traceparent`, with
+   * the sampled flag clear.
    */
   sampleRate?: number;
 }
@@ -45,23 +71,46 @@ export interface UserOptions {
 }
 
 /**
- * Session replay (ADR-0006): native screenshot capture through the `OuoReplay` Expo module
- * (iOS and Android). Off unless `enabled: true`. Needs a development build
- * (`npx expo prebuild && npx expo run:ios`); in Expo Go and on web it silently stays off.
+ * What a replay records (ADR-0021 decision 5). One string, no shorthand (`pixel` or `structure`
+ * alone is not a mode), and the SDK never picks between two: a per-OS choice is the app's code,
+ * `Platform.select({ ios: "pixel/video", android: "pixel/frames" })`.
+ *
+ * - `pixel/frames` (default): masked JPEG frames and tile patches. iOS and Android.
+ * - `pixel/video`: masked frames encoded as H.264 segments (`ouo-video/1`), the encoder borrowed from
+ *   Sentry, masks identical to `pixel/frames`. iOS, and Android 8 (API 26) or later; older Android
+ *   leaves replay off natively.
+ * - `structure/wireframe`: the view tree as rectangles, text as `***`. Not in this build yet.
+ *
+ * (`structure/dom`, rrweb, is the web SDK's.) A value that is not a mode, or a mode this build
+ * cannot record, leaves replay off with one warning in the debug log; it never throws.
  */
-/**
- * `session`: a frame per `frameInterval` while the screen changes. `navigation`: one frame per
- * screen (start, resume, every route change). `auto`: `navigation` on devices with less than
- * 3.5 GiB of RAM, `session` otherwise.
- */
-export type ReplayMode = "auto" | "session" | "navigation";
+export type ReplayMode = "pixel/frames" | "pixel/video" | "structure/wireframe";
 
+/**
+ * When a frame is taken. `session`: a frame per `frameInterval` while the screen changes.
+ * `navigation`: one frame per screen (start, resume, every route change). `auto`: `navigation`
+ * on devices with less than 3.5 GiB of RAM, `session` otherwise.
+ */
+export type ReplayCadence = "auto" | "session" | "navigation";
+
+/**
+ * Session replay: native capture through the `OuoReplay` Expo module (iOS and Android), sent as
+ * OTLP log records to `${endpoint}/v1/logs` by the native module's own disk queue. Off unless
+ * `enabled: true`. Needs a development build (`npx expo prebuild && npx expo run:ios`); in Expo
+ * Go and on web it silently stays off. Replay records only in sessions inside the session
+ * sample, and only with replay consent.
+ */
 export interface ReplayOptions {
   /** Default false. */
   enabled?: boolean;
-  /** What is captured. Default `auto`. */
-  mode?: ReplayMode;
-  /** Shortest time between two frames in `session` mode, in seconds. Default 1. */
+  /**
+   * What is recorded. Default `pixel/frames`. The values `auto`, `session` and `navigation`
+   * (what this option meant before 0.4) are deprecated here: they are read as `cadence`.
+   */
+  mode?: ReplayMode | ReplayCadence;
+  /** When a frame is taken. Default `auto`. */
+  cadence?: ReplayCadence;
+  /** Shortest time between two frames with the `session` cadence, in seconds. Default 1. */
   frameInterval?: number;
   /**
    * Redact labels and React Native `<Text>` (not inputs). Default true. Set to `false` when
@@ -90,36 +139,14 @@ export interface ReplayOptions {
    */
   sampleRate?: number;
   /**
-   * Fraction of the sessions left out by `sampleRate` that start recording at their first
-   * error (`captureError`, unhandled errors and rejections), 0 to 1. Default 0. Recording
-   * covers the rest of the session from the error on: the native recorder keeps no buffer
-   * of the frames before it.
+   * Fraction of the sessions left out by `sampleRate` that record into a buffer, 0 to 1.
+   * Default 0. The buffer holds the last `bufferSeconds` on the device and sends nothing; the
+   * first unhandled exception, crash or hang (or `rum.replay.capture()`) sends it, and recording
+   * goes on for the rest of the session. The replay then starts before the error.
    */
   onErrorSampleRate?: number;
-  /**
-   * Next-launch keep/drop (client-side tail sampling). When set, a session's replay chunks stay
-   * on the device and, at the next launch, this is called once per finished session with its
-   * summary; the chunks are sent when it returns true and deleted otherwise. A throw keeps them.
-   * Keep sessions with `feedback > 0` too: their replay is the screenshot of that feedback (C10).
-   * Held chunks beyond 10 MB are deleted unsent, the oldest first. iOS only.
-   */
-  keepAtNextLaunch?: (session: HeldReplaySession) => boolean | Promise<boolean>;
-}
-
-/** What `replay.keepAtNextLaunch` knows about a finished session whose replay is on the device. */
-export interface HeldReplaySession {
-  sessionId: string;
-  chunks: number;
-  bytes: number;
-  /** When its first and last chunk were cut (epoch ms). */
-  firstChunkAt: number;
-  lastChunkAt: number;
-  /** The session ended with a crash (JS fatal error or native crash). */
-  crashed: boolean;
-  /** Exceptions reported in the session (unhandled, `console.error`, `captureError`). */
-  errors: number;
-  /** Feedback sent in the session (`rum.feedback`): its replay is the feedback's screenshot, keep it. */
-  feedback: number;
+  /** How many seconds the buffer of an on-error session holds. Default 60. */
+  bufferSeconds?: number;
 }
 
 /** How telemetry reaches the collector (README, "Delivery"). */
@@ -130,6 +157,71 @@ export interface TransportOptions {
    * backoff. The oldest are dropped beyond the bounds. False sends from memory only. Default on.
    */
   offline?: OfflineOptions | false;
+  /**
+   * Largest OTLP request, in bytes before gzip (spec TRN-4). A batch over it is split; a record
+   * that alone is over it is dropped and counted (`too_large`). Default 1 MiB.
+   */
+  maxRequestBytes?: number;
+  /** How long `shutdown()` waits for its last flush, in milliseconds. Default 2000. */
+  shutdownDeadlineMs?: number;
+}
+
+/** What `beforeSend` receives: a copy of a log record (an event, a log line, an exception) or of an ended span. */
+export interface BeforeSendRecord {
+  type: "log" | "span";
+  /** `event.name` of a log record (`log` for a plain log line), the name of a span. */
+  name: string;
+  /** Body of a log record, when it is text. */
+  body?: string;
+  attributes: Attrs;
+}
+
+/**
+ * Runs on every log record and span before it is kept or sent (spec CFG-4). Return the record
+ * (changed or not) to send it, `null` or `false` to drop it; returning nothing sends the record
+ * as the hook left it. A hook that throws sends the unmodified record. Replay chunks never pass
+ * through it. Keep it fast: it runs on the JS thread for every record.
+ */
+export type BeforeSend = (record: BeforeSendRecord) => BeforeSendRecord | null | false | void;
+
+export interface ConsentOptions {
+  /**
+   * Start with consent pending (spec PRV-1): until `setConsent` the SDK sends nothing, writes
+   * nothing to persistent storage and starts no replay. What it records meanwhile waits in
+   * memory (bounded) and is sent on grant, discarded on denial. Default false: consent is taken
+   * as given.
+   */
+  required?: boolean;
+}
+
+/** `setConsent`: the two categories are separate (spec PRV-3); a field left out is unchanged. */
+export interface Consent {
+  /** Events, logs, errors, spans. */
+  telemetry?: boolean;
+  /** Session replay. Recording also needs telemetry consent: a replay belongs to a session. */
+  replay?: boolean;
+}
+
+export interface PrivacyOptions {
+  /** Query keys whose values are kept in recorded URLs; every other query value becomes `REDACTED` (spec PRV-10). Default none. */
+  urlQueryAllow?: string[];
+  /** Keep the fragment of recorded URLs (a query-shaped fragment is sanitised like a query). Default false. */
+  keepUrlFragment?: boolean;
+}
+
+export interface DiagnosticsOptions {
+  /** Internal errors after which the SDK stops capture and becomes a no-op (spec ERR-6). Default 20. */
+  selfDisableThreshold?: number;
+}
+
+export interface OtelOptions {
+  /**
+   * Also register the SDK's tracer provider, logger provider, propagator and context manager as
+   * the OpenTelemetry globals (`trace.getTracer(...)`, `context.active()`). Default false: the
+   * SDK works on its own instances and never replaces a global the app registered (spec REL-4).
+   * Reach the providers with `getTracerProvider()` and `getLoggerProvider()` either way.
+   */
+  registerGlobal?: boolean;
 }
 
 export interface OfflineOptions {
@@ -281,29 +373,25 @@ export interface RUMOptions {
   /**
    * Collector OTLP/HTTP base URL, for example `https://otel.example.com` or
    * `http://localhost:4318` (ADR-0007). The SDK posts traces to `${endpoint}/v1/traces` and
-   * events to `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced.
+   * events and replay chunks to `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced.
    */
   endpoint: string;
   /**
-   * Base URL of the collector's replay receiver; chunks go to `${replayEndpoint}/v1/replay/chunks`.
-   * Optional: defaults to `endpoint` with port 4318 replaced by 4319 (the collector's default
-   * replay port), or to `endpoint` itself when it uses any other port (a proxy such as
-   * `https://otel.example.com` routes `/v1/replay/*` to the receiver itself).
-   */
-  replayEndpoint?: string;
-  /**
    * Project id, the user name of the HTTP Basic credential (`Authorization: Basic
-   * base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload.
-   * Required; `initRUM` throws without it.
+   * base64("<projectId>:<projectToken>")`) sent on every OTLP export, replay chunks included.
+   * Required: without it the SDK is a no-op (a diagnostic says so when `debug` is on).
    */
   projectId: string;
   /**
    * Project token, the password of the Basic credential. Public by nature (it only grants the
-   * right to write telemetry into one project); required, `initRUM` throws without it.
+   * right to write telemetry into one project); required, the SDK is a no-op without it. It is
+   * never written to a diagnostic, a URL or a record.
    */
   projectToken: string;
   service: ServiceOptions;
   tracing?: TracingOptions;
+  propagation?: PropagationOptions;
+  sampling?: SamplingOptions;
   replay?: ReplayOptions;
   session?: SessionOptions;
   user?: UserOptions;
@@ -320,7 +408,19 @@ export interface RUMOptions {
   transport?: TransportOptions;
   /** Persistence; defaults to `@react-native-async-storage/async-storage`. */
   storage?: AsyncKeyValueStorage;
-  /** Log SDK decisions to the console with the `[ouo]` prefix. */
+  /** Change or drop records before they are kept or sent. */
+  beforeSend?: BeforeSend;
+  privacy?: PrivacyOptions;
+  consent?: ConsentOptions;
+  /**
+   * Runs on every URL the SDK records (`url.full`, URLs in stack traces) after its own
+   * sanitising: credentials and query values are already `REDACTED` and the fragment is gone.
+   * Return the URL to record. A hook that throws leaves the sanitised URL.
+   */
+  sanitizeUrl?: (url: string) => string;
+  diagnostics?: DiagnosticsOptions;
+  otel?: OtelOptions;
+  /** Log SDK decisions to the console with the `[ouo]` prefix. Diagnostics never contain record payloads or the project token. */
   debug?: boolean;
 }
 
@@ -338,6 +438,29 @@ export interface RUMReplay {
    */
   hideScreen(): void;
   showScreen(): void;
+  /** Start recording the current session again after `stop()` (spec API: `replay.start`). The replay sample still decides whether the session is recorded. */
+  start(): void;
+  /** Stop recording until `start()`. The replay stream ends (`ouo.replay.ended`, reason `stop`). */
+  stop(): void;
+  /**
+   * Send the buffered replay now (`ouo.replay.trigger = manual`) and record on for the rest of
+   * the session. Only a session recording into a buffer (`replay.onErrorSampleRate`) has one;
+   * elsewhere it is a no-op.
+   */
+  capture(): void;
+  /**
+   * Mask a view in the replay, whatever the `mask*` options say: pass a ref (`useRef`), a
+   * component instance or a native tag. Mask wins over unmask. The registration belongs to the
+   * native view: after a JS reload, or when the view is unmounted and mounted again, call it
+   * again (for example in an effect). `testID="ouo-mask"` on a view does the same without code.
+   */
+  mask(target: unknown): void;
+  /**
+   * Show a view and what is inside it in the replay although a `mask*` option would redact it.
+   * A mask inside it still masks, and secure fields are always masked. Same lifetime as `mask`.
+   * `testID="ouo-unmask"` on a view does the same without code.
+   */
+  unmask(target: unknown): void;
 }
 
 /** `rum.feedback(...)` (docs/specs/mobile-sdk.md C10): what the user wrote, as the app passes it. */
@@ -355,16 +478,44 @@ export interface FeedbackInput {
 
 export interface RUMSession {
   id(): string;
+  /** The id given to `setUser`, "" when there is none. */
   userId(): string;
   /** Set on the first signals of a session that replaced an ended one. */
   previousId(): string | undefined;
 }
 
+/**
+ * Every function is safe to call at any time (spec API-1): before the session is ready, after
+ * `shutdown()`, without the native module, with any argument. It is then a no-op that does not
+ * throw. Attribute keys starting with `session.` or `ouo.` are reserved (API-3): they are
+ * dropped and counted, except `ouo.exception.fingerprint`.
+ */
 export interface RUM {
-  setUser(user: UserOptions): void;
-  /** Report a handled, non-fatal exception. */
+  /**
+   * Set the user id (`setUser("u-1")` or `setUser({ id: "u-1" })`), or clear it with `null`.
+   * Records carry `user.id` only after this (spec PRV-13): the SDK makes up no anonymous id.
+   * The id is kept across launches until it is cleared.
+   */
+  setUser(user: UserOptions | string | null): void;
+  /**
+   * Update consent (spec PRV-1 to PRV-4). Granting sends what was held while pending. Denying
+   * or withdrawing a category stops its capture, deletes its unsent data (the offline store, the
+   * persisted session) and, for telemetry, forgets the session: a later grant starts a new one
+   * without `session.previous_id`.
+   */
+  setConsent(consent: Consent): void;
+  /** Attributes for every later record (spans and log records). Replaces the previous set; `{}` clears it. */
+  setGlobalAttributes(attributes: Attrs): void;
+  /**
+   * Report a handled exception: `ouo.exception.source = "manual"`, `ouo.exception.handled = true`
+   * unless the attributes set it. The attributes may carry `ouo.exception.fingerprint`.
+   */
+  recordException(error: unknown, attributes?: Attrs): void;
+  /** Alias of `recordException`. */
   captureError(err: unknown, context?: Attrs): void;
-  /** Emit a custom event (an OTel log record with `event.name = name`). */
+  /** Emit a custom event (an OTel log record with `event.name = name`); `body` defaults to the name. Names starting with `session.` or `ouo.` are dropped. */
+  recordEvent(name: string, attributes?: Attrs, body?: string): void;
+  /** Alias of `recordEvent` without a body. */
   addEvent(name: string, attrs?: Attrs): void;
   /** Emit a `navigation` event and count it as activity. */
   trackNavigation(path: string, attrs?: Attrs): void;
@@ -390,7 +541,8 @@ export interface RUM {
   startSpan(name: string, options?: SpanOptions): Span;
   /**
    * Run `fn` inside a new span and end it when `fn` returns or its promise settles. A throw or
-   * rejection sets the span status to error, records the exception on the span and rethrows.
+   * rejection sets the span status to error, is reported as an `exception` log record with the
+   * span's trace id and span id (no span event, spec REL-7) and is rethrown.
    * The span is active while `fn` runs synchronously: requests started, logs and errors reported
    * there join its trace. After an `await`, pass the span on with `startSpan(name, { parent })`.
    */
@@ -408,6 +560,20 @@ export interface RUM {
   session: RUMSession;
   /** Resolves once the persisted session state was read and `session.start` was emitted. */
   ready: Promise<void>;
-  /** Force export of pending spans, log records and replay chunks. */
+  /** Force export of pending spans, log records and replay chunks. Never rejects. */
   flush(): Promise<void>;
+  /** The current session id, or undefined when the SDK is not running. */
+  getSessionId(): string | undefined;
+  /** End the session (`ouo.session.end_reason = "manual"`) and start a new one linked to it. */
+  restartSession(): void;
+  /**
+   * Stop the SDK (spec LIF-4): capture stops, every hook is removed, the session ends
+   * (`ouo.session.end_reason = "shutdown"`) and what is queued is flushed, for at most
+   * `transport.shutdownDeadlineMs`. `init` can be called again afterwards.
+   */
+  shutdown(): Promise<void>;
+  /** The SDK's OpenTelemetry tracer provider: spans from its tracers carry the session attributes (spec REL-5). */
+  getTracerProvider(): TracerProvider;
+  /** The SDK's OpenTelemetry logger provider: records from its loggers carry the session attributes. */
+  getLoggerProvider(): LoggerProvider;
 }

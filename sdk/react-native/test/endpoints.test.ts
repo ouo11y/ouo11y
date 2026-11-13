@@ -2,11 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   AUTHORIZATION_HEADER,
   DEFAULT_OTLP_PORT,
-  DEFAULT_REPLAY_PORT,
-  REPLAY_CHUNKS_PATH,
   base64Encode,
   basicAuthorization,
-  defaultReplayEndpoint,
   ingestHeaders,
   requireCredentials,
   resolveEndpoints,
@@ -16,49 +13,18 @@ import { getRUM } from "../src/instance";
 import { MemoryAsyncStorage } from "../src/session/storage";
 
 describe("resolveEndpoints (ADR-0007 section 6)", () => {
-  it("derives the OTLP routes and the replay route from the collector base URL", () => {
-    const e = resolveEndpoints({ endpoint: "https://otel.example.com" });
-    expect(e).toEqual({
+  // Replay chunks are OTLP log records now (ADR-0021 decision 5): there is no replay endpoint,
+  // no port 4319 and no `/v1/replay/chunks` any more.
+  it("derives the OTLP routes from the collector base URL; replay chunks use the logs route", () => {
+    expect(resolveEndpoints({ endpoint: "https://otel.example.com" })).toEqual({
       endpoint: "https://otel.example.com",
       traces: "https://otel.example.com/v1/traces",
       logs: "https://otel.example.com/v1/logs",
-      // No port 4318: a proxy host routes /v1/replay/* itself, so replay goes to the same base.
-      replayEndpoint: "https://otel.example.com",
-      replayChunks: "https://otel.example.com/v1/replay/chunks",
-      replayEndpointDerived: true,
     });
-    expect(REPLAY_CHUNKS_PATH).toBe("/v1/replay/chunks");
     expect(DEFAULT_OTLP_PORT).toBe(4318);
-    expect(DEFAULT_REPLAY_PORT).toBe(4319);
-  });
-
-  it("maps port 4318 to the replay receiver's 4319 (host names, IPv4, IPv6, trailing slash, path prefix)", () => {
-    expect(defaultReplayEndpoint("http://localhost:4318")).toBe("http://localhost:4319");
-    expect(defaultReplayEndpoint("http://192.168.1.23:4318/")).toBe("http://192.168.1.23:4319");
-    expect(defaultReplayEndpoint("http://[::1]:4318")).toBe("http://[::1]:4319");
-    expect(defaultReplayEndpoint("https://otel.example.com:4318/prefix/")).toBe("https://otel.example.com:4319/prefix");
-    // Any other port, or none, is used as is.
-    expect(defaultReplayEndpoint("http://localhost:4328")).toBe("http://localhost:4328");
-    expect(defaultReplayEndpoint("http://localhost:43180")).toBe("http://localhost:43180");
-    expect(defaultReplayEndpoint("https://otel.example.com/")).toBe("https://otel.example.com");
-    // Only the authority's port counts, never a `4318` in the path.
-    expect(defaultReplayEndpoint("https://otel.example.com/4318")).toBe("https://otel.example.com/4318");
-
     const e = resolveEndpoints({ endpoint: " http://localhost:4318/// " });
     expect(e.traces).toBe("http://localhost:4318/v1/traces");
     expect(e.logs).toBe("http://localhost:4318/v1/logs");
-    expect(e.replayEndpoint).toBe("http://localhost:4319");
-    expect(e.replayChunks).toBe("http://localhost:4319/v1/replay/chunks");
-    expect(e.replayEndpointDerived).toBe(true);
-  });
-
-  it("an explicit replayEndpoint wins and is normalised", () => {
-    const e = resolveEndpoints({ endpoint: "http://localhost:4318", replayEndpoint: " https://replay.example.com/ " });
-    expect(e.replayEndpoint).toBe("https://replay.example.com");
-    expect(e.replayChunks).toBe("https://replay.example.com/v1/replay/chunks");
-    expect(e.replayEndpointDerived).toBe(false);
-    // An empty override is the same as none.
-    expect(resolveEndpoints({ endpoint: "http://localhost:4318", replayEndpoint: "" }).replayEndpoint).toBe("http://localhost:4319");
   });
 
   it("rejects a missing endpoint", () => {
@@ -116,19 +82,30 @@ describe("initRUM configuration errors", () => {
   const base = { endpoint: "http://otel.test:4318", service: { name: "mobile-store", version: "2.3.0", environment: "test" }, storage: new MemoryAsyncStorage() };
   type Options = Parameters<typeof initRUM>[0];
 
-  it("throws a clear error when projectId or projectToken is missing and installs nothing", () => {
+  // Spec CFG-1 (ADR-0021 step A): invalid configuration no longer throws; the SDK is a no-op.
+  it("is a no-op that installs nothing when projectId or projectToken is missing", () => {
     const before = globalThis.fetch;
-    expect(() => initRUM({ ...base, projectToken: "pt_x" } as unknown as Options)).toThrow(/projectId.*is required \(ADR-0007\)/);
-    expect(() => initRUM({ ...base, projectId: "demo" } as unknown as Options)).toThrow(/projectToken.*is required \(ADR-0007\)/);
-    expect(() => initRUM({ ...base, projectId: "", projectToken: "pt_x" })).toThrow(/projectId/);
-    expect(() => initRUM({ ...base, projectId: "demo", projectToken: "" })).toThrow(/projectToken/);
+    for (const bad of [
+      { ...base, projectToken: "pt_x" },
+      { ...base, projectId: "demo" },
+      { ...base, projectId: "", projectToken: "pt_x" },
+      { ...base, projectId: "demo", projectToken: "" },
+      { ...base, projectId: "a:b", projectToken: "pt_x" },
+    ]) {
+      const rum = initRUM(bad as unknown as Options);
+      expect(rum.getSessionId()).toBeUndefined();
+      expect(() => rum.recordEvent("x")).not.toThrow();
+    }
     // Nothing was registered: fetch is still the stub and no instance exists.
     expect(globalThis.fetch).toBe(before);
     expect(getRUM()).toBeUndefined();
   });
 
-  it("throws when endpoint is missing", () => {
-    expect(() => initRUM({ ...base, endpoint: "", projectId: "demo", projectToken: "pt_x" })).toThrow(/endpoint/);
+  it("is a no-op when endpoint is missing or not a URL", () => {
+    for (const endpoint of ["", "otel.example.com", undefined, 42]) {
+      const rum = initRUM({ ...base, endpoint, projectId: "demo", projectToken: "pt_x" } as unknown as Options);
+      expect(rum.getSessionId()).toBeUndefined();
+    }
     expect(getRUM()).toBeUndefined();
   });
 

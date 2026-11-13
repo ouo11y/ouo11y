@@ -6,7 +6,7 @@ import java.net.URL
 import java.util.zip.GZIPOutputStream
 
 /** What the receiver answered; [status] 0 when the request did not reach it. */
-data class HttpAnswer(val status: Int, val retryAfter: String? = null) {
+data class HttpAnswer(val status: Int, val retryAfter: String? = null, val body: ByteArray? = null) {
   /** `Retry-After` in seconds when it is a number (the receiver sends whole seconds with 429 and 503). */
   val retryAfterSeconds: Double? get() = retryAfter?.trim()?.toDoubleOrNull()
 }
@@ -34,9 +34,10 @@ object UrlConnectionTransport : Transport {
       conn.outputStream.use { it.write(request.body) }
       val status = conn.responseCode
       // Drain the answer so the connection can be reused.
-      runCatching { (if (status >= 400) conn.errorStream else conn.inputStream)?.use { it.readBytes() } }
-      HttpAnswer(status, conn.getHeaderField("Retry-After"))
-    } catch (e: Exception) {
+      val answer = runCatching { (if (status >= 400) conn.errorStream else conn.inputStream)?.use { it.readBytes() } }.getOrNull()
+      // Only a small 2xx answer is kept: an OTLP `partial_success` is a few bytes.
+      HttpAnswer(status, conn.getHeaderField("Retry-After"), answer?.takeIf { status in 200..299 && it.size <= 64 * 1024 })
+    } catch (e: Throwable) {
       HttpAnswer(0)
     } finally {
       conn?.disconnect()
@@ -45,6 +46,8 @@ object UrlConnectionTransport : Transport {
 }
 
 object Gzip {
+  fun decompress(data: ByteArray): ByteArray = java.util.zip.GZIPInputStream(data.inputStream()).use { it.readBytes() }
+
   fun compress(data: ByteArray): ByteArray {
     val out = ByteArrayOutputStream(data.size / 4 + 64)
     GZIPOutputStream(out).use { it.write(data) }

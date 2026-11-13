@@ -31,3 +31,9 @@ export type AppStateStatus = Status;
 export function View(): null {
   return null;
 }
+
+/** Test helper: a "native tag" for anything with a numeric `__tag`. */
+export function findNodeHandle(ref: unknown): number | null {
+  const tag = (ref as { __tag?: unknown } | null)?.__tag;
+  return typeof tag === "number" ? tag : null;
+}

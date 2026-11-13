@@ -2,7 +2,8 @@ import type { SendResult, Send } from "./outbox";
 
 /** Native gzip + POST of the Expo module (`postOtlp`), off the JS thread; `status` 0 when there was no answer. */
 export interface NativeOtlpPost {
-  postOtlp(url: string, headers: Record<string, string>, body: string): Promise<{ status: number; retryAfter?: string | null }>;
+  /** `body`: the response body, when the native module returns it (for `partial_success`). */
+  postOtlp(url: string, headers: Record<string, string>, body: string): Promise<{ status: number; retryAfter?: string | null; body?: string | null }>;
 }
 
 /** Abort a request after this long; the outbox retries it. */
@@ -20,7 +21,7 @@ export function createSend(headers: Record<string, string>, native: Partial<Nati
     const post = native.postOtlp.bind(native);
     return async (url, body) => {
       const res = await post(url, all, body);
-      return withRetryAfter(res.status, res.retryAfter ?? null);
+      return answer(res.status, res.retryAfter ?? null, res.body);
     };
   }
   return async (url, body) => {
@@ -28,7 +29,10 @@ export function createSend(headers: Record<string, string>, native: Partial<Nati
     const timer = abort ? setTimeout(() => abort.abort(), SEND_TIMEOUT_MS) : null;
     try {
       const res = await fetch(url, { method: "POST", headers: all, body, ...(abort ? { signal: abort.signal } : {}) });
-      return withRetryAfter(res.status, res.headers?.get?.("retry-after") ?? null);
+      const ok = res.status >= 200 && res.status < 300;
+      // Only an accepted answer can carry `partial_success`; a body that cannot be read is none.
+      const text = ok && typeof res.text === "function" ? await res.text().catch(() => "") : "";
+      return answer(res.status, res.headers?.get?.("retry-after") ?? null, text);
     } catch {
       return { status: 0 };
     } finally {
@@ -37,9 +41,27 @@ export function createSend(headers: Record<string, string>, native: Partial<Nati
   };
 }
 
-function withRetryAfter(status: number, header: string | null): SendResult {
+function answer(status: number, header: string | null, body?: string | null): SendResult {
   const retryAfterMs = parseRetryAfter(header);
-  return retryAfterMs === undefined ? { status } : { status, retryAfterMs };
+  const rejected = status >= 200 && status < 300 ? partialRejected(body) : 0;
+  return { status, ...(retryAfterMs === undefined ? {} : { retryAfterMs }), ...(rejected > 0 ? { rejected } : {}) };
+}
+
+/**
+ * Rejected records of an OTLP/HTTP JSON answer: `{"partialSuccess":{"rejectedLogRecords":"3"}}`
+ * (or `rejectedSpans`; int64 as a string or a number). 0 for an empty body or anything else.
+ */
+export function partialRejected(body: string | null | undefined): number {
+  if (!body || body.length > 65_536 || !body.includes("artial")) return 0;
+  try {
+    const parsed = JSON.parse(body) as { partialSuccess?: Record<string, unknown>; partial_success?: Record<string, unknown> } | null;
+    const p = parsed?.partialSuccess ?? parsed?.partial_success;
+    if (!p || typeof p !== "object") return 0;
+    const n = Number(p["rejectedLogRecords"] ?? p["rejectedSpans"] ?? p["rejected_log_records"] ?? p["rejected_spans"] ?? 0);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** `Retry-After` in seconds or as an HTTP date, in milliseconds from now. */

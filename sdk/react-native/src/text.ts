@@ -16,3 +16,12 @@ export function cutUtf8(s: string, maxBytes: number): string {
   }
   return s;
 }
+
+/** `String(v)` for a value the app passed: "" when it cannot be made a string (a throwing `toString`, a symbol). */
+export function safeString(v: unknown): string {
+  try {
+    return typeof v === "string" ? v : String(v);
+  } catch {
+    return "";
+  }
+}

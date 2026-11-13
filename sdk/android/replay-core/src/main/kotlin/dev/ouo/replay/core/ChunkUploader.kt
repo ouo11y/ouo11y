@@ -24,7 +24,8 @@ class ChunkUploader(
 ) {
   data class Config(
     val maxQueueBytes: Long = 10L * 1024 * 1024,
-    val retryDelayMs: (Int) -> Long = DiskQueue.Config.doubling(60_000),
+    /** Full jitter from 1 s to 300 s (client SDK spec TRN-7); it used to double without jitter. */
+    val retryDelayMs: (Int) -> Long = DiskQueue.Config.fullJitter(),
     val hold: Boolean = false,
   )
 

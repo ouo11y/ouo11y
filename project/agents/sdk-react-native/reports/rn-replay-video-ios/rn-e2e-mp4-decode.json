@@ -1,0 +1,145 @@
+[
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-0.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-0-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-0-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-0-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-0-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-1.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-1-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-1-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-1-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-1-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-1-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-1-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-2.mp4",
+    "frames" : 5,
+    "ok" : true,
+    "seconds" : 5,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-2-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-2-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-2-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-2-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-2-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-3.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-3-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-3-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-3-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-3-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-3-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-3-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-4.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-4-0.png: Payment method | card (succeeds) | broken-card (backend answers 500) | Promo code | Pay | selected",
+      "1352c65a0bd5d59ee82328d537863048-4-1.png: Payment method | card (succeeds) | broken-card (backend answers 500) | Promo code | Pay | selected",
+      "1352c65a0bd5d59ee82328d537863048-4-2.png: Payment method | card (succeeds) | broken-card (backend answers 500) | Promo code | Pay | selected",
+      "1352c65a0bd5d59ee82328d537863048-4-3.png: Payment method | card (succeeds) | broken-card (backend answers 500) | Promo code | Pay | selected",
+      "1352c65a0bd5d59ee82328d537863048-4-4.png: Payment method | card (succeeds) | broken-card (backend answers 500) | Promo code | Pay | selected",
+      "1352c65a0bd5d59ee82328d537863048-4-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-5.mp4",
+    "frames" : 5,
+    "ok" : true,
+    "seconds" : 5,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-5-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-5-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-5-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-5-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-5-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-6.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-6-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-6-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56)",
+      "1352c65a0bd5d59ee82328d537863048-6-2.png: session 5d6760fb user | Slow request (2 s) | 500 from the backend | Handled error | Unhandled promise rejection | Fatal error (crash) | console.error | Hang the main thread (3 s) | Out-of-memory kill | Custom event | Set user | Flush | Replay pause\/resume (recording)",
+      "1352c65a0bd5d59ee82328d537863048-6-3.png: session 5d6760fb user | Slow request (2 s) | 500 from the backend | Handled error | Unhandled promise rejection | Fatal error (crash) | console.error | Hang the main thread (3 s) | Out-of-memory kill | Custom event | Set user | Flush | Replay pause\/resume (recording)",
+      "1352c65a0bd5d59ee82328d537863048-6-4.png: session 5d6760fb user | Slow request (2 s) | 500 from the backend | Handled error | Unhandled promise rejection | Fatal error (crash) | console.error | Hang the main thread (3 s) | Out-of-memory kill | Custom event | Set user | Flush | Replay pause\/resume (recording)",
+      "1352c65a0bd5d59ee82328d537863048-6-5.png: session 5d6760fb user | Slow request (2 s) | 500 from the backend | Handled error | Unhandled promise rejection | Fatal error (crash) | console.error | Hang the main thread (3 s) | Out-of-memory kill | Custom event | Set user | Flush | Replay pause\/resume (recording)"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-7.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-7-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-7-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-7-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-7-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-7-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-7-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  },
+  {
+    "file" : "1352c65a0bd5d59ee82328d537863048-8.mp4",
+    "frames" : 2,
+    "ok" : true,
+    "seconds" : 2,
+    "text" : [
+      "1352c65a0bd5d59ee82328d537863048-8-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "1352c65a0bd5d59ee82328d537863048-8-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  },
+  {
+    "file" : "c1dbd537575c6418b439d542eee790e0-0.mp4",
+    "frames" : 6,
+    "ok" : true,
+    "seconds" : 6,
+    "text" : [
+      "c1dbd537575c6418b439d542eee790e0-0-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-0-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-0-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-0-5.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  },
+  {
+    "file" : "c1dbd537575c6418b439d542eee790e0-1.mp4",
+    "frames" : 5,
+    "ok" : true,
+    "seconds" : 5,
+    "text" : [
+      "c1dbd537575c6418b439d542eee790e0-1-0.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-1-1.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-1-2.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-1-3.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos",
+      "c1dbd537575c6418b439d542eee790e0-1-4.png: fetch failed: UnexpectedException: Could not | connect to the server. (at ExpoModulesCore\/ | Promise.swift:56) | Retry | Chaos"
+    ]
+  }
+]

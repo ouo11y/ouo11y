@@ -62,7 +62,7 @@ describe("sampled processors", () => {
 
   it("forward only records and spans of sampled sessions", async () => {
     const innerLog = { onEmit: vi.fn(), forceFlush: vi.fn(() => Promise.resolve()), shutdown: vi.fn(() => Promise.resolve()) } satisfies LogRecordProcessor;
-    const logs = new SampledLogProcessor(innerLog, 0.5);
+    const logs = new SampledLogProcessor(innerLog, (id) => sampled(id, 0.5, SAMPLING_SALT.session));
     logs.onEmit({ attributes: { "session.id": inId } } as unknown as SdkLogRecord);
     logs.onEmit({ attributes: { "session.id": outId } } as unknown as SdkLogRecord);
     logs.onEmit({ attributes: {} } as unknown as SdkLogRecord);
@@ -71,7 +71,7 @@ describe("sampled processors", () => {
     expect(innerLog.forceFlush).toHaveBeenCalled();
 
     const innerSpan = { onStart: vi.fn(), onEnd: vi.fn(), forceFlush: vi.fn(() => Promise.resolve()), shutdown: vi.fn(() => Promise.resolve()) } satisfies SpanProcessor;
-    const spans = new SampledSpanProcessor(innerSpan, 0.5);
+    const spans = new SampledSpanProcessor(innerSpan, (id) => sampled(id, 0.5, SAMPLING_SALT.session));
     spans.onEnd({ attributes: { "session.id": inId } } as unknown as ReadableSpan);
     spans.onEnd({ attributes: { "session.id": outId } } as unknown as ReadableSpan);
     expect(innerSpan.onEnd).toHaveBeenCalledTimes(1);
@@ -81,9 +81,13 @@ describe("sampled processors", () => {
 function fakeNative() {
   const state = { recording: false };
   return {
-    start: vi.fn(() => {
+    start: vi.fn((_endpoint: string, _options: unknown) => {
       state.recording = true;
     }),
+    endSession: vi.fn(() => {
+      state.recording = false;
+    }),
+    capture: vi.fn((_trigger: string) => undefined),
     pause: vi.fn(() => {
       state.recording = false;
     }),
@@ -94,7 +98,9 @@ function fakeNative() {
     flush: vi.fn(() => Promise.resolve()),
     sessionDidRotate: vi.fn(),
     setSessionId: vi.fn(),
-    stop: vi.fn(),
+    stop: vi.fn(() => {
+      state.recording = false;
+    }),
   } satisfies NativeReplayModule;
 }
 
@@ -118,18 +124,26 @@ describe("replay sampling", () => {
     expect(c.isRecording()).toBe(true);
   });
 
-  it("pauses for unrecorded sessions and resumes for recorded ones, respecting a host pause", () => {
+  // Replay over OTLP (ADR-0021): a session that is not recorded ends the stream instead of
+  // pausing it, and the next recorded session starts a new one.
+  it("ends the stream for an unrecorded session and starts again for a recorded one, respecting a host pause", () => {
     const native = fakeNative();
     const c = createReplayController({ ...base, options: { enabled: true, sampleRate: 0.5 }, native });
     c.start(recorded);
     c.sessionDidRotate(skipped);
-    expect(native.sessionDidRotate).toHaveBeenCalledWith(skipped);
-    expect(native.pause).toHaveBeenCalledTimes(1);
+    expect(native.endSession).toHaveBeenCalledTimes(1);
+    expect(native.sessionDidRotate).not.toHaveBeenCalled();
     expect(c.isRecording()).toBe(false);
     const next = findId("rec2", rec);
     c.sessionDidRotate(next);
-    expect(native.resume).toHaveBeenCalledTimes(1);
+    expect(native.start).toHaveBeenCalledTimes(2);
+    expect((native.start.mock.calls[1]![1] as { sessionId: string }).sessionId).toBe(next);
     expect(c.isRecording()).toBe(true);
+    // From one recorded session to the next the native side rotates the stream itself.
+    const next2 = findId("rec2b", rec);
+    c.sessionDidRotate(next2);
+    expect(native.sessionDidRotate).toHaveBeenCalledWith(next2);
+    expect(native.start).toHaveBeenCalledTimes(2);
 
     // Host pause survives a rotation through an unrecorded session and back.
     c.pause();
@@ -140,35 +154,52 @@ describe("replay sampling", () => {
     expect(c.isRecording()).toBe(true);
   });
 
-  it("starts recording at the first error of a session in the on-error sample", () => {
+  // Buffer-on-error (ADR-0021): the session records into a buffer from its start, and the first
+  // bypass-set record sends it. (Before, recording only started at the error.)
+  it("a session in the on-error sample records into a buffer, sent once at the first error", () => {
     const native = fakeNative();
-    const c = createReplayController({ ...base, options: { enabled: true, sampleRate: 0.5, onErrorSampleRate: 1 }, native });
+    const c = createReplayController({ ...base, options: { enabled: true, sampleRate: 0.5, onErrorSampleRate: 1, bufferSeconds: 30 }, native });
     c.start(skippedOnError);
-    expect(native.start).not.toHaveBeenCalled();
-    c.onError();
     expect(native.start).toHaveBeenCalledTimes(1);
-    c.onError();
-    expect(native.start).toHaveBeenCalledTimes(1);
-    // The next unrecorded session pauses again; its own error resumes.
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ sessionId: skippedOnError, buffer: { seconds: 30 } });
+    expect(native.capture).not.toHaveBeenCalled();
+    c.capture("error");
+    c.capture("crash");
+    c.capture("manual");
+    expect(native.capture.mock.calls).toEqual([["error"]]);
+    // The next session in the on-error sample gets its own buffer, and its own trigger.
     const nextSkipped = findId("skip3", (id) => !rec(id));
     c.sessionDidRotate(nextSkipped);
-    expect(c.isRecording()).toBe(false);
-    c.onError();
-    expect(c.isRecording()).toBe(true);
+    expect(native.endSession).toHaveBeenCalledTimes(1);
+    expect(native.start.mock.calls[1]![1]).toMatchObject({ sessionId: nextSkipped, buffer: { seconds: 30 } });
+    c.capture("hang");
+    expect(native.capture.mock.calls).toEqual([["error"], ["hang"]]);
+    // A session recorded from its start is started without a buffer: capture is a no-op.
+    c.sessionDidRotate(recorded);
+    expect(native.sessionDidRotate).not.toHaveBeenCalled();
+    expect(native.start.mock.calls[2]![1]).not.toHaveProperty("buffer");
+    c.capture("error");
+    expect(native.capture).toHaveBeenCalledTimes(2);
   });
 
   it("never records with onErrorSampleRate 0 (default) or outside the session sample", () => {
     const native = fakeNative();
     const c = createReplayController({ ...base, options: { enabled: true, sampleRate: 0.5 }, native });
     c.start(skipped);
-    c.onError();
+    c.capture("error");
     expect(native.start).not.toHaveBeenCalled();
+    expect(native.capture).not.toHaveBeenCalled();
 
     const native2 = fakeNative();
     const outOfSession = findId("nosess", (id) => !sampled(id, 0.5, SAMPLING_SALT.session));
     const c2 = createReplayController({ ...base, options: { enabled: true, onErrorSampleRate: 1 }, sessionSampleRate: 0.5, native: native2 });
     c2.start(outOfSession);
-    c2.onError();
+    c2.capture("error");
     expect(native2.start).not.toHaveBeenCalled();
+    // The persisted decision of the session wins over the hash (spec SMP-1).
+    const native3 = fakeNative();
+    const c3 = createReplayController({ ...base, options: { enabled: true }, sessionDecision: () => false, native: native3 });
+    c3.start(recorded);
+    expect(native3.start).not.toHaveBeenCalled();
   });
 });

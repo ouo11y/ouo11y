@@ -114,3 +114,31 @@ final class CartViewController: UIViewController, OuoScreenNaming {
         if let promo { Journey.area("Cart", "input", promo.convert(promo.bounds, to: nil)) }
     }
 }
+
+/// The replay demo (OUO_ACTION=replaydemo): a long list of text that replay must mask (names, card
+/// numbers, a secure field) and one row it may show, scrolled by `Journey`, so masking can be
+/// checked while views move. Compares the frames recorder with the Sentry-derived one.
+final class StatementViewController: UITableViewController, OuoScreenNaming {
+    var ouoScreenName: String? { "Statement" }
+    static let rows = 80
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Statement"
+        tableView.accessibilityIdentifier = "statement"
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "row")
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { Self.rows }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "row", for: indexPath)
+        var content = cell.defaultContentConfiguration()
+        let n = indexPath.row + 1
+        content.text = "Ada Lovelace #\(n)  card 4242 4242 4242 \(String(format: "%04d", n * 37 % 10000))"
+        content.secondaryText = "IBAN DE89 3704 0044 0532 0130 \(String(format: "%02d", n % 100))  balance \(n * 113).\(n % 100)"
+        content.image = UIImage(systemName: n % 2 == 0 ? "creditcard.fill" : "person.crop.circle")
+        cell.contentConfiguration = content
+        return cell
+    }
+}

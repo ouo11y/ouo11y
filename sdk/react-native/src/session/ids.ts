@@ -1,5 +1,6 @@
 /**
- * UUID v4. Uses `crypto.randomUUID` / `crypto.getRandomValues` when the runtime has them
+ * A random 128-bit id written as 32 lowercase hex characters, a UUID v4 without its dashes
+ * (`session.id` syntax, SES-1; Muninn rejects any other form, docs/specs/muninn.md). Uses `crypto.randomUUID` / `crypto.getRandomValues` when the runtime has them
  * (Expo installs them; bare React Native needs `react-native-get-random-values`) and
  * falls back to Math.random, which is fine for session ids.
  */
@@ -7,7 +8,7 @@ export function uuidv4(): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string; getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
   if (c && typeof c.randomUUID === "function") {
     try {
-      return c.randomUUID();
+      return c.randomUUID().replace(/-/g, "");
     } catch {
       // some polyfills expose the function but throw; fall through
     }
@@ -26,5 +27,5 @@ export function uuidv4(): string {
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  return hex;
 }

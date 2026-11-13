@@ -8,7 +8,7 @@ Screens: Products, Product, Cart, Checkout (`card` succeeds, `broken-card` makes
 backend answer 500), Order, Chaos. The header badge shows `v<app version> · <short session id>`
 and updates when the session rotates.
 
-Session replay (iOS and Android, ADR-0006) is enabled in `src/rum.ts` (`replay: { enabled: true }`). The
+Session replay (iOS and Android, ADR-0021) is enabled in `src/rum.ts` (`replay: { enabled: true, mode: "pixel/frames" }`). The
 Checkout screen has a promo-code field with `testID="ouo-mask"` and the Product screen's title
 has `testID="ouo-unmask"` to show the two overrides; the Chaos screen's "Replay pause/resume"
 button toggles the recorder and shows `rum.replay.isRecording()`. Replay only records in a
@@ -104,6 +104,14 @@ adb shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --
 background timeout, and `OUO_NOTE` lines in logcat. The Product screen shows an image so the suite can
 check that images are masked.
 
+`scripts/journey-android.sh [--serial <adb serial>]` is the Android twin of `scripts/journey.sh` (it needs
+the `--conformance` build). It drives the app through several screens and types into the masked promo field
+with `adb shell input`. It then sends the app to the background, force-stops it and launches it again, so the
+next run ends the stream the last one left open. With `scripts/fake-collector.mjs --out <dir>` running and the
+app built with `EXPO_PUBLIC_OTLP_ENDPOINT=http://10.0.2.2:<port>`, `GET /__report` gives the verdict on the
+replay rules of spec section 11. The verdict also lists the telemetry `session.id` values, to compare with the
+replay's, and whether each faulted replay request was retried with the same bytes.
+
 ## Configuration
 
 `app.config.ts`:
@@ -118,8 +126,9 @@ check that images are masked.
 | `extra.environment` | `local` | `OUO_ENV` |
 
 Since ADR-0007 the app talks only to the collector (`ouo-collector`): OTLP goes to
-`${otlpEndpoint}/v1/{traces,logs}` and replay chunks to the collector's replay receiver on port
-4319 (`http://localhost:4319/v1/replay/chunks`, derived by the SDK from port 4318), every request
+`${otlpEndpoint}/v1/{traces,logs}`, replay chunks included: each chunk is one OTLP log record
+(`ouo.replay.chunk`, protobuf) that the native module posts to `${otlpEndpoint}/v1/logs`
+(ADR-0021 decision 5), every request
 with `Authorization: Basic base64("<projectId>:<projectToken>")`. rum-api is internal and the app
 never addresses it. The defaults are the development project of the stock compose stack
 (`deploy/compose/.env.example`, user `demo` in the collector's htpasswd).
@@ -127,8 +136,22 @@ never addresses it. The defaults are the development project of the stock compos
 If you moved ports or changed the project in `deploy/compose/.env`, copy `.env.example` to `.env`
 here; Expo CLI loads it into `process.env` before evaluating `app.config.ts`. When the collector
 sits behind a proxy on one host (`https://otel.example.com`), set `EXPO_PUBLIC_OTLP_ENDPOINT` to it
-and the SDK uses the same host for replay; pass `replayEndpoint` in `src/rum.ts` only if the
-replay receiver lives elsewhere.
+and replay goes to the same route as the events.
+
+### Without a stack: the fake collector
+
+`scripts/fake-collector.mjs` (Node, no dependencies) stands in for the collector: it accepts
+`/v1/logs` and `/v1/traces` (JSON or protobuf, gzip or not), can inject faults, writes every
+replay chunk to a folder and gives a verdict on the replay rules of the SDK spec (section 11)
+it can check: the MUST attributes, the sequence without gaps, keyframes, sha256 and size, the
+decoded body, one chunk per request, one `ouo.replay.ended` per finished stream.
+
+```bash
+npm run fake-collector -- --port 4318 --out ./collector-out     # then run the app against http://localhost:4318
+npm run fake-collector -- --fail-first 3 --status 503 --retry-after 2   # the first 3 requests fail
+curl -s localhost:4318/__report | jq .verdict                    # or Ctrl-C: prints the verdict, exit 1 on a failed rule
+npm run test:fake-collector                                      # its decoder against the golden request of sdk/ios
+```
 From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP
 in `BACKEND_URL` / `EXPO_PUBLIC_OTLP_ENDPOINT`.
 

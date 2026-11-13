@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initRUM, type RUMInternal } from "../src/index";
 import { CRASH_STORAGE_KEY } from "../src/session/manager";
 import { MemoryAsyncStorage } from "../src/session/storage";
@@ -181,7 +181,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
       expect(attr(s.attributes, "session.id")).toBe(sessionId);
       expect(attr(s.attributes, "ouo.platform")).toBe("mobile");
       expect(attr(s.attributes, "service.version")).toBe("2.3.0");
-      expect(typeof attr(s.attributes, "user.id")).toBe("string");
+      // Spec PRV-13: no user id before setUser.
+      expect(attr(s.attributes, "user.id")).toBeUndefined();
     }
     expect(attr(spans[1]!.attributes, "http.response.status_code")).toBe(500);
     expect(attr(spans[2]!.attributes, "http.response.status_code")).toBe(404);
@@ -189,10 +190,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
 
     // ---- propagation ----
     expect(captured.requests[0]!.headers["traceparent"]).toBe(`00-${spans[0]!.traceId}-${spans[0]!.spanId}-01`);
-    const baggage = captured.requests[0]!.headers["baggage"]!;
-    expect(baggage).toContain(`session.id=${sessionId}`);
-    expect(baggage).toContain("ouo.platform=mobile");
-    expect(baggage).toMatch(/user\.id=/);
+    // No baggage unless `propagation.sessionBaggage` is set (spec PRP-6; test/step-a.test.ts covers it).
+    expect(captured.requests[0]!.headers["baggage"]).toBeUndefined();
     expect(captured.requests[1]!.headers["content-type"]).toBe("application/json");
     expect(captured.requests[3]!.headers["traceparent"]).toBeUndefined();
 
@@ -221,7 +220,7 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     expect(byName("session.end")).toHaveLength(0);
     expect(byName("http.request.failed")).toHaveLength(1);
     expect(attr(byName("http.request.failed")[0]!.attributes, "http.response.status_code")).toBe(500);
-    expect(attr(byName("http.request.failed")[0]!.attributes, "url.full")).toBe(`${BACKEND}/api/checkout?fail=500`);
+    expect(attr(byName("http.request.failed")[0]!.attributes, "url.full")).toBe(`${BACKEND}/api/checkout?fail=REDACTED`); // query values are redacted (spec PRV-10)
     expect(attr(byName("navigation")[0]!.attributes, "url.path")).toBe("/Cart");
     expect(attr(byName("cart.added")[0]!.attributes, "ouo.event.custom")).toBe(true);
     const exceptions = byName("exception").map((l) => ({
@@ -238,7 +237,8 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
     ]);
     expect(attr(byName("exception")[0]!.attributes, "screen")).toBe("Cart");
     // user.id switches after setUser
-    expect(attr(byName("exception")[0]!.attributes, "user.id")).not.toBe("user-7");
+    expect(attr(byName("exception")[0]!.attributes, "user.id")).toBeUndefined();
+    expect(attr(byName("exception")[0]!.attributes, "ouo.user.anonymous")).toBeUndefined();
     expect(attr(byName("exception")[3]!.attributes, "user.id")).toBe("user-7");
     expect(attr(byName("exception")[3]!.attributes, "ouo.user.anonymous")).toBe(false);
 
@@ -271,12 +271,14 @@ describe("initRUM end to end against a stubbed OTLP endpoint", () => {
   it("case 5 through AppState: a long background stay rotates the session and flushes", async () => {
     const captured = installFetchStub();
     const storage = new MemoryAsyncStorage();
-    const rum = initRUM({ ...makeOptions(storage, "2.4.0"), session: { backgroundTimeoutMs: 40 } }) as RUMInternal;
+    // The shortest background timeout the SDK accepts is a minute (spec CFG-2): the clock is moved past it.
+    const rum = initRUM({ ...makeOptions(storage, "2.4.0"), session: { backgroundTimeoutMs: 60_000 } }) as RUMInternal;
     await rum.ready;
     const first = rum.session.id();
     AppState.__emit("inactive");
     AppState.__emit("background");
-    await sleep(80);
+    const backgroundedAt = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => backgroundedAt + 61_000);
     AppState.__emit("active");
     expect(rum.session.id()).not.toBe(first);
     expect(rum.session.previousId()).toBe(first);
@@ -318,6 +320,8 @@ describe("session sampling (8b)", () => {
     expect(captured.requests.some((r) => r.url === `${BACKEND}/api/products`)).toBe(true);
     await off._uninstall();
 
+    // A new process: within one, a re-init resumes the session, and its sampling decision with it (spec SMP-1).
+    delete g.__ouoSessionProcessState;
     const on = initRUM({ ...makeOptions(new MemoryAsyncStorage()), session: { sampleRate: 1 } }) as RUMInternal;
     await on.ready;
     on.addEvent("cart.added");

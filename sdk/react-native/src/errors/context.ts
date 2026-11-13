@@ -1,4 +1,5 @@
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
+import { guard } from "../guard";
 import type { DebugLogger } from "../logger";
 import { lastEventsAttribute, type RecentEvent } from "../telemetry/recent";
 import type { AsyncKeyValueStorage, Attrs } from "../types";
@@ -99,7 +100,10 @@ export class ContextPersister implements LogRecordProcessor {
       return;
     }
     if (this.timer !== undefined) return;
-    this.timer = setTimeout(() => this.persistNow(), CONTEXT_PERSIST_DELAY_MS);
+    this.timer = setTimeout(
+      guard.wrap("timer.context", () => this.persistNow()),
+      CONTEXT_PERSIST_DELAY_MS,
+    );
   }
 
   persistNow(): void {

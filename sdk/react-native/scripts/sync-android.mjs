@@ -1,4 +1,4 @@
-// Copies the Kotlin sources of sdk/android (replay-core, replay, signals-core, signals) into sdk/react-native/android/vendor
+// Copies the Kotlin sources of sdk/android (replay-core, replay-sentry-core, replay, signals-core, signals) into sdk/react-native/android/vendor
 // so the Expo module compiles them inside the app's build: an npm package cannot reach a Gradle project
 // outside itself. sdk/android stays the source of truth; the copies are gitignored and refreshed by
 // `npm run build`, like sync-ios.mjs does for the Swift sources.
@@ -19,8 +19,20 @@ rmSync(target, { recursive: true, force: true });
 mkdirSync(target, { recursive: true });
 let files = 0;
 const count = (dir) => readdirSync(dir, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? count(join(dir, e.name)) : e.name.endsWith(".kt") ? 1 : 0), 0);
-for (const module of ["replay-core", "replay", "signals-core", "signals"]) {
-  cpSync(join(source, module, "src/main/kotlin"), target, { recursive: true, filter: (p) => statSync(p).isDirectory() || p.endsWith(".kt") });
+// replay-sentry-core: the ouo seams and driver (src/main/kotlin) and the code copied from sentry-java
+// (src/main/upstream, MIT, see sdk/android/NOTICE), the encoder of `replay.mode: "pixel/video"`.
+const sources = [
+  "replay-core/src/main/kotlin",
+  "replay-sentry-core/src/main/kotlin",
+  "replay-sentry-core/src/main/upstream",
+  "replay/src/main/kotlin",
+  "signals-core/src/main/kotlin",
+  "signals/src/main/kotlin",
+];
+for (const dir of sources) {
+  cpSync(join(source, dir), target, { recursive: true, filter: (p) => statSync(p).isDirectory() || p.endsWith(".kt") });
 }
+// The licence of the code copied from sentry-java travels with it.
+cpSync(join(source, "NOTICE"), join(target, "NOTICE"));
 files = count(target);
 console.log(`[ouo] sync-android: ${files} Kotlin files copied into ${target}`);

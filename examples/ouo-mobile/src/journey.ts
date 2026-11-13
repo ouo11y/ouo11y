@@ -18,6 +18,9 @@
 //   action/areas                 notes the window rectangles of the views the replay must mask
 //   action/crash                 a native crash (Android: an exception on the main thread)
 //   action/event?name=...        rum.addEvent(name)
+//   action/type?field=feedback-message&text=...  types into a registered text field (`typeable`)
+//   action/shutdown              rum.shutdown(): the session and the replay stream end normally
+//   action/consent?replay=false  rum.setConsent: each of `telemetry` and `replay` given is set (PRV-1 to PRV-4)
 // The app's own requests (screens loading data) go through the same fetch as a tap would.
 //
 // On Android the commands arrive as broadcasts (modules/ouo-chaos, `am broadcast -a
@@ -39,6 +42,17 @@ export function maskedArea(name: string): (v: View | null) => void {
   return (v) => {
     if (v) areas.set(name, v);
     else areas.delete(name);
+  };
+}
+
+/** Text fields `action/type` can fill, by name. */
+const fields = new Map<string, (text: string) => void>();
+
+/** `useEffect(() => typeable("feedback-message", setMessage), [])`: `action/type` can fill it while it is mounted. */
+export function typeable(name: string, set: (text: string) => void): () => void {
+  fields.set(name, set);
+  return () => {
+    if (fields.get(name) === set) fields.delete(name);
   };
 }
 
@@ -110,6 +124,19 @@ async function run(cmd: string): Promise<void> {
         break;
       case "event":
         rum.addEvent(params.get("name") ?? "journey.event");
+        break;
+      case "type":
+        fields.get(params.get("field") ?? "")?.(params.get("text") ?? "");
+        break;
+      case "consent": {
+        const flag = (name: string): boolean | undefined => (params.has(name) ? params.get(name) === "true" : undefined);
+        const telemetry = flag("telemetry");
+        const replay = flag("replay");
+        rum.setConsent({ ...(telemetry !== undefined ? { telemetry } : {}), ...(replay !== undefined ? { replay } : {}) });
+        break;
+      }
+      case "shutdown":
+        await rum.shutdown();
         break;
       case "crash":
         note("crash");

@@ -1,55 +1,33 @@
 /**
- * Ingest URLs and the credential derived from `initRUM({ endpoint, replayEndpoint, projectId,
- * projectToken })` (ADR-0007 section 6).
+ * Ingest URLs and the credential derived from `initRUM({ endpoint, projectId, projectToken })`
+ * (ADR-0007 section 6).
  *
  * The OpenTelemetry Collector (`ouo-collector`) is the only edge. `endpoint` is its OTLP/HTTP
- * base: traces go to `${endpoint}/v1/traces`, events (logs) to `${endpoint}/v1/logs`. Replay
- * chunks go to `${replayEndpoint}/v1/replay/chunks`, the collector's `ouoreplay` receiver, which
- * listens on its own port (4319 next to OTLP's 4318) unless a proxy folds both behind one host.
+ * base: traces go to `${endpoint}/v1/traces`, events (logs) and replay chunks (ADR-0021: one
+ * `ouo.replay.chunk` log record per request, sent by the native module) to `${endpoint}/v1/logs`.
  * Every request carries `Authorization: Basic base64("<projectId>:<projectToken>")`.
  */
 
 /** Header every ingest request carries (ADR-0007 section 2). */
 export const AUTHORIZATION_HEADER = "Authorization";
 
-/** Default OTLP/HTTP port of the collector; when `endpoint` uses it, replay defaults to the next one. */
+/** Default OTLP/HTTP port of the collector. */
 export const DEFAULT_OTLP_PORT = 4318;
-/** Default port of the collector's `ouoreplay` receiver. */
-export const DEFAULT_REPLAY_PORT = 4319;
-export const REPLAY_CHUNKS_PATH = "/v1/replay/chunks";
 
 export interface EndpointOptions {
   endpoint: string;
-  replayEndpoint?: string | undefined;
 }
 
 export interface ResolvedEndpoints {
   /** Collector OTLP/HTTP base URL without a trailing slash. */
   endpoint: string;
   traces: string;
+  /** Events, logs and replay chunks. */
   logs: string;
-  /** Base URL the native recorder receives; chunks go to `${replayEndpoint}/v1/replay/chunks`. */
-  replayEndpoint: string;
-  replayChunks: string;
-  /** True when `replayEndpoint` was derived (port 4318 to 4319, else the endpoint itself). */
-  replayEndpointDerived: boolean;
 }
 
 export function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
-}
-
-// `scheme://authority` where the authority ends in `:4318` (host names, IPv4 and bracketed IPv6).
-const OTLP_PORT_RE = new RegExp(`^([a-z][a-z0-9+.-]*://[^/?#]*?):${DEFAULT_OTLP_PORT}(?=[/?#]|$)`, "i");
-
-/**
- * ADR-0007 section 6: the replay endpoint defaults to `endpoint` with port 4318 replaced by
- * 4319; any other endpoint (a proxy such as `https://otel.example.com` that routes
- * `/v1/replay/*` itself) is used as is.
- */
-export function defaultReplayEndpoint(endpoint: string): string {
-  const base = trimSlash(endpoint.trim());
-  return OTLP_PORT_RE.test(base) ? base.replace(OTLP_PORT_RE, `$1:${DEFAULT_REPLAY_PORT}`) : base;
 }
 
 /** Pure: derives every ingest URL from the options. Throws on an empty `endpoint`. */
@@ -60,16 +38,7 @@ export function resolveEndpoints(options: EndpointOptions): ResolvedEndpoints {
       "[ouo] initRUM: `endpoint` (the collector OTLP/HTTP base URL, for example https://otel.example.com or http://localhost:4318) is required",
     );
   }
-  const explicitReplay = options.replayEndpoint ? trimSlash(options.replayEndpoint.trim()) : "";
-  const replayEndpoint = explicitReplay || defaultReplayEndpoint(endpoint);
-  return {
-    endpoint,
-    traces: `${endpoint}/v1/traces`,
-    logs: `${endpoint}/v1/logs`,
-    replayEndpoint,
-    replayChunks: `${replayEndpoint}${REPLAY_CHUNKS_PATH}`,
-    replayEndpointDerived: explicitReplay === "",
-  };
+  return { endpoint, traces: `${endpoint}/v1/traces`, logs: `${endpoint}/v1/logs` };
 }
 
 export interface ProjectCredentials {

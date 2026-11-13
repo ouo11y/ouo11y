@@ -2,6 +2,7 @@ package dev.ouo.replay
 
 import android.content.Context
 import dev.ouo.replay.core.RedactionRules
+import dev.ouo.replay.core.ReplayOTLPOptions
 import dev.ouo.replay.core.ReplayMode
 import java.io.File
 
@@ -32,6 +33,12 @@ data class OuoReplayConfig(
   val maxLongestSide: Int = 1000,
   /** Keep chunks on the device until the host releases their session ([OuoReplay.releaseHeld]). */
   val holdUploads: Boolean = false,
+  /**
+   * Set: replay goes out as OTLP log records (ADR-0021 decision 5, client SDK spec 11) with these
+   * options, and [mode] is not read (the cadence is `otlp.cadence`). Null: the upload to
+   * `/v1/replay/chunks`, unchanged.
+   */
+  val otlp: ReplayOTLPOptions? = null,
 ) {
   val redactionRules: RedactionRules get() = RedactionRules(maskText, maskInputs, maskImages, maskWebViews, maskClasses)
 
