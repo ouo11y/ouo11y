@@ -39,11 +39,11 @@ describe('primaryStream', () => {
 });
 
 describe('formatInfo', () => {
-  it('plays rrweb/2, names the seam for pixel formats, and never throws on unknown ids', () => {
+  it('plays rrweb/2 and the pixel formats, and never throws on unknown ids', () => {
     expect(formatInfo('rrweb/2').renderer).toBe('rrweb');
-    expect(formatInfo('ouo-frames/3').kind).toBe('pixel');
-    expect(formatInfo('ouo-frames/3').renderer).toBeUndefined();
-    expect(formatInfo('ouo-video/1').reason).toMatch(/not wired/);
+    expect(formatInfo('ouo-frames/3')).toEqual({ kind: 'pixel', renderer: 'frames' });
+    expect(formatInfo('ouo-video/1')).toEqual({ kind: 'pixel', renderer: 'video' });
+    expect(formatInfo('ouo-wireframe/1').renderer).toBeUndefined();
     expect(formatInfo('something/9')).toMatchObject({ kind: 'unknown' });
   });
 });

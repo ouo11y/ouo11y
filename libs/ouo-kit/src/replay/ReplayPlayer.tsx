@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { ChunkEntry, ChunkFetcher, Manifest } from '../api';
 import { parseNdjson, playableRuns, primaryStream } from './assemble';
 import { formatInfo } from './formats';
+import { FramesPlayer, VideoPlayer } from './PixelPlayers';
+import { parseVideoChunk, type VideoSegment } from './pixel';
 import { RrwebPlayer } from './RrwebPlayer';
 
 export interface ReplayPlayerProps {
@@ -16,7 +18,8 @@ type Loaded =
   | { state: 'loading' }
   | { state: 'error'; message: string }
   | { state: 'unplayable'; message: string }
-  | { state: 'ready'; events: unknown[] };
+  | { state: 'ready'; renderer: 'rrweb' | 'frames'; events: unknown[] }
+  | { state: 'ready'; renderer: 'video'; segments: VideoSegment[] };
 
 /**
  * Plays one replay from its manifest: picks a stream, assembles its playable runs, fetches the
@@ -46,8 +49,13 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
       return;
     }
     set({ state: 'loading' });
-    loadStructure(runs, (seq) => fetchChunk(streamId, seq))
-      .then((events) => set({ state: 'ready', events }))
+    const fetch = (seq: number) => fetchChunk(streamId, seq);
+    const renderer = info.renderer;
+    (renderer === 'video'
+      ? fetchAll(runs, fetch).then((bodies): Loaded => ({ state: 'ready', renderer, segments: runs.flat().map((c) => parseVideoChunk(bodies.get(c.sequence)!)) }))
+      : loadNdjson(runs, fetch).then((events): Loaded => ({ state: 'ready', renderer, events }))
+    )
+      .then(set)
       .catch((err: unknown) => set({ state: 'error', message: err instanceof Error ? err.message : String(err) }));
     return () => {
       cancelled = true;
@@ -71,13 +79,15 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
       {loaded.state === 'loading' && <div>Loading replay…</div>}
       {loaded.state === 'error' && <div role="alert">Replay failed to load: {loaded.message}</div>}
       {loaded.state === 'unplayable' && <div>{loaded.message}</div>}
-      {loaded.state === 'ready' && <RrwebPlayer events={loaded.events} onTime={onTime} />}
+      {loaded.state === 'ready' && loaded.renderer === 'rrweb' && <RrwebPlayer events={loaded.events} onTime={onTime} />}
+      {loaded.state === 'ready' && loaded.renderer === 'frames' && <FramesPlayer events={loaded.events} />}
+      {loaded.state === 'ready' && loaded.renderer === 'video' && <VideoPlayer segments={loaded.segments} />}
     </div>
   );
 }
 
-/** Fetches the chunks of the runs, a few at a time, and parses them run by run. */
-async function loadStructure(runs: ChunkEntry[][], fetch: (seq: number) => Promise<ArrayBuffer>): Promise<unknown[]> {
+/** Fetches the chunks of the runs, a few at a time. */
+async function fetchAll(runs: ChunkEntry[][], fetch: (seq: number) => Promise<ArrayBuffer>): Promise<Map<number, ArrayBuffer>> {
   const bodies = new Map<number, ArrayBuffer>();
   const queue = runs.flat().map((c) => c.sequence);
   const worker = async () => {
@@ -86,5 +96,11 @@ async function loadStructure(runs: ChunkEntry[][], fetch: (seq: number) => Promi
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  return bodies;
+}
+
+/** Newline-delimited formats (rrweb/2, ouo-frames/3): each run is concatenated, then parsed. */
+async function loadNdjson(runs: ChunkEntry[][], fetch: (seq: number) => Promise<ArrayBuffer>): Promise<unknown[]> {
+  const bodies = await fetchAll(runs, fetch);
   return runs.flatMap((run) => parseNdjson(run.map((c) => bodies.get(c.sequence)!)));
 }
