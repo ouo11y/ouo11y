@@ -1,7 +1,7 @@
 {
   "name": "@ouo11y/browser",
-  "version": "0.3.1",
-  "description": "ouo Real User Monitoring SDK for browsers: OpenTelemetry sessions, errors, fetch tracing, Web Vitals and rrweb replay.",
+  "version": "0.4.0",
+  "description": "ouo Real User Monitoring SDK for browsers, built on OpenTelemetry: sessions, errors, web vitals, clicks, navigation, traced requests and masked session replay, sent as OTLP.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -64,7 +64,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "size": "node scripts/size.mjs",
-    "playground": "npm run build && vite --config playground/vite.config.mjs",
     "size:check": "node scripts/size.mjs --check",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
     "compat:check": "es-check es2022 --module 'dist/*.js' && node scripts/compat.mjs",
@@ -75,7 +74,6 @@
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/core": "^2.11.0",
     "@opentelemetry/instrumentation": "0.222.0",
-    "@opentelemetry/instrumentation-document-load": "0.67.0",
     "@opentelemetry/instrumentation-fetch": "0.222.0",
     "@opentelemetry/instrumentation-xml-http-request": "0.222.0",
     "@opentelemetry/opentelemetry-browser-detector": "0.222.0",
@@ -113,5 +111,8 @@
     "react": {
       "optional": true
     }
+  },
+  "ouo": {
+    "specVersion": "0.1.0-draft"
   }
 }

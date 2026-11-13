@@ -1,111 +1,88 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { act, createElement, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { initRUM, type RUM } from "@ouo11y/browser";
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { act } from "react-dom/test-utils";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as ouo from "../src/index";
 import { OuoErrorBoundary, routeTemplate, useOuoRoute } from "../src/react/index";
-import { stubFetch } from "./helpers/otlp";
+import { FakeCollector } from "./helpers/collector";
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const BASE = "http://collector.test:4318";
+const collector = new FakeCollector(BASE);
 
-const BASE = "http://localhost:8092";
-const { logRecords } = stubFetch(BASE);
-let rum: RUM & { _uninstall?: () => Promise<void> };
-let root: Root;
-let host: HTMLElement;
-
-beforeAll(() => {
+beforeEach(() => {
   localStorage.clear();
-  rum = initRUM({
-    endpoint: BASE,
-    projectId: "web-store",
-    projectToken: "pt_test_react",
-    service: { name: "web-store", version: "1.0.0", environment: "test" },
-    tracing: { documentLoad: false },
-    replay: { enabled: false },
-  });
-  host = document.createElement("div");
-  document.body.appendChild(host);
-  root = createRoot(host);
+  collector.reset();
+  collector.install();
+  document.body.innerHTML = `<div id="root"></div>`;
+  history.replaceState(null, "", "/");
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-afterAll(async () => {
-  act(() => root.unmount());
-  await rum._uninstall?.();
+afterEach(async () => {
+  await ouo.shutdown();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
-function Boom(): never {
-  throw new TypeError("render failed");
+function Bomb(): never {
+  throw new Error("render failed");
+}
+
+function Route({ template }: { template: string }): null {
+  useOuoRoute(template);
+  return null;
 }
 
 describe("@ouo11y/browser/react", () => {
-  it("OuoErrorBoundary reports the render error with the component stack and renders the fallback", async () => {
-    // React logs the caught error through console.error, which the SDK also captures.
-    act(() =>
-      root.render(
-        createElement(
-          OuoErrorBoundary,
-          { fallback: ({ error }) => createElement("p", { id: "fallback" }, `failed: ${(error as Error).message}`), attributes: { area: "checkout" } },
-          createElement(Boom),
-        ),
-      ),
-    );
-    expect(host.querySelector("#fallback")?.textContent).toBe("failed: render failed");
-    await rum.flush();
-    const ex = logRecords().filter((r) => r.eventName === "exception" && r.attributes["ouo.exception.kind"] === "react.error_boundary");
+  it("OuoErrorBoundary reports the render error once, handled, with the component stack, and renders the fallback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    ouo.init({ endpoint: BASE, serviceName: "web-store", transport: { flushIntervalMs: 100 } });
+    const onError = vi.fn();
+    const root = createRoot(document.getElementById("root")!);
+    await act(async () => {
+      root.render(createElement(OuoErrorBoundary, { fallback: createElement("p", null, "Something went wrong"), attributes: { plan: "pro" }, onError }, createElement(Bomb)));
+    });
+    expect(document.body.textContent).toContain("Something went wrong");
+    expect(onError).toHaveBeenCalledTimes(1);
+    await ouo.flush();
+    await collector.settled();
+    // React in development also rethrows the error to `window`; a production build reports it once.
+    const ex = collector.events("exception").filter((e) => e.attributes["ouo.exception.source"] === "manual");
     expect(ex).toHaveLength(1);
-    expect(ex[0]!.attributes["exception.type"]).toBe("TypeError");
-    expect(ex[0]!.attributes["ouo.exception.fatal"]).toBe(false);
-    expect(ex[0]!.attributes["ouo.exception.handled"]).toBe(true);
-    expect(ex[0]!.attributes["area"]).toBe("checkout");
-    expect(String(ex[0]!.attributes["ouo.react.component_stack"])).toContain("Boom");
-    // React logs the caught error with console.error before componentDidCatch: that copy is not
-    // reported. (React's development build also rethrows it to window: "uncaught" here, not in production.)
-    const kinds = logRecords()
-      .filter((r) => r.eventName === "exception" && r.attributes["exception.message"] === "render failed")
-      .map((r) => r.attributes["ouo.exception.kind"]);
-    expect(kinds).toContain("react.error_boundary");
-    expect(kinds).not.toContain("console");
+    expect(ex[0]!.attributes).toMatchObject({ "exception.message": "render failed", "ouo.exception.source": "manual", "ouo.exception.handled": true, plan: "pro" });
+    expect(String(ex[0]!.attributes["ouo.react.component_stack"])).toContain("Bomb");
+    act(() => root.unmount());
   });
 
-  it("the fallback's reset renders the children again", () => {
-    let fail = true;
-    const Maybe = () => {
-      if (fail) throw new Error("once");
-      return createElement("p", { id: "ok" }, "ok");
-    };
-    let reset: () => void = () => undefined;
-    act(() =>
-      root.render(
-        createElement(OuoErrorBoundary, { fallback: (p) => ((reset = p.reset), createElement("p", null, "failed")) }, createElement(Maybe)),
-      ),
-    );
-    fail = false;
-    act(() => reset());
-    expect(host.querySelector("#ok")).not.toBeNull();
+  it("works without the SDK running: the boundary still renders its fallback", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const root = createRoot(document.getElementById("root")!);
+    await act(async () => {
+      root.render(createElement(OuoErrorBoundary, { fallback: ({ error }: { error: unknown }) => createElement("p", null, String((error as Error).message)) }, createElement(Bomb)));
+    });
+    expect(document.body.textContent).toContain("render failed");
+    act(() => root.unmount());
   });
 
-  it("useOuoRoute names the route on later events", async () => {
-    let setTemplate: (t: string) => void = () => undefined;
-    const Page = () => {
-      const [t, set] = useState("/products/:id");
-      setTemplate = set;
-      useOuoRoute(t);
-      return null;
-    };
-    act(() => root.render(createElement(Page)));
-    rum.addEvent("after_route", {});
-    act(() => setTemplate("/cart"));
-    rum.addEvent("after_cart", {});
-    await rum.flush();
-    expect(logRecords().find((r) => r.eventName === "after_route")!.attributes["app.screen.name"]).toBe("/products/:id");
-    expect(logRecords().find((r) => r.eventName === "after_cart")!.attributes["app.screen.name"]).toBe("/cart");
+  it("useOuoRoute names the view the History API reported, without a second navigation", async () => {
+    ouo.init({ endpoint: BASE, serviceName: "web-store", transport: { flushIntervalMs: 100 } });
+    const root = createRoot(document.getElementById("root")!);
+    history.pushState(null, "", "/products/42");
+    await act(async () => {
+      root.render(createElement(Route, { template: routeTemplate([{ route: { path: "/" } }, { route: { path: "products/:id" } }])! }));
+    });
+    ouo.recordEvent("cart.add");
+    await ouo.flush();
+    await collector.settled();
+    expect(collector.events("browser.navigation")).toHaveLength(2);
+    expect(collector.events("cart.add")[0]!.attributes["ouo.view.name"]).toBe("/products/:id");
+    act(() => root.unmount());
   });
 
-  it("routeTemplate joins React Router matches", () => {
+  it("routeTemplate joins matched route paths", () => {
     expect(routeTemplate([{ route: { path: "/" } }, { route: { path: "products/:id" } }])).toBe("/products/:id");
-    expect(routeTemplate([{ route: {} }, { route: { path: "/cart/" } }])).toBe("/cart");
-    expect(routeTemplate([{ route: { path: "/" } }, { route: { index: true } }])).toBe("/");
-    expect(routeTemplate([{ route: { path: "/shop" } }, { route: { path: "*" } }])).toBe("/shop/*");
+    expect(routeTemplate([{ route: { path: "/a" } }, { route: { path: "/b/:c" } }])).toBe("/b/:c");
+    expect(routeTemplate([])).toBeUndefined();
     expect(routeTemplate(null)).toBeUndefined();
   });
 });

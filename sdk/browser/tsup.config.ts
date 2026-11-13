@@ -8,7 +8,7 @@ import { defineConfig, type Options } from "tsup";
  * accessors), so on Safari rrweb keeps two hidden helper iframes in the page; at every checkout
  * the snapshot attached a new set of observers to them, released only on stop (+2 observers,
  * +2 listeners every 5 min in the soak). Blocked iframes (rrweb's helpers are, see
- * `ALWAYS_BLOCKED` in src/replay/recorder.ts) now keep their content out of the recording, which
+ * `ALWAYS_BLOCKED` in src/replay/structure.ts) now keep their content out of the recording, which
  * is also what blocking means for privacy. Fails the build if the patched code changes.
  */
 const RRWEB_BLOCKED_IFRAME = {
@@ -52,8 +52,8 @@ const common: Options = {
   outDir: "dist",
 };
 
-// Two builds with the same output layout as one: dist/index.js plus its lazily loaded rrweb
-// chunk, and dist/react.js. They share no code (the React entry imports the SDK by its package
+// Two builds with the same output layout as one: dist/index.js plus its lazily loaded replay
+// chunks (the engine, and the structure recorder with rrweb), and dist/react.js. They share no code (the React entry imports the SDK by its package
 // name), so splitting them only lets the React entry carry its own banner.
 export default defineConfig([
   {
@@ -61,7 +61,7 @@ export default defineConfig([
     entry: { index: "src/index.ts" },
     splitting: true,
     clean: true,
-    // Everything is bundled so the consumer gets one entry plus a lazily loaded rrweb chunk.
+    // Everything is bundled so the consumer gets one entry plus lazily loaded replay chunks.
     noExternal: [/.*/],
     esbuildPlugins: [patchRrweb],
   },

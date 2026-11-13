@@ -1,115 +1,136 @@
 /**
- * Long-session soak (checklist N43): the busy SPA of e2e/pages/soak.js with replay on, for
- * OUO_SOAK_MINUTES (default 2; the nightly / manual run uses 60). Sampled every
- * OUO_SOAK_SAMPLE_S seconds (default: 20 samples per run, at least 10 s apart):
- *   - in every engine: listeners on window/document, active observers, pending timers and
- *     intervals, DOM nodes (e2e/pages/soak-probe.js);
- *   - in Chromium also: JS heap after a forced GC, and the engine's own listener and node counts
- *     (CDP Performance.getMetrics).
- * Pass: after the warm-up (the first 20 % of the samples) nothing grows: counts stay at or below
- * the warm-up maximum plus a small slack, and the heap's late median stays within 15 % (+2 MB)
- * of its early median. Results go to $OUO_SOAK_OUT (default test-results)/soak-<engine>.json.
- *
- * Run with `npm run test:soak` (soak.config.ts); never part of the per-PR suite.
+ * A long session with replay on: a busy single-page app for OUO_SOAK_MINUTES (default 1). What
+ * the SDK holds must not grow once it has warmed up: event listeners, observers, pending timers
+ * and, in Chromium, the JavaScript heap. The page must see no error, and the SDK must contain none.
+ * Samples are written to OUO_SOAK_OUT (default soak-results) as JSON.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { expect, test, type CDPSession, type Page } from "@playwright/test";
-import { captured, COLLECTOR_PORT, open, resetCollector } from "./harness";
+import { join } from "node:path";
+import { expect, test } from "@playwright/test";
+import { captured, diagnostics, open, pageErrors } from "./harness";
 
-const MINUTES = Number(process.env.OUO_SOAK_MINUTES ?? 2);
-const SAMPLE_S = Number(process.env.OUO_SOAK_SAMPLE_S ?? Math.max(10, Math.round((MINUTES * 60) / 20)));
-const PROBE = new URL("./pages/soak-probe.js", import.meta.url).pathname;
+const MINUTES = Number(process.env.OUO_SOAK_MINUTES ?? 1);
+const OUT = process.env.OUO_SOAK_OUT ?? "soak-results";
 
 interface Sample {
-  t: number;
+  at: number;
   listeners: number;
   observers: number;
   timers: number;
-  intervals: number;
   nodes: number;
-  heapMB?: number;
-  cdpListeners?: number;
-  cdpNodes?: number;
-  delivered: { logs: number; spans: number; replay: number; rejected: number };
+  heap: number | null;
 }
 
-async function chromiumMetrics(cdp: CDPSession | null): Promise<Partial<Sample>> {
-  if (!cdp) return {};
-  await cdp.send("HeapProfiler.collectGarbage");
-  const { usedSize } = (await cdp.send("Runtime.getHeapUsage")) as { usedSize: number };
-  const { metrics } = (await cdp.send("Performance.getMetrics")) as { metrics: Array<{ name: string; value: number }> };
-  const m = Object.fromEntries(metrics.map((x) => [x.name, x.value]));
-  return { heapMB: Math.round((usedSize / 1048576) * 100) / 100, cdpListeners: m["JSEventListeners"] ?? 0, cdpNodes: m["Nodes"] ?? 0 };
-}
+test("a long session does not leak", async ({ page, browserName }) => {
+  await page.addInitScript(() => {
+    const counts = { listeners: 0, observers: 0, timers: 0 };
+    (window as unknown as { soak: typeof counts }).soak = counts;
+    const add = EventTarget.prototype.addEventListener;
+    const remove = EventTarget.prototype.removeEventListener;
+    const seen = new WeakMap<object, Set<string>>();
+    const key = (type: string, fn: unknown, o: unknown): string | null => {
+      if (typeof fn !== "function" && typeof fn !== "object") return null;
+      return `${type}|${typeof o === "boolean" ? o : !!(o as { capture?: boolean } | undefined)?.capture}`;
+    };
+    EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, fn: EventListenerOrEventListenerObject | null, o?: boolean | AddEventListenerOptions) {
+      const k = fn ? key(type, fn, o) : null;
+      if (k && fn) {
+        const set = seen.get(fn as object) ?? new Set<string>();
+        if (!set.has(`${k}`)) counts.listeners++;
+        set.add(k);
+        seen.set(fn as object, set);
+      }
+      return add.call(this, type, fn, o);
+    };
+    EventTarget.prototype.removeEventListener = function (this: EventTarget, type: string, fn: EventListenerOrEventListenerObject | null, o?: boolean | EventListenerOptions) {
+      const k = fn ? key(type, fn, o) : null;
+      if (k && fn && seen.get(fn as object)?.delete(k)) counts.listeners--;
+      return remove.call(this, type, fn, o);
+    };
+    for (const name of ["MutationObserver", "PerformanceObserver"] as const) {
+      const proto = (window[name] as { prototype: { observe: (...a: unknown[]) => void; disconnect: () => void } }).prototype;
+      const live = new WeakSet<object>();
+      const { observe, disconnect } = proto;
+      proto.observe = function (this: object, ...a: unknown[]) {
+        if (!live.has(this)) counts.observers++;
+        live.add(this);
+        return observe.apply(this, a);
+      };
+      proto.disconnect = function (this: object) {
+        if (live.delete(this)) counts.observers--;
+        return disconnect.call(this);
+      };
+    }
+    const pending = new Set<number>();
+    const st = window.setTimeout;
+    const ct = window.clearTimeout;
+    window.setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+      const id: number = st(() => {
+        pending.delete(id);
+        counts.timers = pending.size;
+        fn(...args);
+      }, ms);
+      pending.add(id);
+      counts.timers = pending.size;
+      return id;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((id?: number) => {
+      if (id !== undefined) pending.delete(id);
+      counts.timers = pending.size;
+      return ct(id);
+    }) as typeof window.clearTimeout;
+  });
+  await open(page, "/?replay=session");
 
-/** What a user does between samples: clicks rows and routes, types, scrolls, goes back. */
-async function behave(page: Page, ms: number): Promise<void> {
-  const end = Date.now() + ms;
-  let i = 0;
-  while (Date.now() < end) {
-    i++;
-    await page.locator(".row button").nth(i % 50).click({ timeout: 2000 }).catch(() => undefined);
-    if (i % 3 === 0) await page.locator("#search").fill(`q${i}`);
-    if (i % 4 === 0) await page.mouse.wheel(0, i % 8 === 0 ? -600 : 600);
-    if (i % 7 === 0) await page.locator("#back").click();
-    if (i % 5 === 0) await page.locator("#next").click();
-    await page.waitForTimeout(700);
-  }
-}
-
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  return s.length ? s[Math.floor(s.length / 2)]! : 0;
-};
-
-test(`soak: ${MINUTES} min busy SPA with replay, no growth after warm-up`, async ({ page, browserName }) => {
-  test.setTimeout((MINUTES + 5) * 60_000);
-  await page.addInitScript({ path: PROBE });
-  const cdp = browserName === "chromium" ? await page.context().newCDPSession(page) : null;
-  await cdp?.send("Performance.enable");
-  await open(page, `/soak.html?collector=${COLLECTOR_PORT}${process.env.OUO_SOAK_QUERY ?? ""}`);
-
+  const sample = (): Promise<Sample> =>
+    page.evaluate(() => {
+      const c = (window as unknown as { soak: { listeners: number; observers: number; timers: number } }).soak;
+      const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+      return { at: Date.now(), ...c, nodes: document.getElementsByTagName("*").length, heap: mem ? mem.usedJSHeapSize : null };
+    });
   const samples: Sample[] = [];
-  const started = Date.now();
-  const totals = { logs: 0, spans: 0, replay: 0, rejected: 0 };
-  while (Date.now() - started < MINUTES * 60_000) {
-    await behave(page, SAMPLE_S * 1000);
-    await page.evaluate(() => (window as unknown as { rum?: { flush(): Promise<void> } }).rum?.flush());
-    // Counted and cleared each sample, so the stub's memory stays flat for an hour.
-    const c = await captured(page);
-    await resetCollector(page);
-    const delivered = { logs: c.logs.length, spans: c.spans.length, replay: c.replay.length, rejected: c.rejected };
-    for (const k of Object.keys(totals) as Array<keyof typeof totals>) totals[k] += delivered[k];
-    const probe = (await page.evaluate(() => (window as unknown as { __probe(): Omit<Sample, "t" | "delivered"> }).__probe())) as Omit<Sample, "t" | "delivered">;
-    const sample: Sample = { t: Math.round((Date.now() - started) / 1000), ...probe, ...(await chromiumMetrics(cdp)), delivered };
-    samples.push(sample);
-    console.log(`[soak ${browserName}] ${JSON.stringify(sample)}`);
+  const end = Date.now() + MINUTES * 60_000;
+  const every = Math.max(5000, (MINUTES * 60_000) / 40);
+  let next = Date.now() + every;
+  for (let i = 0; Date.now() < end; i++) {
+    const step = i % 6;
+    if (step === 0) await page.click("#mutate");
+    else if (step === 1) await page.click("#fetch");
+    else if (step === 2) await page.click("#route");
+    else if (step === 3) await page.evaluate(() => history.back());
+    else if (step === 4) await page.fill("#name", `typed ${i}`);
+    else
+      await page.evaluate(() => {
+        // The app prunes its own list, like a feed that keeps the latest items.
+        const out = document.getElementById("out")!;
+        while (out.childElementCount > 30) out.firstElementChild!.remove();
+        (window as unknown as { ouo: { recordEvent(n: string): void } }).ouo.recordEvent("soak.tick");
+      });
+    await page.waitForTimeout(120);
+    if (Date.now() >= next) {
+      samples.push(await sample());
+      next += every;
+    }
   }
+  samples.push(await sample());
+  const diag = await diagnostics(page);
+  const errors = await pageErrors(page);
+  const c = await captured(page);
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(join(OUT, `soak-${browserName}.json`), JSON.stringify({ browser: browserName, minutes: MINUTES, samples, diagnostics: diag, pageErrors: errors, chunks: c.chunks.length, logs: c.logs.length, spans: c.spans.length }, null, 2));
 
-  const dir = process.env.OUO_SOAK_OUT ?? "test-results";
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(`${dir}/soak-${browserName}.json`, JSON.stringify({ browserName, minutes: MINUTES, sampleSeconds: SAMPLE_S, totals, samples }, null, 2));
-
-  expect(samples.length).toBeGreaterThanOrEqual(5);
-  const warm = Math.max(1, Math.ceil(samples.length * 0.2));
-  const early = samples.slice(0, warm);
-  const after = samples.slice(warm);
-  const maxOf = (xs: Sample[], k: keyof Sample) => Math.max(...xs.map((s) => Number(s[k] ?? 0)));
-  // Slack: timers and listeners come and go with in-flight work at the moment of sampling.
-  // Observers: the interaction tracker's MutationObserver lives while a click or navigation span is open.
-  const slack: Partial<Record<keyof Sample, number>> = { listeners: 2, observers: 3, timers: 15, intervals: 0, nodes: 400 };
-  for (const [k, s] of Object.entries(slack) as Array<[keyof Sample, number]>) {
-    expect(maxOf(after, k), `${k} after warm-up`).toBeLessThanOrEqual(maxOf(early, k) + s);
+  expect(errors).toEqual([]);
+  expect(diag.internalErrors).toBe(0);
+  expect(diag.state).toBe("running");
+  expect(c.chunks.length).toBeGreaterThan(2);
+  // After the first quarter (warm-up) nothing the SDK holds may keep growing.
+  const warm = samples.slice(0, Math.max(1, Math.floor(samples.length / 4)));
+  const last = samples[samples.length - 1]!;
+  const peak = (k: "listeners" | "observers" | "timers"): number => Math.max(...warm.map((s) => s[k]));
+  expect(last.listeners).toBeLessThanOrEqual(peak("listeners") + 2);
+  expect(last.observers).toBeLessThanOrEqual(peak("observers") + 2);
+  expect(last.timers).toBeLessThanOrEqual(peak("timers") + 6);
+  if (last.heap !== null && warm[warm.length - 1]!.heap !== null) {
+    expect(last.heap - warm[warm.length - 1]!.heap!).toBeLessThan(12 * 1024 * 1024);
   }
-  if (cdp) {
-    const heap = samples.map((s) => s.heapMB!);
-    const third = Math.max(1, Math.floor(after.length / 3));
-    const earlyHeap = median(heap.slice(warm, warm + third));
-    const lateHeap = median(heap.slice(-third));
-    expect(lateHeap, `heap: early ${earlyHeap} MB, late ${lateHeap} MB`).toBeLessThanOrEqual(earlyHeap * 1.15 + 2);
-    expect(maxOf(after, "cdpListeners"), "engine listener count").toBeLessThanOrEqual(maxOf(early, "cdpListeners") * 1.1 + 50);
-  }
-  // Delivery kept up the whole time, and replay kept recording.
-  expect(totals.rejected).toBe(0);
-  expect(after.every((s) => s.delivered.logs > 0 && s.delivered.replay > 0)).toBe(true);
 });

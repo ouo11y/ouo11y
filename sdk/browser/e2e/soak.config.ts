@@ -1,35 +1,20 @@
 import { defineConfig, devices } from "@playwright/test";
 
-/**
- * Long-running checks of the built SDK, never part of the per-PR suite: the soak
- * (e2e/soak.spec.ts, OUO_SOAK_MINUTES, default 2) and the rrweb cost measurement
- * (e2e/rrweb-cost.spec.ts). `npm run test:soak`, or the "browser soak" workflow
- * (.github/workflows/browser-soak.yml). OUO_SOAK_PROJECTS picks engines (default chromium,webkit).
- */
-const wanted = (process.env.OUO_SOAK_PROJECTS ?? "chromium,webkit").split(",");
-const all = [
-  { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-  { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-  { name: "webkit", use: { ...devices["Desktop Safari"] } },
-];
-
-// Separate ports let two engines soak at the same time (two runs, each with its own stub).
-const pagePort = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
+// Long sessions (GR-MEM-1 to GR-MEM-3): by hand or from the browser-soak workflow, never per PR.
+//   OUO_SOAK_MINUTES=60 OUO_SOAK_PROJECTS=chromium,firefox npm run test:soak
+const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
+process.env.OUO_E2E_COLLECTOR_PORT ??= String(PAGE_PORT + 1);
+const minutes = Number(process.env.OUO_SOAK_MINUTES ?? 1);
+const wanted = (process.env.OUO_SOAK_PROJECTS ?? "chromium").split(",").map((s) => s.trim());
+const all = { chromium: devices["Desktop Chrome"], firefox: devices["Desktop Firefox"], webkit: devices["Desktop Safari"] };
 
 export default defineConfig({
   testDir: ".",
-  testMatch: /(soak|rrweb-cost)\.spec\.ts/,
-  fullyParallel: false,
+  testMatch: /soak\.spec\.ts/,
   workers: 1,
-  retries: 0,
-  timeout: 0,
+  timeout: (minutes + 3) * 60_000,
   reporter: "list",
-  use: { baseURL: `http://localhost:${pagePort}` },
-  webServer: {
-    command: "node e2e/server.mjs",
-    cwd: "..",
-    url: `http://localhost:${pagePort}/`,
-    reuseExistingServer: !process.env.CI,
-  },
-  projects: all.filter((p) => wanted.includes(p.name)),
+  use: { baseURL: `http://localhost:${PAGE_PORT}` },
+  webServer: { command: "node e2e/server.mjs", cwd: "..", url: `http://localhost:${PAGE_PORT}/`, reuseExistingServer: !process.env.CI },
+  projects: Object.entries(all).filter(([name]) => wanted.includes(name)).map(([name, use]) => ({ name, use: { ...use } })),
 });

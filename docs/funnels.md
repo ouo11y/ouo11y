@@ -13,15 +13,15 @@ generated sessions: [quickstart 5, tiny-shop-funnels](../examples/quickstarts/ti
 |---|---|---|
 | **Page is** | `/checkout` | page loads and route changes the SDK records (`navigation`, `url.path`) |
 | **Page starts with** | `/products/` | the same, any path with that prefix |
-| **Event** | `add_to_cart` | `rum.addEvent("add_to_cart", {...})` in your app |
+| **Event** | `add_to_cart` | `recordEvent("add_to_cart", {...})` in your app |
 
 No app change is needed for page steps: `@ouo11y/browser` records every page load and every
-`history.pushState` / `replaceState` / back-forward. For event steps, call `rum.addEvent` where
+`history.pushState` / `replaceState` / back-forward. For event steps, call `recordEvent` where
 the action happens:
 
 ```js
-rum.addEvent("add_to_cart", { "product.id": p.id });
-rum.addEvent("order_paid", { "order.id": id, "order.total": total });
+recordEvent("add_to_cart", { "product.id": p.id });
+recordEvent("order_paid", { "order.id": id, "order.total": total });
 ```
 
 Name events after what happened, in `snake_case`, and keep the set small and stable: the name is

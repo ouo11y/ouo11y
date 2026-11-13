@@ -22,8 +22,3 @@ export function releaseKeepalive(bytes: number): void {
   pendingBytes = Math.max(0, pendingBytes - bytes);
   pendingRequests = Math.max(0, pendingRequests - 1);
 }
-
-/** Bytes a new keepalive request may still carry (0 when the request count is used up). */
-export function keepaliveRemaining(): number {
-  return pendingRequests >= KEEPALIVE_MAX_REQUESTS ? 0 : KEEPALIVE_MAX_BYTES - pendingBytes;
-}

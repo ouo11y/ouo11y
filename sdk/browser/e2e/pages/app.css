@@ -1,0 +1,4 @@
+body { font: 16px system-ui, sans-serif; margin: 24px; color: #1b1b1b; background: #fafafa; }
+button { display: block; margin: 8px 0; padding: 8px 16px; background: #2563eb; color: #fff; border: 0; border-radius: 6px; }
+.hero { font-size: 36px; margin: 16px 0; color: #b91c1c; }
+#public { color: #15803d; font-weight: 700; }

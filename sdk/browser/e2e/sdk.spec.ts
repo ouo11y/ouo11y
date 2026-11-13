@@ -1,264 +1,223 @@
 /**
- * The built SDK in Chromium, Firefox and WebKit against the collector stub (e2e/server.mjs):
- * Web Vitals, interaction tracing, soft navigations, rage / dead clicks, long animation frames,
- * document-load trace linking, sampling, error-triggered replay and multi-tab replay.
+ * The SDK in real browsers (Chromium, Firefox, WebKit) against the collector stub: what jsdom
+ * cannot show. Real page lifecycle, web vitals, the document load, Web Locks across tabs,
+ * IndexedDB, keepalive at page close.
  */
-import { expect, test, type Page } from "@playwright/test";
-import { COLLECTOR } from "./harness";
+import { expect, test } from "@playwright/test";
+import { captured, diagnostics, flush, open, pageErrors, sessionId, setCollectorFault, PAGE_PORT, DEAD_COLLECTOR_PORT } from "./harness";
 
-
-type Attr = { key: string; value: Record<string, unknown> };
-interface Span {
-  name: string;
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  attributes: Record<string, unknown>;
-}
-interface Log {
-  eventName: string;
-  attributes: Record<string, unknown>;
-}
-interface Captured {
-  traces: Array<{ resourceSpans: Array<{ scopeSpans: Array<{ spans: Array<Span & { attributes: Attr[] }> }> }> }>;
-  logs: Array<{ resourceLogs: Array<{ scopeLogs: Array<{ logRecords: Array<Log & { attributes: Attr[] }> }> }> }>;
-  replay: Array<{ session_id: string; seq: number; events: Array<{ type: number; data?: { tag?: string; payload?: { tab_id?: string } } }> }>;
-  rejected: number;
-}
-
-const attrs = (list: Attr[]): Record<string, unknown> =>
-  Object.fromEntries(list.map((a) => [a.key, a.value["stringValue"] ?? a.value["intValue"] ?? a.value["doubleValue"] ?? a.value["boolValue"]]));
-
-async function captured(page: Page) {
-  const c = (await (await page.request.get(`${COLLECTOR}/__captured`)).json()) as Captured;
-  const spans: Span[] = c.traces.flatMap((t) => t.resourceSpans.flatMap((r) => r.scopeSpans.flatMap((s) => s.spans.map((sp) => ({ ...sp, attributes: attrs(sp.attributes) })))));
-  const logs: Log[] = c.logs.flatMap((l) => l.resourceLogs.flatMap((r) => r.scopeLogs.flatMap((s) => s.logRecords.map((lr) => ({ ...lr, attributes: attrs(lr.attributes) })))));
-  return { spans, logs, replay: c.replay, rejected: c.rejected };
-}
-
-async function open(page: Page, query = "") {
-  await page.request.post(`${COLLECTOR}/__reset`);
-  await page.goto(`/${query}`);
-  await expect(page.locator("#status")).toHaveText("ready");
-}
-
-const flush = (page: Page) => page.evaluate(() => (window as unknown as { rum: { flush(): Promise<void> } }).rum.flush());
-
-test.describe.configure({ mode: "serial" });
-
-test("Web Vitals: every metric the engine supports is reported, the final ones at page hide", async ({ page, browserName }) => {
-  await open(page);
-  const supported = await page.evaluate(() => {
-    const t = PerformanceObserver.supportedEntryTypes ?? [];
-    return {
-      LCP: t.includes("largest-contentful-paint"),
-      CLS: t.includes("layout-shift"),
-      INP: t.includes("event") && typeof PerformanceEventTiming !== "undefined" && "interactionId" in PerformanceEventTiming.prototype,
-      hidden: document.visibilityState,
-    };
-  });
-  expect(supported.hidden).toBe("visible");
-  await page.waitForTimeout(500);
-  await page.locator("#mutate").click(); // an interaction: INP, and LCP finalised on input
-  await page.waitForTimeout(500);
-  // Leaving the page hides it: CLS and INP are reported then, and sent with keepalive.
-  await page.goto("about:blank");
-  await expect
-    .poll(async () => new Set((await captured(page)).logs.filter((l) => l.eventName === "web_vital").map((l) => l.attributes["ouo.web_vital.name"])), { timeout: 10_000 })
-    .toEqual(new Set(["TTFB", "FCP", ...(supported.LCP ? ["LCP"] : []), ...(supported.CLS ? ["CLS"] : []), ...(supported.INP ? ["INP"] : [])]));
-  test.info().annotations.push({ type: "vitals", description: `${browserName}: ${JSON.stringify(supported)}` });
-});
-
-test("a click span parents the fetch its handler sends after an await", async ({ page }) => {
-  await open(page);
-  await page.locator("#fetch").click();
-  await expect(page.locator("#out")).toContainText("checkout");
-  await page.waitForTimeout(1200);
-  await flush(page);
-  const { spans } = await captured(page);
-  const click = spans.find((s) => s.name === "click" && s.attributes["app.widget.id"] === "button#fetch");
-  const req = spans.find((s) => String(s.attributes["url.full"]).endsWith("/api/checkout?delay=50"));
-  expect(click, "click span").toBeTruthy();
-  expect(req, "fetch span").toBeTruthy();
-  expect(req!.parentSpanId).toBe(click!.spanId);
-  expect(req!.traceId).toBe(click!.traceId);
-  expect(click!.attributes["app.widget.name"]).toBe("Fetch after await");
-  // The API echoes the traceparent it got: the same trace.
-  expect(await page.locator("#out").textContent()).toContain(click!.traceId);
-});
-
-test("a route change is a soft-navigation span under the click, parenting the new route's fetch", async ({ page }) => {
-  await open(page);
-  await page.locator("#route").click();
-  await expect(page.locator("#out")).toContainText("/api/products/7");
-  await page.waitForTimeout(1200);
-  await flush(page);
-  const { spans } = await captured(page);
-  const click = spans.find((s) => s.name === "click" && s.attributes["app.widget.id"] === "button#route")!;
-  const nav = spans.find((s) => s.name === "soft-navigation")!;
-  const req = spans.find((s) => String(s.attributes["url.full"]).endsWith("/api/products/7"))!;
-  expect(nav.parentSpanId).toBe(click.spanId);
-  expect(req.parentSpanId).toBe(nav.spanId);
-  expect(nav.attributes["url.path"]).toBe("/products/7");
-  expect(nav.attributes["app.screen.name"]).toBe("/products/:id");
-});
-
-test("rage clicks and dead clicks", async ({ page }) => {
-  await open(page);
-  await page.locator("#rage").click({ clickCount: 1 });
-  await page.locator("#rage").click();
-  await page.locator("#rage").click();
-  await page.locator("#rage").click();
-  await page.waitForTimeout(400);
-  await page.locator("#dead").click();
-  await page.waitForTimeout(1500);
-  await flush(page);
-  const { logs, spans } = await captured(page);
-  const rage = logs.filter((l) => l.eventName === "ouo.rage_click");
-  expect(rage).toHaveLength(1);
-  expect(rage[0]!.attributes["ouo.click.count"]).toBe(4);
-  expect(rage[0]!.attributes["app.widget.id"]).toBe("button#rage");
-  // Outside ouo-unmask a click carries no text (replay.maskAllText, the default).
-  expect(rage[0]!.attributes["app.widget.name"]).toBeUndefined();
-  const dead = logs.filter((l) => l.eventName === "ouo.dead_click").map((l) => l.attributes["app.widget.id"]);
-  expect(dead).toContain("button#dead");
-  // Clicks that caused no request are not exported as spans.
-  expect(spans.filter((s) => s.name === "click")).toHaveLength(0);
-});
-
-test("long animation frames (Chromium) with the script that caused them", async ({ page, browserName }) => {
-  await open(page);
-  const loaf = await page.evaluate(() => (PerformanceObserver.supportedEntryTypes ?? []).includes("long-animation-frame"));
-  test.skip(!loaf, `${browserName} has no Long Animation Frames API`);
-  await page.locator("#block").click();
-  await page.waitForTimeout(500);
-  await flush(page);
-  const { logs } = await captured(page);
-  const frames = logs.filter((l) => l.eventName === "ouo.long_animation_frame");
-  expect(frames.length).toBeGreaterThan(0);
-  const f = frames.find((l) => Number(l.attributes["ouo.long_task.duration_ms"]) >= 250)!;
-  expect(f).toBeTruthy();
-  expect(Number(f.attributes["ouo.long_task.blocking_duration_ms"])).toBeGreaterThan(0);
-  expect(String(f.attributes["ouo.long_task.script.invoker"])).toContain("BUTTON#block");
-});
-
-test("document load joins the server's trace from <meta name=traceparent>", async ({ page }) => {
-  const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
-  const spanId = "00f067aa0ba902b7";
-  await open(page, `?traceparent=00-${traceId}-${spanId}-01`);
-  await page.waitForTimeout(500);
-  await flush(page);
-  const { spans } = await captured(page);
-  const load = spans.find((s) => s.name === "documentLoad");
-  expect(load, "documentLoad span").toBeTruthy();
-  expect(load!.traceId).toBe(traceId);
-  expect(load!.parentSpanId).toBe(spanId);
-});
-
-test("an unsampled session sends nothing and propagates sampled=0", async ({ page }) => {
-  await open(page, "?sample=0");
-  await page.locator("#fetch").click();
+test("a page view: session, navigation, clicks, a traced request, a soft navigation, errors", async ({ page }) => {
+  await open(page, "/?utm=1&token=abc");
+  await page.click("#fetch");
   await expect(page.locator("#out")).toContainText("traceparent");
-  expect(await page.locator("#out").textContent()).toMatch(/-00"/);
-  await page.locator("#fail").click();
-  await page.waitForTimeout(800);
+  await page.click("#route");
+  await page.click("#handled");
+  await page.click("#throw");
+  await page.waitForTimeout(600);
   await flush(page);
   const c = await captured(page);
-  expect(c.spans).toHaveLength(0);
-  expect(c.logs).toHaveLength(0);
-  expect(c.replay).toHaveLength(0);
+  const sid = await sessionId(page);
+  expect(sid).toMatch(/^[0-9a-f]{32}$/);
+
+  expect(c.events("session.start")).toHaveLength(1);
+  const start = BigInt(c.events("session.start")[0]!.timeUnixNano);
+  for (const l of c.logs) {
+    expect(l.attributes["session.id"]).toBe(sid);
+    expect(l.attributes["ouo.view.id"]).toBeTruthy();
+    expect(l.attributes["event.name"]).toBeUndefined();
+    expect(l.scope).toBe("ouo.rum");
+    expect(BigInt(l.timeUnixNano)).toBeGreaterThanOrEqual(start);
+    expect(String(l.attributes["browser.document.url.full"])).not.toContain("abc");
+  }
+  const nav = c.events("browser.navigation");
+  expect(nav.map((n) => [n.attributes["url.full"], n.attributes["browser.navigation.same_document"]])).toEqual([
+    [`http://localhost:${PAGE_PORT}/?utm=REDACTED&token=REDACTED`, false],
+    [`http://localhost:${PAGE_PORT}/products/7?ref=REDACTED`, true],
+  ]);
+  expect(nav[0]!.attributes["ouo.view.id"]).not.toBe(nav[1]!.attributes["ouo.view.id"]);
+
+  const clicks = c.events("browser.user_action.click");
+  expect(clicks.map((k) => k.attributes["browser.css_selector"])).toEqual(["button#fetch", "button#route", "button#handled", "button#throw"]);
+  expect(JSON.stringify(c.logs)).not.toMatch(/Jane|Open product|4111/);
+
+  const span = c.spans.find((s) => s.name === "GET")!;
+  expect(span.attributes["url.full"]).toBe(`http://localhost:${PAGE_PORT}/api/items?user=REDACTED&delay=REDACTED`);
+  expect(span.attributes["session.id"]).toBe(sid);
+  expect(span.parentSpanId ?? "").toBe("");
+  // The backend saw this span's traceparent.
+  expect(await page.locator("#out").textContent()).not.toContain("null");
+
+  const ex = c.events("exception");
+  expect(ex.map((e) => [e.attributes["exception.message"], e.attributes["ouo.exception.source"], e.attributes["ouo.exception.handled"]]).sort()).toEqual([
+    ["handled by the page", "manual", true],
+    ["thrown by the page", "error", false],
+  ]);
+  // The page's own handler saw its own error, once, and nothing from the SDK.
+  expect(await pageErrors(page)).toEqual([expect.stringContaining("thrown by the page")]);
+  expect((await diagnostics(page)).internalErrors).toBe(0);
 });
 
-test("error-triggered replay uploads the buffer after the first error", async ({ page }) => {
-  await open(page, "?replayRate=0&onError=1");
-  await expect.poll(() => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording())).toBe(true);
-  await page.locator("#mutate").click();
-  await page.waitForTimeout(800);
-  await flush(page);
-  expect((await captured(page)).replay).toHaveLength(0);
-  await page.locator("#fail").click();
-  await page.waitForTimeout(800);
-  await flush(page);
-  const { replay } = await captured(page);
-  expect(replay.length).toBeGreaterThan(0);
-  const first = replay.sort((a, b) => a.seq - b.seq)[0]!;
-  expect(first.events[0]!.type).toBe(4);
-  expect(first.events[1]!.type).toBe(2);
+test("document load: one span after the fact under the server's traceparent, navigation timing, web vitals at page hide", async ({ page, browserName }) => {
+  const parent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+  await open(page, `/?traceparent=${parent}&resources=1`);
+  await page.click("#mutate");
+  // A soft navigation before the page is hidden: the vitals still belong to the page load's view.
+  await page.click("#route");
+  await page.waitForTimeout(300);
+  // Leaving the page: final vitals and the last flush go out with keepalive.
+  await page.goto("about:blank");
+  await page.waitForTimeout(700);
+  const c = await captured(page);
+
+  const load = c.spans.filter((s) => s.name === "documentLoad");
+  expect(load).toHaveLength(1);
+  expect(load[0]!.traceId).toBe("0af7651916cd43dd8448eb211c80319c");
+  expect(load[0]!.parentSpanId).toBe("b7ad6b7169203331");
+  expect(load[0]!.events ?? []).toEqual([]);
+  // No children: nothing else is in the server's trace.
+  expect(c.spans.filter((s) => s.traceId === load[0]!.traceId)).toHaveLength(1);
+  expect(c.spans.some((s) => s.name === "documentFetch" || s.name === "resourceFetch")).toBe(false);
+
+  const timing = c.events("browser.navigation_timing");
+  expect(timing).toHaveLength(1);
+  expect(Number(timing[0]!.attributes["browser.navigation_timing.load_event_end"])).toBeGreaterThan(0);
+
+  const vitals = c.events("browser.web_vital");
+  const names = vitals.map((v) => v.attributes["browser.web_vital.name"]);
+  expect(names).toContain("ttfb");
+  expect(names).toContain("fcp");
+  if (browserName === "chromium") {
+    expect(names).toEqual(expect.arrayContaining(["lcp", "cls", "inp"]));
+    const inp = vitals.find((v) => v.attributes["browser.web_vital.name"] === "inp")!;
+    expect(inp.attributes["browser.web_vital.attribution.interaction_target"]).toBe("button#mutate");
+    expect(inp.attributes["browser.web_vital.attribution.interaction_type"]).toBe("pointer");
+  }
+  expect(new Set(names).size).toBe(names.length);
+  const view = c.events("browser.navigation")[0]!.attributes["ouo.view.id"];
+  for (const v of vitals) {
+    expect(v.attributes["browser.web_vital.delta"]).toBe(v.attributes["browser.web_vital.value"]);
+    expect(v.attributes["ouo.view.id"]).toBe(view);
+  }
+  expect(c.events("session.end")).toHaveLength(0);
+
+  // Resource timing is off by default; switched on, one event per resource at the resource's start.
+  const resources = c.events("browser.resource_timing");
+  expect(resources.map((r) => String(r.attributes["url.full"]))).toEqual(expect.arrayContaining([expect.stringContaining("/app.css"), expect.stringContaining("/dist/index.js")]));
+  expect(resources.every((r) => !String(r.attributes["url.full"]).includes(":" + String(Number(new URL(page.url() === "about:blank" ? "http://x:1" : page.url()).port) + 1) + "/v1/"))).toBe(true);
+  expect(BigInt(resources[0]!.timeUnixNano)).toBeLessThan(BigInt(c.events("browser.navigation_timing")[0]!.timeUnixNano));
 });
 
-test("multi-tab replay: only the tab the user is in records; each stretch starts with a full snapshot", async ({ page, context }) => {
+test("page close: a request still in flight ends as an abandoned span, and everything leaves with keepalive", async ({ page }) => {
   await open(page);
-  const isRecording = (p: Page) => p.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
-  await expect.poll(() => isRecording(page)).toBe(true);
-  const second = await context.newPage();
-  await second.goto("/");
-  await expect(second.locator("#status")).toHaveText("ready");
-  await expect.poll(() => isRecording(second)).toBe(true);
-  // Both tabs share the session; the newest claimed the lease, so the first stopped.
-  expect(await second.evaluate(() => JSON.parse(localStorage.getItem("ouo.session")!).id)).toBe(await page.evaluate(() => JSON.parse(localStorage.getItem("ouo.session")!).id));
-  await expect.poll(() => isRecording(page)).toBe(false);
-  // The user goes back to the first tab.
-  await page.bringToFront();
-  await page.locator("#mutate").click();
-  await expect.poll(() => isRecording(page)).toBe(true);
-  await expect.poll(() => isRecording(second)).toBe(false);
-  await flush(page);
-  await flush(second);
-  const { replay } = await captured(page);
-  const events = replay.sort((a, b) => a.seq - b.seq).flatMap((c) => c.events);
-  // Tab markers in order: first tab, second tab, first tab again; each followed by its snapshot.
-  const tabs = events.filter((e) => e.type === 5 && e.data?.tag === "ouo.tab").map((e) => e.data!.payload!.tab_id);
-  expect(tabs.length).toBeGreaterThanOrEqual(3);
-  expect(tabs[0]).toBe(tabs[2]);
-  expect(tabs[1]).not.toBe(tabs[0]);
-  await second.close();
+  await page.click("#slow");
+  await page.waitForTimeout(400);
+  await page.goto("about:blank");
+  await page.waitForTimeout(700);
+  const c = await captured(page);
+  const abandoned = c.spans.filter((s) => s.attributes["ouo.span.abandoned"] === true);
+  expect(abandoned).toHaveLength(1);
+  expect(String(abandoned[0]!.attributes["url.full"])).toContain("/api/slow");
 });
 
-test("replay masks all text outside ouo-unmask and records nothing on a never-record route", async ({ page }) => {
+test("two tabs share one session and exactly one of them emits session.start", async ({ context }) => {
+  const a = await context.newPage();
+  await open(a);
+  const b = await context.newPage();
+  await b.goto("/");
+  await expect(b.locator("#status")).toHaveText("ready");
+  await a.click("#mutate");
+  await b.click("#mutate");
+  await flush(a);
+  await flush(b);
+  expect(await sessionId(a)).toBe(await sessionId(b));
+  const c = await captured(a);
+  expect(c.events("session.start")).toHaveLength(1);
+  expect(new Set(c.logs.map((l) => l.attributes["session.id"])).size).toBe(1);
+  // Each tab has its own view.
+  expect(new Set(c.events("browser.navigation").map((n) => n.attributes["ouo.view.id"])).size).toBe(2);
+});
+
+test("a reload continues the session; nothing is stored in cookies", async ({ page, context }) => {
   await open(page);
-  const isRecording = () => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
-  await expect.poll(isRecording).toBe(true);
-  await page.locator("#private").click();
-  expect(await isRecording()).toBe(false);
-  await page.waitForTimeout(200);
-  await page.locator("#leave").click();
-  await expect.poll(isRecording).toBe(true);
-  await page.waitForTimeout(200);
+  const first = await sessionId(page);
+  await page.reload();
+  await expect(page.locator("#status")).toHaveText("ready");
+  expect(await sessionId(page)).toBe(first);
   await flush(page);
-  const { replay, logs } = await captured(page);
-  const events = replay.sort((a, b) => a.seq - b.seq).flatMap((c) => c.events);
-  const text = JSON.stringify(events);
-  expect(text).toContain("Public heading");
-  expect(text).toContain("Patient list");
-  for (const secret of ["Jane", "1970", "Unmasked area", "Diagnosis", "Later on the record page", "Open patient record"]) expect(text, secret).not.toContain(secret);
-  // The hidden marker, then a fresh full snapshot when the route is left.
-  const hidden = events.findIndex((e) => e.type === 5 && e.data?.tag === "ouo.replay.hidden");
-  expect(hidden).toBeGreaterThan(0);
-  expect(events.slice(hidden + 1).some((e) => e.type === 2)).toBe(true);
-  expect(logs.filter((l) => l.eventName === "ouo.replay.hidden").map((l) => l.attributes["ouo.replay.hidden_reason"])).toEqual(["route"]);
+  expect((await captured(page)).events("session.start")).toHaveLength(1);
+  expect(await context.cookies()).toEqual([]);
+  const keys = await page.evaluate(() => Object.keys(localStorage));
+  expect(keys.every((k) => k.startsWith("ouo."))).toBe(true);
 });
 
-test("back onto a never-record route records nothing when the router's popstate listener runs before the SDK's", async ({ page }) => {
-  // A router registered before initRUM (consent-gated init) renders in its popstate listener; the
-  // microtask checkpoint between listeners lets rrweb emit that render before the SDK's listener.
-  await page.addInitScript(() => {
-    addEventListener("popstate", () => {
-      const out = document.getElementById("out");
-      if (out && location.pathname.startsWith("/patients/")) out.innerHTML = '<p class="ouo-unmask">SECRETPOP</p>';
-    });
+test("collector down at page close: telemetry waits in IndexedDB and a later page sends it", async ({ page, browserName }) => {
+  test.setTimeout(90_000);
+  await open(page, `/?collector=${DEAD_COLLECTOR_PORT}`);
+  await page.click("#handled");
+  // The first attempt fails while the page is alive: the SDK knows the collector is down.
+  await page.waitForTimeout(900);
+  // This one is created right before the page closes and never gets a normal attempt.
+  await page.evaluate(() => (window as unknown as { ouo: { recordEvent(n: string): void } }).ouo.recordEvent("last.words"));
+  await page.goto("about:blank");
+  await page.waitForTimeout(500);
+  expect((await captured(page)).logs).toHaveLength(0);
+  // The outbox leaves a page's entries alone for a few seconds, then drains them.
+  await page.goto("/");
+  await expect(page.locator("#status")).toHaveText("ready");
+  await expect
+    .poll(async () => (await captured(page)).events("exception").map((e) => e.attributes["exception.message"]), { timeout: 40_000, intervals: [1000] })
+    .toContain("handled by the page");
+  // WebKit does not commit an IndexedDB write that starts while the page is closing: there the
+  // record made in the last moment is lost (telemetry may be memory only on the web, TRN-20).
+  if (browserName !== "webkit") await expect.poll(async () => (await captured(page)).events("last.words").length, { timeout: 20_000 }).toBe(1);
+  expect(await pageErrors(page)).toEqual([]);
+});
+
+test("the collector answering 503 then recovering loses nothing; 400 is dropped and reported", async ({ page }) => {
+  await open(page);
+  await setCollectorFault(page, { status: 503, retryAfter: 1, count: 2 });
+  await page.click("#handled");
+  await flush(page);
+  await expect.poll(async () => (await captured(page)).events("exception").length, { timeout: 15_000 }).toBe(1);
+  await setCollectorFault(page, { status: 400, count: 1 });
+  await page.click("#mutate");
+  await flush(page);
+  await page.waitForTimeout(600);
+  await flush(page);
+  const dropped = (await captured(page)).events("ouo.sdk.dropped");
+  expect(dropped.some((d) => d.attributes["ouo.sdk.drop.reason"] === "rejected_status")).toBe(true);
+  expect(await pageErrors(page)).toEqual([]);
+});
+
+test("consent pending: no request and no storage until granted", async ({ page, context }) => {
+  await open(page, "/?consent=1");
+  await page.click("#handled");
+  await page.waitForTimeout(800);
+  let c = await captured(page);
+  expect(c.requests).toHaveLength(0);
+  expect(await page.evaluate(() => localStorage.length)).toBe(0);
+  expect(await page.evaluate(async () => (indexedDB.databases ? (await indexedDB.databases()).length : 0))).toBe(0);
+  expect(await context.cookies()).toEqual([]);
+  await page.evaluate(() => (window as unknown as { ouo: { setConsent(c: object): void } }).ouo.setConsent({ telemetry: true }));
+  await flush(page);
+  c = await captured(page);
+  expect(c.events("session.start")).toHaveLength(1);
+  expect(c.events("exception")).toHaveLength(1);
+});
+
+test("a strict Content-Security-Policy with Trusted Types: the SDK works and violates nothing", async ({ page }) => {
+  const violations: string[] = [];
+  page.on("console", (m) => {
+    if (/Content Security Policy|TrustedHTML|Trusted Type/i.test(m.text())) violations.push(m.text());
   });
-  await open(page);
-  const isRecording = () => page.evaluate(() => (window as unknown as { rum: { replay: { isRecording(): boolean } } }).rum.replay.isRecording());
-  await expect.poll(isRecording).toBe(true);
-  await page.evaluate(() => history.pushState({}, "", "/patients/9"));
-  expect(await isRecording()).toBe(false);
-  await page.evaluate(() => history.pushState({}, "", "/"));
-  await expect.poll(isRecording).toBe(true);
-  await page.evaluate(() => history.back());
-  await expect.poll(() => page.url()).toContain("/patients/9");
-  await page.waitForTimeout(200);
-  expect(await isRecording()).toBe(false);
+  await open(page, "/csp.html?replay=session");
+  await page.click("#mutate");
+  await page.click("#fetch");
+  await page.waitForTimeout(1200);
   await flush(page);
-  const { replay } = await captured(page);
-  expect(JSON.stringify(replay)).not.toContain("SECRETPOP");
+  const c = await captured(page);
+  expect(c.events("session.start")).toHaveLength(1);
+  expect(c.chunks.length).toBeGreaterThan(0);
+  expect(violations).toEqual([]);
+  expect(await pageErrors(page)).toEqual([]);
 });

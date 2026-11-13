@@ -1,48 +1,73 @@
-import type { DebugLogger } from "../logger";
-
 /**
- * Requests kept for later: offline, after the retries ran out, or at page hide beyond the
- * keepalive budget. IndexedDB when it works (one database per origin, shared by its tabs, so the
- * next page load sends what this one could not), memory otherwise. Bounded by a byte cap with
- * oldest-first eviction. No method rejects: a storage failure costs the entry, never the page.
+ * The outbox: request bodies that must outlive the page (SDK spec sections 8.3 and 8.4). Replay
+ * chunks are written here before their first send (RPL-15); telemetry is written at page hide.
+ * IndexedDB when it works (shared by the origin's tabs, so a later page sends what this one could
+ * not), memory otherwise (TRN-15). Bounded by a byte cap: eviction is oldest first, replay before
+ * telemetry before bypass records (TRN-14), and entries past their time to live are removed
+ * (TRN-13). No method rejects: a storage failure costs the entry, never the page.
+ *
+ * Bodies are stored as they are sent; request headers (the project credential) are not stored.
  */
-export interface StoredRequest {
+import { guard, point } from "../guard";
+
+export type OutboxKind = "replay" | "telemetry" | "bypass";
+
+export interface OutboxEntry {
   id?: number;
-  url: string;
-  /** Request headers, `Authorization` included (the public project credential, ADR-0007). */
-  headers: Record<string, string>;
-  /** Uncompressed body. */
+  kind: OutboxKind;
+  /** `logs`, `traces` or `replay`: picks the URL and content type at send time. */
+  signal: "logs" | "traces" | "replay";
   body: Uint8Array;
+  /** Records in the body, for drop accounting. */
+  records: number;
   createdAt: number;
-  /** Not sent again before this time (a long `Retry-After`). */
-  notBefore: number;
-  attempts: number;
+  /** Replay only: the stream and sequence (`-1`: the stream's end record). */
+  stream?: string;
+  seq?: number;
+}
+
+export type OutboxMeta = Omit<OutboxEntry, "body"> & { id: number; bytes: number };
+
+/** A replay stream this origin has opened and not finished delivering (RPL-20, TRN-18). */
+export interface StreamRow {
+  stream: string;
+  replay: string;
+  session: string;
+  /** Highest sequence produced, -1 when none. */
+  last: number;
+  /** `ouo.replay.ended` was produced for it. */
+  ended: boolean;
+  partial: boolean;
+  mode: string;
+  updatedAt: number;
 }
 
 export interface PutResult {
-  /** The new entry's id, or null when it was not kept (larger than the cap, or storage failed). */
   id: number | null;
-  /** Byte sizes of the older entries evicted to make room. */
-  evicted: number[];
+  evicted: OutboxMeta[];
 }
 
-export interface OfflineStore {
+export interface Outbox {
   readonly kind: "indexeddb" | "memory";
-  put(entry: StoredRequest): Promise<PutResult>;
-  /** Up to `limit` entries, oldest first. */
-  oldest(limit: number): Promise<StoredRequest[]>;
-  /** Saves `attempts` and `notBefore` of an entry read with {@link oldest}. */
-  update(entry: StoredRequest): Promise<void>;
+  put(entry: OutboxEntry): Promise<PutResult>;
+  /** Metadata of every entry, oldest first. Entries older than `ttlMs` are removed and returned in `expired`. */
+  list(now: number, ttlMs: number): Promise<{ entries: OutboxMeta[]; expired: OutboxMeta[] }>;
+  body(id: number): Promise<Uint8Array | undefined>;
   delete(id: number): Promise<void>;
+  /** Removes everything, or only one kind (consent withdrawal). */
+  clear(kind?: OutboxKind): Promise<void>;
+  putStream(row: StreamRow): Promise<void>;
+  streams(): Promise<StreamRow[]>;
+  deleteStream(stream: string): Promise<void>;
 }
 
-type Meta = Omit<StoredRequest, "body"> & { id: number; bytes: number };
+const RANK: Record<OutboxKind, number> = { replay: 0, telemetry: 1, bypass: 2 };
 
-/** Oldest-first ids to evict so `total` fits in `cap`; `keep` is never evicted. */
-function toEvict(metas: Array<{ id: number; bytes: number }>, cap: number, keep: number): Array<{ id: number; bytes: number }> {
+/** What to evict so the total fits the cap: replay, then telemetry, then bypass, oldest first; never `keep`. */
+export function toEvict(metas: OutboxMeta[], cap: number, keep: number): OutboxMeta[] {
   let total = metas.reduce((n, m) => n + m.bytes, 0);
-  const out: Array<{ id: number; bytes: number }> = [];
-  for (const m of [...metas].sort((a, b) => a.id - b.id)) {
+  const out: OutboxMeta[] = [];
+  for (const m of [...metas].sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.id - b.id)) {
     if (total <= cap) break;
     if (m.id === keep) continue;
     out.push(m);
@@ -51,43 +76,63 @@ function toEvict(metas: Array<{ id: number; bytes: number }>, cap: number, keep:
   return out;
 }
 
-export class MemoryStore implements OfflineStore {
+export class MemoryOutbox implements Outbox {
   readonly kind = "memory" as const;
-  private readonly entries = new Map<number, StoredRequest & { id: number }>();
+  private readonly entries = new Map<number, OutboxEntry & { id: number }>();
+  private readonly rows = new Map<string, StreamRow>();
   private nextId = 1;
 
   constructor(private readonly maxBytes: number) {}
 
-  async put(entry: StoredRequest): Promise<PutResult> {
+  private metas(): OutboxMeta[] {
+    return [...this.entries.values()].map(({ body, ...rest }) => ({ ...rest, bytes: body.byteLength }));
+  }
+
+  async put(entry: OutboxEntry): Promise<PutResult> {
     if (entry.body.byteLength > this.maxBytes) return { id: null, evicted: [] };
     const id = this.nextId++;
     this.entries.set(id, { ...entry, id });
-    const evict = toEvict([...this.entries.values()].map((e) => ({ id: e.id, bytes: e.body.byteLength })), this.maxBytes, id);
-    for (const m of evict) this.entries.delete(m.id);
-    return { id, evicted: evict.map((m) => m.bytes) };
+    const evicted = toEvict(this.metas(), this.maxBytes, id);
+    for (const m of evicted) this.entries.delete(m.id);
+    return { id, evicted };
   }
 
-  async oldest(limit: number): Promise<StoredRequest[]> {
-    return [...this.entries.values()].sort((a, b) => a.id - b.id).slice(0, limit).map((e) => ({ ...e }));
+  async list(now: number, ttlMs: number): Promise<{ entries: OutboxMeta[]; expired: OutboxMeta[] }> {
+    const expired = this.metas().filter((m) => now - m.createdAt > ttlMs);
+    for (const m of expired) this.entries.delete(m.id);
+    return { entries: this.metas().sort((a, b) => a.id - b.id), expired };
   }
 
-  async update(entry: StoredRequest): Promise<void> {
-    const cur = entry.id === undefined ? undefined : this.entries.get(entry.id);
-    if (cur) Object.assign(cur, { attempts: entry.attempts, notBefore: entry.notBefore });
+  async body(id: number): Promise<Uint8Array | undefined> {
+    return this.entries.get(id)?.body;
   }
 
   async delete(id: number): Promise<void> {
     this.entries.delete(id);
   }
 
-  size(): number {
-    return this.entries.size;
+  async clear(kind?: OutboxKind): Promise<void> {
+    for (const [id, e] of this.entries) if (!kind || e.kind === kind) this.entries.delete(id);
+    if (!kind || kind === "replay") this.rows.clear();
+  }
+
+  async putStream(row: StreamRow): Promise<void> {
+    this.rows.set(row.stream, { ...row });
+  }
+  async streams(): Promise<StreamRow[]> {
+    return [...this.rows.values()].map((r) => ({ ...r }));
+  }
+  async deleteStream(stream: string): Promise<void> {
+    this.rows.delete(stream);
   }
 }
 
-export const IDB_NAME = "ouo-delivery";
+/** Version 1 of the outbox database. The MVP's `ouo-delivery` database is removed when seen. */
+export const IDB_NAME = "ouo-outbox";
+const LEGACY_IDB_NAME = "ouo-delivery";
 const META = "meta";
 const BODY = "body";
+const STREAMS = "streams";
 
 function done(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -97,7 +142,7 @@ function done(tx: IDBTransaction): Promise<void> {
   });
 }
 
-/** Opens the delivery database; rejects on error, on a blocked upgrade, or after `timeoutMs` (Safari can hang). */
+/** Opens the database; rejects on error, on a blocked upgrade, or after `timeoutMs` (Safari can hang). */
 export function openDatabase(factory: IDBFactory, name = IDB_NAME, timeoutMs = 3000): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("indexedDB open timed out")), timeoutMs);
@@ -107,6 +152,7 @@ export function openDatabase(factory: IDBFactory, name = IDB_NAME, timeoutMs = 3
     };
     let req: IDBOpenDBRequest;
     try {
+      point("store.open");
       req = factory.open(name, 1);
     } catch (err) {
       finish(() => reject(err));
@@ -114,8 +160,9 @@ export function openDatabase(factory: IDBFactory, name = IDB_NAME, timeoutMs = 3
     }
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "id", autoIncrement: true });
+      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "id" });
       if (!db.objectStoreNames.contains(BODY)) db.createObjectStore(BODY);
+      if (!db.objectStoreNames.contains(STREAMS)) db.createObjectStore(STREAMS, { keyPath: "stream" });
     };
     req.onsuccess = () =>
       finish(() => {
@@ -129,8 +176,8 @@ export function openDatabase(factory: IDBFactory, name = IDB_NAME, timeoutMs = 3
   });
 }
 
-/** Metadata and bodies in two object stores so the cap is enforced without reading bodies. */
-export class IdbStore implements OfflineStore {
+/** Metadata and bodies in two object stores, so the cap is enforced without reading bodies. */
+export class IdbOutbox implements Outbox {
   readonly kind = "indexeddb" as const;
 
   constructor(
@@ -138,65 +185,116 @@ export class IdbStore implements OfflineStore {
     private readonly maxBytes: number,
   ) {}
 
-  async put(entry: StoredRequest): Promise<PutResult> {
+  async put(entry: OutboxEntry): Promise<PutResult> {
+    point("store.put");
     const bytes = entry.body.byteLength;
     if (bytes > this.maxBytes) return { id: null, evicted: [] };
-    const tx = this.db.transaction([META, BODY], "readwrite");
-    const metas = tx.objectStore(META);
-    const bodies = tx.objectStore(BODY);
     const { body, id: _ignored, ...rest } = entry;
-    let id: number | null = null;
-    const evicted: number[] = [];
-    // One transaction: tabs writing at once cannot together exceed the cap.
-    const add = metas.add({ ...rest, bytes });
-    add.onsuccess = () => {
-      id = add.result as number;
-      bodies.put(body, id);
-      const all = metas.getAll();
-      all.onsuccess = () => {
-        for (const m of toEvict(all.result as Meta[], this.maxBytes, id!)) {
-          metas.delete(m.id);
-          bodies.delete(m.id);
-          evicted.push(m.bytes);
-        }
-      };
-    };
+    // The key is made here, not by the database, so both writes are issued in this very task
+    // and committed at once: a write that waits for a callback is lost when the page is closing.
+    const id = Date.now() * 4096 + Math.floor(Math.random() * 4096);
+    const tx = this.db.transaction([META, BODY], "readwrite");
+    tx.objectStore(META).put({ ...rest, id, bytes });
+    tx.objectStore(BODY).put(body, id);
+    try {
+      (tx as IDBTransaction & { commit?: () => void }).commit?.();
+    } catch {
+      // Commits by itself.
+    }
     await done(tx);
+    // The cap is enforced in a second transaction; tabs writing at once may overshoot it briefly.
+    const evicted: OutboxMeta[] = [];
+    const trim = this.db.transaction([META, BODY], "readwrite");
+    const metas = trim.objectStore(META);
+    const all = metas.getAll();
+    all.onsuccess = guard(() => {
+      for (const m of toEvict(all.result as OutboxMeta[], this.maxBytes, id)) {
+        metas.delete(m.id);
+        trim.objectStore(BODY).delete(m.id);
+        evicted.push(m);
+      }
+    });
+    await done(trim);
     return { id, evicted };
   }
 
-  async oldest(limit: number): Promise<StoredRequest[]> {
-    const tx = this.db.transaction([META, BODY], "readonly");
-    const out: StoredRequest[] = [];
-    const req = tx.objectStore(META).getAll(null, limit);
-    req.onsuccess = () => {
-      for (const m of req.result as Meta[]) {
-        const b = tx.objectStore(BODY).get(m.id);
-        b.onsuccess = () => {
-          const { bytes: _bytes, ...rest } = m;
-          if (b.result) out.push({ ...rest, body: b.result as Uint8Array });
-        };
+  async list(now: number, ttlMs: number): Promise<{ entries: OutboxMeta[]; expired: OutboxMeta[] }> {
+    const tx = this.db.transaction([META, BODY], "readwrite");
+    const metas = tx.objectStore(META);
+    const entries: OutboxMeta[] = [];
+    const expired: OutboxMeta[] = [];
+    const all = metas.getAll();
+    all.onsuccess = guard(() => {
+      for (const m of all.result as OutboxMeta[]) {
+        if (now - m.createdAt > ttlMs) {
+          metas.delete(m.id);
+          tx.objectStore(BODY).delete(m.id);
+          expired.push(m);
+        } else entries.push(m);
       }
-    };
+    });
     await done(tx);
-    return out.sort((a, b) => a.id! - b.id!);
+    return { entries: entries.sort((a, b) => a.id - b.id), expired };
   }
 
-  async update(entry: StoredRequest): Promise<void> {
-    if (entry.id === undefined) return;
-    const tx = this.db.transaction([META], "readwrite");
-    const metas = tx.objectStore(META);
-    const get = metas.get(entry.id);
-    get.onsuccess = () => {
-      if (get.result) metas.put({ ...(get.result as Meta), attempts: entry.attempts, notBefore: entry.notBefore });
-    };
+  async body(id: number): Promise<Uint8Array | undefined> {
+    const tx = this.db.transaction([BODY], "readonly");
+    const req = tx.objectStore(BODY).get(id);
     await done(tx);
+    const v = req.result as unknown;
+    // A body that is not bytes is corrupt data: treated as missing.
+    return v instanceof Uint8Array ? v : v instanceof ArrayBuffer ? new Uint8Array(v) : undefined;
   }
 
   async delete(id: number): Promise<void> {
     const tx = this.db.transaction([META, BODY], "readwrite");
     tx.objectStore(META).delete(id);
     tx.objectStore(BODY).delete(id);
+    await done(tx);
+  }
+
+  async clear(kind?: OutboxKind): Promise<void> {
+    const tx = this.db.transaction([META, BODY, STREAMS], "readwrite");
+    const metas = tx.objectStore(META);
+    if (!kind) {
+      metas.clear();
+      tx.objectStore(BODY).clear();
+      tx.objectStore(STREAMS).clear();
+    } else {
+      const all = metas.getAll();
+      all.onsuccess = guard(() => {
+        for (const m of all.result as OutboxMeta[]) {
+          if (m.kind !== kind) continue;
+          metas.delete(m.id);
+          tx.objectStore(BODY).delete(m.id);
+        }
+      });
+      if (kind === "replay") tx.objectStore(STREAMS).clear();
+    }
+    await done(tx);
+  }
+
+  async putStream(row: StreamRow): Promise<void> {
+    const tx = this.db.transaction([STREAMS], "readwrite");
+    tx.objectStore(STREAMS).put(row);
+    try {
+      (tx as IDBTransaction & { commit?: () => void }).commit?.();
+    } catch {
+      // Commits by itself.
+    }
+    await done(tx);
+  }
+
+  async streams(): Promise<StreamRow[]> {
+    const tx = this.db.transaction([STREAMS], "readonly");
+    const req = tx.objectStore(STREAMS).getAll();
+    await done(tx);
+    return (req.result as StreamRow[]).filter((r) => r && typeof r.stream === "string");
+  }
+
+  async deleteStream(stream: string): Promise<void> {
+    const tx = this.db.transaction([STREAMS], "readwrite");
+    tx.objectStore(STREAMS).delete(stream);
     await done(tx);
   }
 }
@@ -210,9 +308,10 @@ function indexedDBFactory(): IDBFactory | undefined {
   }
 }
 
-export interface StoreOptions {
+export interface OutboxOptions {
   maxBytes: number;
-  logger: DebugLogger;
+  /** Called once when IndexedDB fails and the outbox degrades to memory (counted, TRN-15). */
+  onDegrade?: (op: string) => void;
   /** Defaults to the global `indexedDB`; null forces memory. */
   factory?: IDBFactory | null;
   name?: string;
@@ -220,18 +319,16 @@ export interface StoreOptions {
 
 /**
  * IndexedDB with a memory fallback: the database opens in the background (calls wait for it), and
- * the store switches to memory for good when it cannot open or an operation fails for any reason
- * but a full disk. A full disk (`QuotaExceededError`) keeps that one entry in memory instead.
+ * the outbox switches to memory for good when it cannot open or an operation fails. Memory entries
+ * carry negative ids so they never collide with IndexedDB keys.
  */
-export class ResilientStore implements OfflineStore {
-  private idb: Promise<IdbStore | null>;
+export class ResilientOutbox implements Outbox {
+  private readonly idb: Promise<IdbOutbox | null>;
   private failed = false;
-  private readonly memory: MemoryStore;
-  private readonly logger: DebugLogger;
+  private readonly memory: MemoryOutbox;
 
-  constructor(opts: StoreOptions) {
-    this.memory = new MemoryStore(opts.maxBytes);
-    this.logger = opts.logger;
+  constructor(private readonly opts: OutboxOptions) {
+    this.memory = new MemoryOutbox(opts.maxBytes);
     const factory = opts.factory === undefined ? indexedDBFactory() : opts.factory;
     if (!factory) {
       this.failed = true;
@@ -239,9 +336,16 @@ export class ResilientStore implements OfflineStore {
       return;
     }
     this.idb = openDatabase(factory, opts.name).then(
-      (db) => new IdbStore(db, opts.maxBytes),
-      (err) => {
-        this.fail("open", err);
+      (db) => {
+        try {
+          factory.deleteDatabase(LEGACY_IDB_NAME);
+        } catch {
+          // Best effort.
+        }
+        return new IdbOutbox(db, opts.maxBytes);
+      },
+      () => {
+        this.fail("open");
         return null;
       },
     );
@@ -251,65 +355,73 @@ export class ResilientStore implements OfflineStore {
     return this.failed ? "memory" : "indexeddb";
   }
 
-  /** Resolves once the store knows whether IndexedDB works. */
-  ready(): Promise<void> {
-    return this.idb.then(() => undefined);
-  }
-
-  async put(entry: StoredRequest): Promise<PutResult> {
+  private async use<T>(op: string, fn: (s: IdbOutbox) => Promise<T>, fallback: () => Promise<T>): Promise<T> {
     const idb = await this.idb;
     if (idb && !this.failed) {
       try {
-        return await idb.put(entry);
-      } catch (err) {
-        if ((err as { name?: string } | null)?.name === "QuotaExceededError") {
-          this.logger.warn("delivery: storage full, keeping the request in memory");
-        } else {
-          this.fail("put", err);
-        }
+        return await fn(idb);
+      } catch {
+        this.fail(op);
       }
     }
-    const res = await this.memory.put(entry);
-    return { ...res, id: res.id === null ? null : -res.id };
+    return fallback();
   }
 
-  async oldest(limit: number): Promise<StoredRequest[]> {
-    // Memory entries first: they exist only in this page.
-    const mem = await this.memory.oldest(limit);
-    if (mem.length > 0) return mem.map((e) => ({ ...e, id: -e.id! }));
-    const idb = await this.idb;
-    if (!idb || this.failed) return [];
-    try {
-      return await idb.oldest(limit);
-    } catch (err) {
-      this.fail("read", err);
-      return [];
-    }
-  }
-
-  // Memory entries carry negative ids outside this class so they never collide with IndexedDB keys.
-  async update(entry: StoredRequest): Promise<void> {
-    if (entry.id !== undefined && entry.id < 0) return this.memory.update({ ...entry, id: -entry.id });
-    await this.withIdb("update", (s) => s.update(entry));
-  }
-
-  async delete(id: number): Promise<void> {
-    if (id < 0) return this.memory.delete(-id);
-    await this.withIdb("delete", (s) => s.delete(id));
-  }
-
-  private async withIdb(op: string, fn: (s: IdbStore) => Promise<void>): Promise<void> {
-    const idb = await this.idb;
-    if (!idb || this.failed) return;
-    try {
-      await fn(idb);
-    } catch (err) {
-      this.fail(op, err);
-    }
-  }
-
-  private fail(op: string, err: unknown): void {
-    if (!this.failed) this.logger.warn(`delivery: IndexedDB unavailable (${op}), keeping unsent requests in memory`, err);
+  private fail(op: string): void {
+    if (this.failed) return;
     this.failed = true;
+    try {
+      this.opts.onDegrade?.(op);
+    } catch {
+      // The listener's problem.
+    }
+  }
+
+  put(entry: OutboxEntry): Promise<PutResult> {
+    return this.use(
+      "put",
+      (s) => s.put(entry),
+      async () => {
+        const res = await this.memory.put(entry);
+        return { id: res.id === null ? null : -res.id, evicted: res.evicted.map((m) => ({ ...m, id: -m.id })) };
+      },
+    );
+  }
+
+  async list(now: number, ttlMs: number): Promise<{ entries: OutboxMeta[]; expired: OutboxMeta[] }> {
+    const neg = (m: OutboxMeta): OutboxMeta => ({ ...m, id: -m.id });
+    const mem = await this.memory.list(now, ttlMs);
+    const disk = await this.use("list", (s) => s.list(now, ttlMs), async () => ({ entries: [], expired: [] }));
+    return { entries: [...disk.entries, ...mem.entries.map(neg)], expired: [...disk.expired, ...mem.expired.map(neg)] };
+  }
+
+  body(id: number): Promise<Uint8Array | undefined> {
+    if (id < 0) return this.memory.body(-id);
+    return this.use("body", (s) => s.body(id), async () => undefined);
+  }
+
+  delete(id: number): Promise<void> {
+    if (id < 0) return this.memory.delete(-id);
+    return this.use("delete", (s) => s.delete(id), async () => undefined);
+  }
+
+  async clear(kind?: OutboxKind): Promise<void> {
+    await this.memory.clear(kind);
+    await this.use("clear", (s) => s.clear(kind), async () => undefined);
+  }
+
+  putStream(row: StreamRow): Promise<void> {
+    return this.use("putStream", (s) => s.putStream(row), () => this.memory.putStream(row));
+  }
+
+  async streams(): Promise<StreamRow[]> {
+    const mem = await this.memory.streams();
+    const disk = await this.use("streams", (s) => s.streams(), async () => [] as StreamRow[]);
+    return [...disk, ...mem];
+  }
+
+  async deleteStream(stream: string): Promise<void> {
+    await this.memory.deleteStream(stream);
+    await this.use("deleteStream", (s) => s.deleteStream(stream), async () => undefined);
   }
 }
