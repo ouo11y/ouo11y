@@ -1,0 +1,40 @@
+# Muninn configuration (docs/specs/muninn.md section 10). Every key with its default.
+# Run: muninn -config.file=config.yaml -config.expand-env=true
+server:
+  http_listen_port: 3400
+
+# On: the tenant is X-Scope-OrgID (required). Off: every request is tenant "anonymous".
+multitenancy_enabled: false
+
+auth:
+  # Bearer the Collector's otlp_http/muninn exporter sends on POST /otlp/v1/logs.
+  # Empty: no check (never outside a laptop).
+  ingest_token: ${MUNINN_INGEST_TOKEN:-}
+  # Bearer the BFF sends on /api/v1/*.
+  read_token: ${MUNINN_READ_TOKEN:-}
+
+storage:
+  backend: filesystem # or s3
+  prefix: ""          # keys go under [<prefix>/]muninn/
+  filesystem:
+    directory: /data
+  s3:
+    endpoint: minio:9000 # host[:port], no scheme
+    bucket: ouo-replays
+    region: ""
+    access_key_id: ${MUNINN_S3_ACCESS_KEY:-}
+    secret_access_key: ${MUNINN_S3_SECRET_KEY:-}
+    insecure: false      # true: plain HTTP (local MinIO)
+
+limits:
+  max_chunk_bytes: 1048576      # larger chunk: rejected, too_large
+  max_attribute_bytes: 16384    # larger attributes: rejected, bad_attribute
+  max_request_bytes: 16777216   # larger request (compressed or not): 413
+
+stream_idle_timeout: 30m # a stream with no end record and no chunk for this long is partial
+tombstone_ttl: 168h      # a deleted replay's tombstone is kept this long
+
+retention:
+  default: 720h   # 0 keeps replays forever
+  sweep_interval: 1h
+  per_project: {} # e.g. {shop-web: 168h}
