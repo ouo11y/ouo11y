@@ -1,0 +1,130 @@
+{
+  "small": {
+    "cold": {
+      "runs": 30,
+      "median_ms": 1.23075,
+      "p95_ms": 1.722333,
+      "min_ms": 0.956167,
+      "max_ms": 2.275417
+    },
+    "frames": 1,
+    "heap_retained": 183272,
+    "map": "ouo-web replay engine chunk (frame made up in the middle of the bundle)",
+    "map_bytes": 49397,
+    "miss_cold": {
+      "runs": 30,
+      "median_ms": 0.230417,
+      "p95_ms": 0.34425,
+      "min_ms": 0.191292,
+      "max_ms": 0.445958
+    },
+    "miss_status": "no_maps",
+    "miss_warm": {
+      "runs": 30,
+      "median_ms": 0.003791,
+      "p95_ms": 0.008875,
+      "min_ms": 0.003333,
+      "max_ms": 0.009125
+    },
+    "status": "ok",
+    "stored_bytes": 12846,
+    "synthetic_frame": true,
+    "upload_ms": 2.647708,
+    "warm": {
+      "runs": 30,
+      "median_ms": 0.0315,
+      "p95_ms": 0.035209,
+      "min_ms": 0.030625,
+      "max_ms": 0.048167
+    }
+  },
+  "web": {
+    "cold": {
+      "runs": 30,
+      "median_ms": 18.918541,
+      "p95_ms": 23.287958,
+      "min_ms": 17.827667,
+      "max_ms": 31.504042
+    },
+    "frames": 10,
+    "heap_retained": 3027576,
+    "map": "ouo-web index bundle (Vite, React; real stack from @ouo11y/browser 0.4.0)",
+    "map_bytes": 1118832,
+    "miss_cold": {
+      "runs": 30,
+      "median_ms": 0.268125,
+      "p95_ms": 0.463208,
+      "min_ms": 0.216625,
+      "max_ms": 0.566875
+    },
+    "miss_status": "no_maps",
+    "miss_warm": {
+      "runs": 30,
+      "median_ms": 0.027167,
+      "p95_ms": 0.046208,
+      "min_ms": 0.026166,
+      "max_ms": 0.123
+    },
+    "status": "ok",
+    "stored_bytes": 295664,
+    "synthetic_frame": false,
+    "upload_ms": 5.728625,
+    "warm": {
+      "runs": 30,
+      "median_ms": 0.2755,
+      "p95_ms": 0.374416,
+      "min_ms": 0.266333,
+      "max_ms": 0.58775
+    },
+    "peak_rss_bytes_3_runs": [
+      24412160,
+      24428544,
+      24674304
+    ]
+  },
+  "big": {
+    "cold": {
+      "runs": 10,
+      "median_ms": 591.951458,
+      "p95_ms": 630.851208,
+      "min_ms": 548.80725,
+      "max_ms": 630.851208
+    },
+    "frames": 1,
+    "heap_retained": 64518640,
+    "map": "esbuild bundle of @grafana/ui, @grafana/data, monaco-editor and ol (frame made up in the middle of the bundle)",
+    "map_bytes": 33604001,
+    "miss_cold": {
+      "runs": 10,
+      "median_ms": 0.302834,
+      "p95_ms": 0.492542,
+      "min_ms": 0.197583,
+      "max_ms": 0.492542
+    },
+    "miss_status": "no_maps",
+    "miss_warm": {
+      "runs": 10,
+      "median_ms": 0.00625,
+      "p95_ms": 0.014625,
+      "min_ms": 0.004,
+      "max_ms": 0.014625
+    },
+    "status": "ok",
+    "stored_bytes": 7338896,
+    "synthetic_frame": true,
+    "upload_ms": 14.852541,
+    "warm": {
+      "runs": 10,
+      "median_ms": 0.589416,
+      "p95_ms": 0.65775,
+      "min_ms": 0.586166,
+      "max_ms": 0.65775
+    },
+    "peak_rss_bytes_3_runs": [
+      167149568,
+      211877888,
+      166789120
+    ]
+  },
+  "machine": "Apple M5, macOS, Go 1.26.2, store and resolver in one process over loopback HTTP"
+}

@@ -1,0 +1,11 @@
+Error: chaos: render error caught by the error boundary
+    at $_ (http://localhost:14173/assets/index-CGNPO9Y4.js:12:6894)
+    at _l (http://localhost:14173/assets/index-CGNPO9Y4.js:6:17231)
+    at Ll (http://localhost:14173/assets/index-CGNPO9Y4.js:8:3158)
+    at hh (http://localhost:14173/assets/index-CGNPO9Y4.js:8:45051)
+    at uh (http://localhost:14173/assets/index-CGNPO9Y4.js:8:39942)
+    at Sy (http://localhost:14173/assets/index-CGNPO9Y4.js:8:39870)
+    at ko (http://localhost:14173/assets/index-CGNPO9Y4.js:8:39723)
+    at Ql (http://localhost:14173/assets/index-CGNPO9Y4.js:8:36050)
+    at oh (http://localhost:14173/assets/index-CGNPO9Y4.js:8:36862)
+    at Ln (http://localhost:14173/assets/index-CGNPO9Y4.js:6:3273)

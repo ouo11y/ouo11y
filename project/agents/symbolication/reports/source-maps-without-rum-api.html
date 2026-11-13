@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Source maps without rum-api</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1d1b; --muted:#66645e; --line:#dedbd2; --card:#ffffff; --accent:#1f6f5c; --accent2:#b4541a; --bad:#a3352b; --code:#f1efe8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecebe6; --muted:#a3a097; --line:#35342f; --card:#1f1f1c; --accent:#5fc3a8; --accent2:#e59a5c; --bad:#ef8a7e; --code:#262622; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 30px; line-height:1.2; margin: 0 0 8px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 16px; border-top:1px solid var(--line); }
+  h3 { font-size: 16px; margin: 20px 0 6px; }
+  p, li { max-width: 74ch; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin: 12px 0; }
+  .rec { border-left: 4px solid var(--accent); }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
+  .num { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .num small { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .lab { color: var(--muted); font-size: 13px; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow-x:auto; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 8px 0; }
+  code { font: 0.9em ui-monospace, Menlo, Consolas, monospace; background:var(--code); padding: 1px 4px; border-radius: 4px; }
+  pre code { background:none; padding:0; }
+  .tablewrap { overflow-x:auto; }
+  table { border-collapse: collapse; width:100%; font-size: 14px; }
+  th, td { text-align:left; padding: 8px 10px; border-bottom:1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+  td.n { text-align:right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pick { color: var(--accent); font-weight: 650; }
+  .no { color: var(--muted); }
+  .bar { display:grid; grid-template-columns: 210px 1fr 90px; gap:10px; align-items:center; margin: 6px 0; font-size: 14px; }
+  .bar .track { background: var(--code); border-radius: 4px; height: 14px; overflow:hidden; }
+  .bar .fill { height:100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
+  .bar .fill.warm { background: var(--accent2); }
+  .bar .v { text-align:right; font-variant-numeric: tabular-nums; }
+  .flow { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; margin: 12px 0; }
+  .flow .box { flex:1 1 150px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--card); font-size: 14px; }
+  .flow .box b { display:block; margin-bottom: 2px; }
+  .flow .arrow { align-self:center; color: var(--muted); }
+  .hl { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 3px; }
+  .bad { color: var(--bad); }
+  .tag { display:inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; border:1px solid var(--line); color: var(--muted); }
+  @media (max-width: 600px) { .bar { grid-template-columns: 1fr; gap: 2px; } .bar .v { text-align:left; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Source maps without rum-api</h1>
+<p class="sub">Where source-map storage and stack-trace lookup live once <code>services/rum-api</code> is removed. Design with a working prototype for the web, 2026-11-13. Proposed as <a href="../../../../docs/adr/0022-debug-files-without-rum-api.md">ADR-0022</a>.</p>
+
+<div class="card rec">
+  <h3 style="margin-top:0">Recommendation</h3>
+  <p>Uploaded source maps become <b>write-once files in Muninn</b>, keyed by tenant, project and debug id, opaque to Muninn. The <code>ouo-sourcemaps</code> CLI keeps its request and sends it to <b>a small upload route on the Collector</b>, which passes the file to Muninn and returns Muninn's answer. A library in <b><code>ouo-go</code> resolves a stack when the BFF serves an error</b>, with a cache of parsed maps. A frame finds its map by <b>debug id</b>; a frame without one uses release and path only when exactly one build matches.</p>
+  <p>The prototype does this end to end with a real minified build and a real stack from <code>@ouo11y/browser</code> 0.4.0. The CLI needed no change to upload.</p>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="num">18.9 <small>ms</small></div><div class="lab">cold resolve, 1.12 MB map, 10 frames (median of 30)</div></div>
+  <div class="card"><div class="num">0.28 <small>ms</small></div><div class="lab">warm resolve, same stack (median of 30)</div></div>
+  <div class="card"><div class="num">592 <small>ms</small></div><div class="lab">cold resolve, 33.6 MB map (median of 10)</div></div>
+  <div class="card"><div class="num">424 <small>KB</small></div><div class="lab">stored for one ouo-web release (3 maps, 1.58 MB)</div></div>
+</div>
+
+<h2>Before and after</h2>
+<p>The Chaos page of ouo-web throws in a React component. This is the <code>exception.stacktrace</code> the SDK sent from a minified Vite build, and what the prototype returns for it after the maps were uploaded. The record also carried <code>ouo.exception.debug_ids</code>: <code>{"…/assets/index-CGNPO9Y4.js": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"}</code>.</p>
+<h3>As recorded (stays in Loki unchanged)</h3>
+<pre><code>Error: chaos: render error caught by the error boundary
+    at <span class="bad">$_</span> (http://localhost:14173/assets/index-CGNPO9Y4.js:12:6894)
+    at _l (http://localhost:14173/assets/index-CGNPO9Y4.js:6:17231)
+    at Ll (http://localhost:14173/assets/index-CGNPO9Y4.js:8:3158)
+    at hh (http://localhost:14173/assets/index-CGNPO9Y4.js:8:45051)
+    at uh (http://localhost:14173/assets/index-CGNPO9Y4.js:8:39942)
+    … 5 more frames in the same file</code></pre>
+<h3>Resolved on read (10 of 10 frames)</h3>
+<pre><code>Error: chaos: render error caught by the error boundary
+    at <span class="hl">RenderBomb (src/components/ChaosPanel.tsx:18:20)</span>
+    at Nh (node_modules/react-dom/cjs/react-dom.production.min.js:160:137)
+    at gj (node_modules/react-dom/cjs/react-dom.production.min.js:196:258)
+    at Vk (node_modules/react-dom/cjs/react-dom.production.min.js:291:88)
+    at tj (node_modules/react-dom/cjs/react-dom.production.min.js:279:389)
+    … 5 more frames in react-dom</code></pre>
+<h3>Source around the first frame (from the map's <code>sourcesContent</code>)</h3>
+<pre><code>16  /** Throws while rendering when armed: the route's OuoErrorBoundary catches it. */
+17  function RenderBomb({ armed }: { armed: boolean }) {
+<span class="hl">18    if (armed) throw new Error("chaos: render error caught by the error boundary");</span>
+19    return null;
+20  }</code></pre>
+<p class="lab">Full files: <code>prototype/demo/results/stack-minified.txt</code>, <code>resolved.json</code>.</p>
+
+<h2>How it fits together</h2>
+<div class="flow">
+  <div class="box"><b>CI</b><code>ouo-sourcemaps inject</code>, then <code>upload</code> with the project's upload token</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Collector</b>upload route: checks the token, streams the body on, returns Muninn's status</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Muninn</b>write-once file under <code>debug-files/&lt;tenant&gt;/&lt;project&gt;/sourcemap/&lt;debug id&gt;</code></div>
+</div>
+<div class="flow">
+  <div class="box"><b>Browser</b>SDK sends the minified stack and its debug ids as an OTel log record</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Collector → Loki</b>record stored as sent</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>BFF (<code>ouo-go</code>)</b>someone opens the error: read the map from Muninn, parse once, cache, resolve</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Plugin</b>same <code>symbolicated</code> JSON as today</div>
+</div>
+
+<h2>The options</h2>
+<h3>(a) Where the files are stored</h3>
+<div class="tablewrap"><table>
+<tr><th>Option</th><th>For</th><th>Against</th></tr>
+<tr><td class="pick">Muninn, as a second object kind</td><td>One owner of the bucket: tenancy, retention, delete-by-project and credentials exist once. Same write-once rule as replay chunks. The BFF already has a Muninn client</td><td>Muninn's spec grows by one prefix and three routes</td></tr>
+<tr><td class="no">The BFF's own bucket prefix</td><td>No change to Muninn</td><td>Two owners of the bucket. CI would have to reach Grafana, or the Collector route needs bucket access</td></tr>
+<tr><td class="no">Keep a small symbolication service</td><td>No design change</td><td>Keeps the service that was decided away, for about 1,600 lines that fit a library</td></tr>
+</table></div>
+
+<h3>(b) How they are uploaded</h3>
+<div class="tablewrap"><table>
+<tr><th>Option</th><th>For</th><th>Against</th></tr>
+<tr><td class="pick">A pass-through route on the Collector</td><td>The Collector stays the only edge. CI gets Muninn's real answer, so a failed upload fails the build. The CLI keeps its request</td><td>One small custom Collector component</td></tr>
+<tr><td class="no">OTLP log records through the stock pipeline</td><td>No custom component; the path replay chunks take</td><td>The Collector answers 2xx when a record is queued, not when it is stored, so CI cannot tell. The receiver caps a request at 20 MiB by default, so dSYMs need chunking</td></tr>
+<tr><td class="no">CI straight to Muninn</td><td>Nothing to build; what rum-api has today</td><td>Only works when CI is inside the operator's network. Acceptable as a first step (decision D2)</td></tr>
+</table></div>
+
+<h3>(c) Where and when a stack is resolved</h3>
+<div class="tablewrap"><table>
+<tr><th>Option</th><th>For</th><th>Against</th></tr>
+<tr><td class="pick"><code>ouo-go</code> in the BFF, on read</td><td>A map uploaded after the error still applies. The Collector stays stateless. The record in Loki stays as sent. Cost is one parse per map per process</td><td>Loki cannot be searched by original file name. The BFF holds parsed maps in memory</td></tr>
+<tr><td class="no">At ingest, in the Collector</td><td>Resolved names in Loki; what Sentry, Datadog and PostHog do, because they group errors into issues at ingest</td><td>Late uploads never apply. The Collector needs bucket access, a map cache, and parses on the ingest path. ouo has no issue grouping yet; it can be added later with the same library</td></tr>
+</table></div>
+
+<h3>(d) How a frame finds its map</h3>
+<div class="tablewrap"><table>
+<tr><th>Option</th><th>For</th><th>Against</th></tr>
+<tr><td class="pick">Debug id; release + path only when exactly one build matches</td><td>A debug id names the exact bytes. Never shows a confident wrong line. Bundles that cannot run <code>inject</code> still work</td><td>One pointer object per map for the fallback</td></tr>
+<tr><td class="no">Release + path only</td><td>No inject step</td><td>Two deploys of one version, and every over-the-air React Native bundle, share a path. rum-api already mapped one bundle with another's map this way</td></tr>
+<tr><td class="no">Debug id only</td><td>Simplest</td><td>Build tools that cannot run the inject step get nothing</td></tr>
+</table></div>
+
+<h3>What the vendors do</h3>
+<div class="tablewrap"><table>
+<tr><th>Vendor</th><th>Key</th><th>Resolved</th><th>Late upload applies?</th></tr>
+<tr><td>Sentry</td><td>Debug id first, release + URL as the legacy fallback</td><td>At ingest (Symbolicator), frames stored with the event</td><td>No, per its documentation</td></tr>
+<tr><td>Datadog</td><td>Debug id (recommended since datadog-ci 5.24), or service + version + path</td><td>Not stated for JavaScript in the documentation read</td><td>Not stated for JavaScript; yes for Android mappings</td></tr>
+<tr><td>PostHog</td><td>Chunk id injected by its CLI; fetches public maps otherwise</td><td>In its Rust service (cymbal) after ingest; resolved frames are reused</td><td>Could not verify</td></tr>
+<tr><td>Grafana Alloy (Faro)</td><td>Release + path templates, or downloads the map from the script URL</td><td>At ingest, in the collector, with the same Go library</td><td>No</td></tr>
+</table></div>
+<p class="lab">Checked against vendor documentation and public source on 2026-11-13; the sources are in the kb entry <code>project/kb/symbolication/vendors/how-vendors-resolve-stacks.md</code>.</p>
+
+<h2>Measurements</h2>
+<p>Apple M5, Go 1.26.2. Store and resolver run in one process and talk over loopback HTTP, as the BFF and Muninn would. A cold resolve is a store GET, gunzip, parse and lookup with an empty cache; a warm one finds the parsed map in the cache.</p>
+
+<h3>Cold resolve (median)</h3>
+<div class="bar"><div>49 KB map, 1 frame</div><div class="track"><div class="fill" style="width:0.3%"></div></div><div class="v">1.2 ms</div></div>
+<div class="bar"><div>1.12 MB map, 10 frames</div><div class="track"><div class="fill" style="width:3.2%"></div></div><div class="v">18.9 ms</div></div>
+<div class="bar"><div>33.6 MB map, 1 frame</div><div class="track"><div class="fill" style="width:100%"></div></div><div class="v">592 ms</div></div>
+<h3>Warm resolve (median)</h3>
+<div class="bar"><div>49 KB map, 1 frame</div><div class="track"><div class="fill warm" style="width:5%"></div></div><div class="v">0.03 ms</div></div>
+<div class="bar"><div>1.12 MB map, 10 frames</div><div class="track"><div class="fill warm" style="width:47%"></div></div><div class="v">0.28 ms</div></div>
+<div class="bar"><div>33.6 MB map, 1 frame</div><div class="track"><div class="fill warm" style="width:100%"></div></div><div class="v">0.59 ms</div></div>
+<p class="lab">The two charts have different scales: the longest warm bar is 0.59 ms, the longest cold bar 592 ms.</p>
+
+<div class="tablewrap"><table>
+<tr><th>Map</th><th>Size</th><th>Stored (gzip)</th><th>Cold median (p95)</th><th>Warm median (p95)</th><th>Heap kept</th><th>Runs</th></tr>
+<tr><td>ouo-web replay engine chunk <span class="tag">frame made up</span></td><td class="n">49 KB</td><td class="n">13 KB</td><td class="n">1.2 (1.7) ms</td><td class="n">0.03 (0.04) ms</td><td class="n">0.2 MB</td><td class="n">30</td></tr>
+<tr><td>ouo-web main bundle <span class="tag">real stack</span></td><td class="n">1.12 MB</td><td class="n">296 KB</td><td class="n">18.9 (23.3) ms</td><td class="n">0.28 (0.37) ms</td><td class="n">3.0 MB</td><td class="n">30</td></tr>
+<tr><td>8.6 MB bundle of @grafana/ui, @grafana/data, monaco-editor, ol <span class="tag">frame made up</span></td><td class="n">33.6 MB</td><td class="n">7.3 MB</td><td class="n">592 (631) ms</td><td class="n">0.59 (0.66) ms</td><td class="n">64.5 MB</td><td class="n">10</td></tr>
+</table></div>
+<ul>
+  <li><b>Memory.</b> A parsed map keeps about twice its decompressed size on the heap (64.5 MB for 33.6 MB), mostly the embedded sources. Peak process memory while parsing the 33.6 MB map was 167 to 212 MB (3 runs, each parsing it twice, store in the same process); 24 MB for the 1.12 MB map (3 runs).</li>
+  <li><b>Storage.</b> gzip keeps 22 to 26% of a map. One ouo-web release is 424 KB on disk with meta and pointers.</li>
+  <li><b>Missing map.</b> 0.27 ms cold (one 404 from the store), 0.03 ms once the miss is remembered (median of 30). The stack comes back as recorded.</li>
+  <li>"Frame made up" means the stack is one frame placed in the middle of the bundle's longest line, because no real error was thrown in that bundle. The 1.12 MB row is the real captured stack.</li>
+</ul>
+
+<h3>Behaviour when the map is missing or does not match</h3>
+<div class="tablewrap"><table>
+<tr><th>Case</th><th>Result</th></tr>
+<tr><td>No map uploaded for the debug id</td><td><code>no_map</code> for each frame, stack returned as recorded, status <code>no_maps</code></td></tr>
+<tr><td>Map uploaded after the error was recorded</td><td><code>no_map</code> for up to 60 s (the miss is remembered), then mapped. Nothing needs reprocessing</td></tr>
+<tr><td>No debug ids, release matches one upload</td><td>Mapped through the release pointer (10 of 10 frames in the demo)</td></tr>
+<tr><td>No debug ids, release does not match</td><td><code>no_map</code>; nothing is guessed</td></tr>
+<tr><td>No debug ids, two builds under the same release and path</td><td><code>ambiguous</code>; rum-api mapped with the last upload here, which is wrong for the other build</td></tr>
+<tr><td>Debug id unknown, release has a map for the path</td><td><code>no_map</code>: a frame that names its build never takes another build's map</td></tr>
+<tr><td>Same stack, another project</td><td><code>no_map</code></td></tr>
+<tr><td>Same id uploaded again</td><td>200 for the same bytes, 409 for other bytes; the first write stays</td></tr>
+<tr><td>Wrong upload token</td><td>401, and the CLI reports 0 of 3 uploaded</td></tr>
+<tr><td>A file that is not a source map</td><td>Stored (Muninn is opaque); the reader treats it as a miss</td></tr>
+<tr><td>Hermes: two OTA bundles of one store version, same file name</td><td>Each stack maps with its own bundle's map by debug id; <code>ambiguous</code> without ids (rum-api's fixture)</td></tr>
+</table></div>
+<p>Each row is a test in <code>prototype/symbolicate/resolver_test.go</code> or a step of <code>prototype/demo/run.sh</code>.</p>
+
+<h3>Not measured</h3>
+<ul>
+  <li>S3 or MinIO instead of the filesystem: a cold map adds one object GET.</li>
+  <li>A real Collector in front of the store. The upload route is a stand-in in the prototype.</li>
+  <li>A React Native app on a device. The Hermes case uses rum-api's fixture, built by Metro and hermesc.</li>
+  <li>dSYMs and R8 mappings in the new store. They are design only.</li>
+  <li>Ingest-time resolution was not built: it uses the same library, so its per-error cost is the warm and cold numbers above. What separates the two options is behaviour (late uploads, state in the Collector), not speed.</li>
+</ul>
+
+<h2>The three inputs</h2>
+<div class="tablewrap"><table>
+<tr><th>Input</th><th>Key</th><th>State</th></tr>
+<tr><td>Web source maps</td><td>Debug id from <code>ouo-sourcemaps inject</code></td><td>Prototyped and measured</td></tr>
+<tr><td>React Native (Hermes) maps</td><td>Debug id from the Metro plugin, read from the bytecode at upload</td><td>Resolver verified on the Hermes fixture; build tooling unchanged from ADR-0011</td></tr>
+<tr><td>iOS dSYM</td><td>The image's <code>LC_UUID</code>, already in every crash report</td><td>Design: kind <code>dsym</code> in the same store; the DWARF reader moves from rum-api. The CLI splits universal files itself</td></tr>
+<tr><td>Android R8 / ProGuard mapping</td><td>A UUID made from the mapping file, written into the app at build time</td><td>Design: kind <code>proguard</code>; the retrace resolver is new work</td></tr>
+</table></div>
+
+<h2>Decisions for the founder</h2>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Decision</th><th>Recommendation</th></tr>
+<tr><td>D1</td><td>Does Muninn hold debug files, as a second object kind with three routes?</td><td><b>Yes.</b> The fallback is the BFF's own bucket prefix with the same layout; the <code>ouo-go</code> code is the same either way</td></tr>
+<tr><td>D2</td><td>Upload path for the pilot: the Collector route now, or CI straight to Muninn until it exists?</td><td><b>Build the route</b> together with Muninn's debug-file routes. Direct upload only if the pilot's CI is inside the network</td></tr>
+<tr><td>D3</td><td>Keep the release fallback?</td><td><b>Yes</b>, with the exactly-one rule</td></tr>
+<tr><td>D4</td><td>Retention default for debug files</td><td><b>One year</b> from upload, per-project override, 0 keeps forever</td></tr>
+<tr><td>D5</td><td>Resolve on read only, or also at ingest?</td><td><b>On read only</b> until issue grouping exists</td></tr>
+<tr><td>D6</td><td>Order of native work</td><td><b>dSYM moves with the JavaScript code</b>; R8 retrace after web and React Native are live</td></tr>
+</table></div>
+
+<h2>Reproduce</h2>
+<pre><code>cd project/agents/symbolication/prototype &amp;&amp; go vet ./... &amp;&amp; go test ./...
+project/agents/symbolication/prototype/demo/run.sh     # from the repo root, after npm ci</code></pre>
+</main>
+</body>
+</html>

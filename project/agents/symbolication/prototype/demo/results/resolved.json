@@ -1,0 +1,297 @@
+{
+  "status": "ok",
+  "mapped": 10,
+  "frames": [
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 12,
+        "column": 6894,
+        "function": "$_"
+      },
+      "original": {
+        "file": "src/components/ChaosPanel.tsx",
+        "line": 18,
+        "column": 20,
+        "function": "RenderBomb"
+      },
+      "context": {
+        "pre": [
+          "",
+          "/** Throws while rendering when armed: the route's OuoErrorBoundary catches it. */",
+          "function RenderBomb({ armed }: { armed: boolean }) {"
+        ],
+        "line": "  if (armed) throw new Error(\"chaos: render error caught by the error boundary\");",
+        "post": [
+          "  return null;",
+          "}",
+          ""
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 6,
+        "column": 17231,
+        "function": "_l"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 160,
+        "column": 137,
+        "function": "Nh"
+      },
+      "context": {
+        "pre": [
+          "function yh(a,b){G(wh,b);G(vh,a);G(uh,th);a=b.nodeType;switch(a){case 9:case 11:b=(b=b.documentElement)?b.namespaceURI:lb(null,\"\");break;default:a=8===a?b.parentNode:b,b=a.namespaceURI||null,a=a.tagName,b=lb(b,a)}E(uh);G(uh,b)}function zh(){E(uh);E(vh);E(wh)}function Ah(a){xh(wh.current);var b=xh(uh…",
+          "function Ch(a){for(var b=a;null!==b;){if(13===b.tag){var c=b.memoizedState;if(null!==c\u0026\u0026(c=c.dehydrated,null===c||\"$?\"===c.data||\"$!\"===c.data))return b}else if(19===b.tag\u0026\u0026void 0!==b.memoizedProps.revealOrder){if(0!==(b.flags\u0026128))return b}else if(null!==b.child){b.child.return=b;b=b.child;continue…",
+          "function Eh(){for(var a=0;a\u003cDh.length;a++)Dh[a]._workInProgressVersionPrimary=null;Dh.length=0}var Fh=ua.ReactCurrentDispatcher,Gh=ua.ReactCurrentBatchConfig,Hh=0,M=null,N=null,O=null,Ih=!1,Jh=!1,Kh=0,Lh=0;function P(){throw Error(p(321));}function Mh(a,b){if(null===b)return!1;for(var c=0;c\u003cb.length…"
+        ],
+        "line": "function Nh(a,b,c,d,e,f){Hh=f;M=b;b.memoizedState=null;b.updateQueue=null;b.lanes=0;Fh.current=null===a||null===a.memoizedState?Oh:Ph;a=c(d,e);if(Jh){f=0;do{Jh=!1;Kh=0;if(25\u003c=f)throw Error(p(301));f+=1;O=N=null;b.updateQueue=null;Fh.current=Qh;a=c(d,e)}while(Jh)}Fh.current=Rh;b=null!==N\u0026\u0026null!==N.ne…",
+        "post": [
+          "function Th(){var a={memoizedState:null,baseState:null,baseQueue:null,queue:null,next:null};null===O?M.memoizedState=O=a:O=O.next=a;return O}function Uh(){if(null===N){var a=M.alternate;a=null!==a?a.memoizedState:null}else a=N.next;var b=null===O?M.memoizedState:O.next;if(null!==b)O=b,N=a;else{if(nu…",
+          "function Vh(a,b){return\"function\"===typeof b?b(a):b}",
+          "function Wh(a){var b=Uh(),c=b.queue;if(null===c)throw Error(p(311));c.lastRenderedReducer=a;var d=N,e=d.baseQueue,f=c.pending;if(null!==f){if(null!==e){var g=e.next;e.next=f.next;f.next=g}d.baseQueue=e=f;c.pending=null}if(null!==e){f=e.next;d=d.baseState;var h=g=null,k=null,l=f;do{var m=l.lane;if((H…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 3158,
+        "function": "Ll"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 196,
+        "column": 258,
+        "function": "gj"
+      },
+      "context": {
+        "pre": [
+          "function $i(a,b,c,d,e){if(null===a){var f=c.type;if(\"function\"===typeof f\u0026\u0026!aj(f)\u0026\u0026void 0===f.defaultProps\u0026\u0026null===c.compare\u0026\u0026void 0===c.defaultProps)return b.tag=15,b.type=f,bj(a,b,f,d,e);a=Rg(c.type,null,d,b,b.mode,e);a.ref=b.ref;a.return=b;return b.child=a}f=a.child;if(0===(a.lanes\u0026e)){var g=f.me…",
+          "function bj(a,b,c,d,e){if(null!==a){var f=a.memoizedProps;if(Ie(f,d)\u0026\u0026a.ref===b.ref)if(dh=!1,b.pendingProps=d=f,0!==(a.lanes\u0026e))0!==(a.flags\u0026131072)\u0026\u0026(dh=!0);else return b.lanes=a.lanes,Zi(a,b,e)}return cj(a,b,c,d,e)}",
+          "function dj(a,b,c){var d=b.pendingProps,e=d.children,f=null!==a?a.memoizedState:null;if(\"hidden\"===d.mode)if(0===(b.mode\u00261))b.memoizedState={baseLanes:0,cachePool:null,transitions:null},G(ej,fj),fj|=c;else{if(0===(c\u00261073741824))return a=null!==f?f.baseLanes|c:c,b.lanes=b.childLanes=1073741824,b.memo…"
+        ],
+        "line": "f?(d=f.baseLanes|c,b.memoizedState=null):d=c,G(ej,fj),fj|=d;Xi(a,b,e,c);return b.child}function gj(a,b){var c=b.ref;if(null===a\u0026\u0026null!==c||null!==a\u0026\u0026a.ref!==c)b.flags|=512,b.flags|=2097152}function cj(a,b,c,d,e){var f=Zf(c)?Xf:H.current;f=Yf(b,f);ch(b,e);c=Nh(a,b,c,d,f,e);d=Sh();if(null!==a\u0026\u0026!dh)ret…",
+        "post": [
+          "function hj(a,b,c,d,e){if(Zf(c)){var f=!0;cg(b)}else f=!1;ch(b,e);if(null===b.stateNode)ij(a,b),Gi(b,c,d),Ii(b,c,d,e),d=!0;else if(null===a){var g=b.stateNode,h=b.memoizedProps;g.props=h;var k=g.context,l=c.contextType;\"object\"===typeof l\u0026\u0026null!==l?l=eh(l):(l=Zf(c)?Xf:H.current,l=Yf(b,l));var m=c.ge…",
+          "(h!==d||k!==l)\u0026\u0026Hi(b,g,d,l);jh=!1;var r=b.memoizedState;g.state=r;qh(b,d,g,e);k=b.memoizedState;h!==d||r!==k||Wf.current||jh?(\"function\"===typeof m\u0026\u0026(Di(b,c,m,d),k=b.memoizedState),(h=jh||Fi(b,c,h,d,r,k,l))?(q||\"function\"!==typeof g.UNSAFE_componentWillMount\u0026\u0026\"function\"!==typeof g.componentWillMount…",
+          "(\"function\"===typeof g.componentDidMount\u0026\u0026(b.flags|=4194308),b.memoizedProps=d,b.memoizedState=k),g.props=d,g.state=k,g.context=l,d=h):(\"function\"===typeof g.componentDidMount\u0026\u0026(b.flags|=4194308),d=!1)}else{g=b.stateNode;lh(a,b);h=b.memoizedProps;l=b.type===b.elementType?h:Ci(b.type,h);g.props=l;q=b…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 45051,
+        "function": "hh"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 291,
+        "column": 88,
+        "function": "Vk"
+      },
+      "context": {
+        "pre": [
+          "function bk(a,b){var c=0;switch(a.tag){case 13:var d=a.stateNode;var e=a.memoizedState;null!==e\u0026\u0026(c=e.retryLane);break;case 19:d=a.stateNode;break;default:throw Error(p(314));}null!==d\u0026\u0026d.delete(b);Yk(a,c)}var Vk;",
+          "Vk=function(a,b,c){if(null!==a)if(a.memoizedProps!==b.pendingProps||Wf.current)dh=!0;else{if(0===(a.lanes\u0026c)\u0026\u00260===(b.flags\u0026128))return dh=!1,yj(a,b,c);dh=0!==(a.flags\u0026131072)?!0:!1}else dh=!1,I\u0026\u00260!==(b.flags\u00261048576)\u0026\u0026ug(b,ng,b.index);b.lanes=0;switch(b.tag){case 2:var d=b.type;ij(a,b);a=b.pendingPr…",
+          "null,Zf(d)?(f=!0,cg(b)):f=!1,b.memoizedState=null!==e.state\u0026\u0026void 0!==e.state?e.state:null,kh(b),e.updater=Ei,b.stateNode=e,e._reactInternals=b,Ii(b,d,a,c),b=jj(null,b,d,!0,f,c)):(b.tag=0,I\u0026\u0026f\u0026\u0026vg(b),Xi(null,b,e,c),b=b.child);return b;case 16:d=b.elementType;a:{ij(a,b);a=b.pendingProps;e=d._init;d=e…"
+        ],
+        "line": "d,\"\"));}return b;case 0:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:Ci(d,e),cj(a,b,d,e,c);case 1:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:Ci(d,e),hj(a,b,d,e,c);case 3:a:{kj(b);if(null===a)throw Error(p(387));d=b.pendingProps;f=b.memoizedState;e=f.element;lh(a,b);qh(b,d,null,…",
+        "post": [
+          "f,b.memoizedState=f,b.flags\u0026256){e=Ji(Error(p(423)),b);b=lj(a,b,d,c,e);break a}else if(d!==e){e=Ji(Error(p(424)),b);b=lj(a,b,d,c,e);break a}else for(yg=Lf(b.stateNode.containerInfo.firstChild),xg=b,I=!0,zg=null,c=Vg(b,null,d,c),b.child=c;c;)c.flags=c.flags\u0026-3|4096,c=c.sibling;else{Ig();if(d===e){b=Z…",
+          "gj(a,b),Xi(a,b,g,c),b.child;case 6:return null===a\u0026\u0026Eg(b),null;case 13:return oj(a,b,c);case 4:return yh(b,b.stateNode.containerInfo),d=b.pendingProps,null===a?b.child=Ug(b,null,d,c):Xi(a,b,d,c),b.child;case 11:return d=b.type,e=b.pendingProps,e=b.elementType===d?e:Ci(d,e),Yi(a,b,d,e,c);case 7:retur…",
+          "g=e.value;G(Wg,d._currentValue);d._currentValue=g;if(null!==f)if(He(f.value,g)){if(f.children===e.children\u0026\u0026!Wf.current){b=Zi(a,b,c);break a}}else for(f=b.child,null!==f\u0026\u0026(f.return=b);null!==f;){var h=f.dependencies;if(null!==h){g=f.child;for(var k=h.firstContext;null!==k;){if(k.context===d){if(1===…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 39942,
+        "function": "uh"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 279,
+        "column": 389,
+        "function": "tj"
+      },
+      "context": {
+        "pre": [
+          "function Mk(a,b){do{var c=Y;try{$g();Fh.current=Rh;if(Ih){for(var d=M.memoizedState;null!==d;){var e=d.queue;null!==e\u0026\u0026(e.pending=null);d=d.next}Ih=!1}Hh=0;O=N=M=null;Jh=!1;Kh=0;nk.current=null;if(null===c||null===c.return){T=1;pk=b;Y=null;break}a:{var f=a,g=c.return,h=c,k=b;b=Z;h.flags|=32768;if(nu…",
+          "m.lanes=r.lanes):(m.updateQueue=null,m.memoizedState=null)}var y=Ui(g);if(null!==y){y.flags\u0026=-257;Vi(y,g,h,f,b);y.mode\u00261\u0026\u0026Si(f,l,b);b=y;k=l;var n=b.updateQueue;if(null===n){var t=new Set;t.add(k);b.updateQueue=t}else n.add(k);break a}else{if(0===(b\u00261)){Si(f,l,b);tj();break a}k=Error(p(426))}}else if…",
+          "b\u0026=-b;f.lanes|=b;var x=Ni(f,k,b);ph(f,x);break a;case 1:h=k;var w=f.type,u=f.stateNode;if(0===(f.flags\u0026128)\u0026\u0026(\"function\"===typeof w.getDerivedStateFromError||null!==u\u0026\u0026\"function\"===typeof u.componentDidCatch\u0026\u0026(null===Ri||!Ri.has(u)))){f.flags|=65536;b\u0026=-b;f.lanes|=b;var F=Qi(f,h,b);ph(f,F);break a}}…"
+        ],
+        "line": "function tj(){if(0===T||3===T||2===T)T=4;null===Q||0===(rh\u0026268435455)\u0026\u00260===(qk\u0026268435455)||Ck(Q,Z)}function Ik(a,b){var c=K;K|=2;var d=Jk();if(Q!==a||Z!==b)uk=null,Kk(a,b);do try{Tk();break}catch(e){Mk(a,e)}while(1);$g();K=c;mk.current=d;if(null!==Y)throw Error(p(261));Q=null;Z=0;return T}function T…",
+        "post": [
+          "function Sk(a){var b=a;do{var c=b.alternate;a=b.return;if(0===(b.flags\u002632768)){if(c=Ej(c,b,fj),null!==c){Y=c;return}}else{c=Ij(c,b);if(null!==c){c.flags\u0026=32767;Y=c;return}if(null!==a)a.flags|=32768,a.subtreeFlags=0,a.deletions=null;else{T=6;Y=null;return}}b=b.sibling;if(null!==b){Y=b;return}Y=b=a}wh…",
+          "function Wk(a,b,c,d){do Hk();while(null!==wk);if(0!==(K\u00266))throw Error(p(327));c=a.finishedWork;var e=a.finishedLanes;if(null===c)return null;a.finishedWork=null;a.finishedLanes=0;if(c===a.current)throw Error(p(177));a.callbackNode=null;a.callbackPriority=0;var f=c.lanes|c.childLanes;Bc(a,f);a===Q\u0026\u0026…",
+          "var g=C;C=1;var h=K;K|=4;nk.current=null;Oj(a,c);dk(c,a);Oe(Df);dd=!!Cf;Df=Cf=null;a.current=c;hk(c,a,e);dc();K=h;C=g;ok.transition=f}else a.current=c;vk\u0026\u0026(vk=!1,wk=a,xk=e);f=a.pendingLanes;0===f\u0026\u0026(Ri=null);mc(c.stateNode,d);Dk(a,B());if(null!==b)for(d=a.onRecoverableError,c=0;c\u003cb.length;c++)e=b[c],…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 39870,
+        "function": "Sy"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 279,
+        "column": 320,
+        "function": "tj"
+      },
+      "context": {
+        "pre": [
+          "function Mk(a,b){do{var c=Y;try{$g();Fh.current=Rh;if(Ih){for(var d=M.memoizedState;null!==d;){var e=d.queue;null!==e\u0026\u0026(e.pending=null);d=d.next}Ih=!1}Hh=0;O=N=M=null;Jh=!1;Kh=0;nk.current=null;if(null===c||null===c.return){T=1;pk=b;Y=null;break}a:{var f=a,g=c.return,h=c,k=b;b=Z;h.flags|=32768;if(nu…",
+          "m.lanes=r.lanes):(m.updateQueue=null,m.memoizedState=null)}var y=Ui(g);if(null!==y){y.flags\u0026=-257;Vi(y,g,h,f,b);y.mode\u00261\u0026\u0026Si(f,l,b);b=y;k=l;var n=b.updateQueue;if(null===n){var t=new Set;t.add(k);b.updateQueue=t}else n.add(k);break a}else{if(0===(b\u00261)){Si(f,l,b);tj();break a}k=Error(p(426))}}else if…",
+          "b\u0026=-b;f.lanes|=b;var x=Ni(f,k,b);ph(f,x);break a;case 1:h=k;var w=f.type,u=f.stateNode;if(0===(f.flags\u0026128)\u0026\u0026(\"function\"===typeof w.getDerivedStateFromError||null!==u\u0026\u0026\"function\"===typeof u.componentDidCatch\u0026\u0026(null===Ri||!Ri.has(u)))){f.flags|=65536;b\u0026=-b;f.lanes|=b;var F=Qi(f,h,b);ph(f,F);break a}}…"
+        ],
+        "line": "function tj(){if(0===T||3===T||2===T)T=4;null===Q||0===(rh\u0026268435455)\u0026\u00260===(qk\u0026268435455)||Ck(Q,Z)}function Ik(a,b){var c=K;K|=2;var d=Jk();if(Q!==a||Z!==b)uk=null,Kk(a,b);do try{Tk();break}catch(e){Mk(a,e)}while(1);$g();K=c;mk.current=d;if(null!==Y)throw Error(p(261));Q=null;Z=0;return T}function T…",
+        "post": [
+          "function Sk(a){var b=a;do{var c=b.alternate;a=b.return;if(0===(b.flags\u002632768)){if(c=Ej(c,b,fj),null!==c){Y=c;return}}else{c=Ij(c,b);if(null!==c){c.flags\u0026=32767;Y=c;return}if(null!==a)a.flags|=32768,a.subtreeFlags=0,a.deletions=null;else{T=6;Y=null;return}}b=b.sibling;if(null!==b){Y=b;return}Y=b=a}wh…",
+          "function Wk(a,b,c,d){do Hk();while(null!==wk);if(0!==(K\u00266))throw Error(p(327));c=a.finishedWork;var e=a.finishedLanes;if(null===c)return null;a.finishedWork=null;a.finishedLanes=0;if(c===a.current)throw Error(p(177));a.callbackNode=null;a.callbackPriority=0;var f=c.lanes|c.childLanes;Bc(a,f);a===Q\u0026\u0026…",
+          "var g=C;C=1;var h=K;K|=4;nk.current=null;Oj(a,c);dk(c,a);Oe(Df);dd=!!Cf;Df=Cf=null;a.current=c;hk(c,a,e);dc();K=h;C=g;ok.transition=f}else a.current=c;vk\u0026\u0026(vk=!1,wk=a,xk=e);f=a.pendingLanes;0===f\u0026\u0026(Ri=null);mc(c.stateNode,d);Dk(a,B());if(null!==b)for(d=a.onRecoverableError,c=0;c\u003cb.length;c++)e=b[c],…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 39723,
+        "function": "ko"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 279,
+        "column": 180,
+        "function": "tj"
+      },
+      "context": {
+        "pre": [
+          "function Mk(a,b){do{var c=Y;try{$g();Fh.current=Rh;if(Ih){for(var d=M.memoizedState;null!==d;){var e=d.queue;null!==e\u0026\u0026(e.pending=null);d=d.next}Ih=!1}Hh=0;O=N=M=null;Jh=!1;Kh=0;nk.current=null;if(null===c||null===c.return){T=1;pk=b;Y=null;break}a:{var f=a,g=c.return,h=c,k=b;b=Z;h.flags|=32768;if(nu…",
+          "m.lanes=r.lanes):(m.updateQueue=null,m.memoizedState=null)}var y=Ui(g);if(null!==y){y.flags\u0026=-257;Vi(y,g,h,f,b);y.mode\u00261\u0026\u0026Si(f,l,b);b=y;k=l;var n=b.updateQueue;if(null===n){var t=new Set;t.add(k);b.updateQueue=t}else n.add(k);break a}else{if(0===(b\u00261)){Si(f,l,b);tj();break a}k=Error(p(426))}}else if…",
+          "b\u0026=-b;f.lanes|=b;var x=Ni(f,k,b);ph(f,x);break a;case 1:h=k;var w=f.type,u=f.stateNode;if(0===(f.flags\u0026128)\u0026\u0026(\"function\"===typeof w.getDerivedStateFromError||null!==u\u0026\u0026\"function\"===typeof u.componentDidCatch\u0026\u0026(null===Ri||!Ri.has(u)))){f.flags|=65536;b\u0026=-b;f.lanes|=b;var F=Qi(f,h,b);ph(f,F);break a}}…"
+        ],
+        "line": "function tj(){if(0===T||3===T||2===T)T=4;null===Q||0===(rh\u0026268435455)\u0026\u00260===(qk\u0026268435455)||Ck(Q,Z)}function Ik(a,b){var c=K;K|=2;var d=Jk();if(Q!==a||Z!==b)uk=null,Kk(a,b);do try{Tk();break}catch(e){Mk(a,e)}while(1);$g();K=c;mk.current=d;if(null!==Y)throw Error(p(261));Q=null;Z=0;return T}function T…",
+        "post": [
+          "function Sk(a){var b=a;do{var c=b.alternate;a=b.return;if(0===(b.flags\u002632768)){if(c=Ej(c,b,fj),null!==c){Y=c;return}}else{c=Ij(c,b);if(null!==c){c.flags\u0026=32767;Y=c;return}if(null!==a)a.flags|=32768,a.subtreeFlags=0,a.deletions=null;else{T=6;Y=null;return}}b=b.sibling;if(null!==b){Y=b;return}Y=b=a}wh…",
+          "function Wk(a,b,c,d){do Hk();while(null!==wk);if(0!==(K\u00266))throw Error(p(327));c=a.finishedWork;var e=a.finishedLanes;if(null===c)return null;a.finishedWork=null;a.finishedLanes=0;if(c===a.current)throw Error(p(177));a.callbackNode=null;a.callbackPriority=0;var f=c.lanes|c.childLanes;Bc(a,f);a===Q\u0026\u0026…",
+          "var g=C;C=1;var h=K;K|=4;nk.current=null;Oj(a,c);dk(c,a);Oe(Df);dd=!!Cf;Df=Cf=null;a.current=c;hk(c,a,e);dc();K=h;C=g;ok.transition=f}else a.current=c;vk\u0026\u0026(vk=!1,wk=a,xk=e);f=a.pendingLanes;0===f\u0026\u0026(Ri=null);mc(c.stateNode,d);Dk(a,B());if(null!==b)for(d=a.onRecoverableError,c=0;c\u003cb.length;c++)e=b[c],…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 36050,
+        "function": "Ql"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 270,
+        "column": 88,
+        "function": "Nk"
+      },
+      "context": {
+        "pre": [
+          "function Gk(a,b){Ak=-1;Bk=0;if(0!==(K\u00266))throw Error(p(327));var c=a.callbackNode;if(Hk()\u0026\u0026a.callbackNode!==c)return null;var d=uc(a,a===Q?Z:0);if(0===d)return null;if(0!==(d\u002630)||0!==(d\u0026a.expiredLanes)||b)b=Ik(a,d);else{b=d;var e=K;K|=2;var f=Jk();if(Q!==a||Z!==b)uk=null,Gj=B()+500,Kk(a,b);do try{L…",
+          "else{e=a.current.alternate;if(0===(d\u002630)\u0026\u0026!Ok(e)\u0026\u0026(b=Ik(a,d),2===b\u0026\u0026(f=xc(a),0!==f\u0026\u0026(d=f,b=Nk(a,f))),1===b))throw c=pk,Kk(a,0),Ck(a,d),Dk(a,B()),c;a.finishedWork=e;a.finishedLanes=d;switch(b){case 0:case 1:throw Error(p(345));case 2:Pk(a,tk,uk);break;case 3:Ck(a,d);if((d\u0026130023424)===d\u0026\u0026(b=fk+500-B(…",
+          "d)break;b=a.eventTimes;for(e=-1;0\u003cd;){var g=31-oc(d);f=1\u003c\u003cg;g=b[g];g\u003ee\u0026\u0026(e=g);d\u0026=~f}d=e;d=B()-d;d=(120\u003ed?120:480\u003ed?480:1080\u003ed?1080:1920\u003ed?1920:3E3\u003ed?3E3:4320\u003ed?4320:1960*lk(d/1960))-d;if(10\u003cd){a.timeoutHandle=Ff(Pk.bind(null,a,tk,uk),d);break}Pk(a,tk,uk);break;case 5:Pk(a,tk,uk);break;default:throw …"
+        ],
+        "line": "function Nk(a,b){var c=sk;a.current.memoizedState.isDehydrated\u0026\u0026(Kk(a,b).flags|=256);a=Ik(a,b);2!==a\u0026\u0026(b=tk,tk=c,null!==b\u0026\u0026Fj(b));return a}function Fj(a){null===tk?tk=a:tk.push.apply(tk,a)}",
+        "post": [
+          "function Ok(a){for(var b=a;;){if(b.flags\u002616384){var c=b.updateQueue;if(null!==c\u0026\u0026(c=c.stores,null!==c))for(var d=0;d\u003cc.length;d++){var e=c[d],f=e.getSnapshot;e=e.value;try{if(!He(f(),e))return!1}catch(g){return!1}}}c=b.child;if(b.subtreeFlags\u002616384\u0026\u0026null!==c)c.return=b,b=c;else{if(b===a)break;for(;n…",
+          "function Ck(a,b){b\u0026=~rk;b\u0026=~qk;a.suspendedLanes|=b;a.pingedLanes\u0026=~b;for(a=a.expirationTimes;0\u003cb;){var c=31-oc(b),d=1\u003c\u003cc;a[c]=-1;b\u0026=~d}}function Ek(a){if(0!==(K\u00266))throw Error(p(327));Hk();var b=uc(a,0);if(0===(b\u00261))return Dk(a,B()),null;var c=Ik(a,b);if(0!==a.tag\u0026\u00262===c){var d=xc(a);0!==d\u0026\u0026(b=d,c=N…",
+          "function Qk(a,b){var c=K;K|=1;try{return a(b)}finally{K=c,0===K\u0026\u0026(Gj=B()+500,fg\u0026\u0026jg())}}function Rk(a){null!==wk\u0026\u00260===wk.tag\u0026\u00260===(K\u00266)\u0026\u0026Hk();var b=K;K|=1;var c=ok.transition,d=C;try{if(ok.transition=null,C=1,a)return a()}finally{C=d,ok.transition=c,K=b,0===(K\u00266)\u0026\u0026jg()}}function Hj(){fj=ej.current;E…"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 8,
+        "column": 36862,
+        "function": "oh"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 272,
+        "column": 300,
+        "function": "Ck"
+      },
+      "context": {
+        "pre": [
+          "d)break;b=a.eventTimes;for(e=-1;0\u003cd;){var g=31-oc(d);f=1\u003c\u003cg;g=b[g];g\u003ee\u0026\u0026(e=g);d\u0026=~f}d=e;d=B()-d;d=(120\u003ed?120:480\u003ed?480:1080\u003ed?1080:1920\u003ed?1920:3E3\u003ed?3E3:4320\u003ed?4320:1960*lk(d/1960))-d;if(10\u003cd){a.timeoutHandle=Ff(Pk.bind(null,a,tk,uk),d);break}Pk(a,tk,uk);break;case 5:Pk(a,tk,uk);break;default:throw …",
+          "function Nk(a,b){var c=sk;a.current.memoizedState.isDehydrated\u0026\u0026(Kk(a,b).flags|=256);a=Ik(a,b);2!==a\u0026\u0026(b=tk,tk=c,null!==b\u0026\u0026Fj(b));return a}function Fj(a){null===tk?tk=a:tk.push.apply(tk,a)}",
+          "function Ok(a){for(var b=a;;){if(b.flags\u002616384){var c=b.updateQueue;if(null!==c\u0026\u0026(c=c.stores,null!==c))for(var d=0;d\u003cc.length;d++){var e=c[d],f=e.getSnapshot;e=e.value;try{if(!He(f(),e))return!1}catch(g){return!1}}}c=b.child;if(b.subtreeFlags\u002616384\u0026\u0026null!==c)c.return=b,b=c;else{if(b===a)break;for(;n…"
+        ],
+        "line": "function Ck(a,b){b\u0026=~rk;b\u0026=~qk;a.suspendedLanes|=b;a.pingedLanes\u0026=~b;for(a=a.expirationTimes;0\u003cb;){var c=31-oc(b),d=1\u003c\u003cc;a[c]=-1;b\u0026=~d}}function Ek(a){if(0!==(K\u00266))throw Error(p(327));Hk();var b=uc(a,0);if(0===(b\u00261))return Dk(a,B()),null;var c=Ik(a,b);if(0!==a.tag\u0026\u00262===c){var d=xc(a);0!==d\u0026\u0026(b=d,c=N…",
+        "post": [
+          "function Qk(a,b){var c=K;K|=1;try{return a(b)}finally{K=c,0===K\u0026\u0026(Gj=B()+500,fg\u0026\u0026jg())}}function Rk(a){null!==wk\u0026\u00260===wk.tag\u0026\u00260===(K\u00266)\u0026\u0026Hk();var b=K;K|=1;var c=ok.transition,d=C;try{if(ok.transition=null,C=1,a)return a()}finally{C=d,ok.transition=c,K=b,0===(K\u00266)\u0026\u0026jg()}}function Hj(){fj=ej.current;E…",
+          "function Kk(a,b){a.finishedWork=null;a.finishedLanes=0;var c=a.timeoutHandle;-1!==c\u0026\u0026(a.timeoutHandle=-1,Gf(c));if(null!==Y)for(c=Y.return;null!==c;){var d=c;wg(d);switch(d.tag){case 1:d=d.type.childContextTypes;null!==d\u0026\u0026void 0!==d\u0026\u0026$f();break;case 3:zh();E(Wf);E(H);Eh();break;case 5:Bh(d);break;ca…",
+          "0;b\u003cfh.length;b++)if(c=fh[b],d=c.interleaved,null!==d){c.interleaved=null;var e=d.next,f=c.pending;if(null!==f){var g=f.next;f.next=e;d.next=g}c.pending=d}fh=null}return a}"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    },
+    {
+      "status": "mapped",
+      "generated": {
+        "file": "http://localhost:14173/assets/index-CGNPO9Y4.js",
+        "line": 6,
+        "column": 3273,
+        "function": "Ln"
+      },
+      "original": {
+        "file": "node_modules/react-dom/cjs/react-dom.production.min.js",
+        "line": 127,
+        "column": 105,
+        "function": "jg"
+      },
+      "context": {
+        "pre": [
+          "function E(a){0\u003eTf||(a.current=Sf[Tf],Sf[Tf]=null,Tf--)}function G(a,b){Tf++;Sf[Tf]=a.current;a.current=b}var Vf={},H=Uf(Vf),Wf=Uf(!1),Xf=Vf;function Yf(a,b){var c=a.type.contextTypes;if(!c)return Vf;var d=a.stateNode;if(d\u0026\u0026d.__reactInternalMemoizedUnmaskedChildContext===b)return d.__reactInternalMe…",
+          "function Zf(a){a=a.childContextTypes;return null!==a\u0026\u0026void 0!==a}function $f(){E(Wf);E(H)}function ag(a,b,c){if(H.current!==Vf)throw Error(p(168));G(H,b);G(Wf,c)}function bg(a,b,c){var d=a.stateNode;b=b.childContextTypes;if(\"function\"!==typeof d.getChildContext)return c;d=d.getChildContext();for(var…",
+          "function cg(a){a=(a=a.stateNode)\u0026\u0026a.__reactInternalMemoizedMergedChildContext||Vf;Xf=H.current;G(H,a);G(Wf,Wf.current);return!0}function dg(a,b,c){var d=a.stateNode;if(!d)throw Error(p(169));c?(a=bg(a,b,Xf),d.__reactInternalMemoizedMergedChildContext=a,E(Wf),E(H),G(H,a)):E(Wf);G(Wf,c)}var eg=null,fg…"
+        ],
+        "line": "function jg(){if(!gg\u0026\u0026null!==eg){gg=!0;var a=0,b=C;try{var c=eg;for(C=1;a\u003cc.length;a++){var d=c[a];do d=d(!0);while(null!==d)}eg=null;fg=!1}catch(e){throw null!==eg\u0026\u0026(eg=eg.slice(a+1)),ac(fc,jg),e;}finally{C=b,gg=!1}}return null}var kg=[],lg=0,mg=null,ng=0,og=[],pg=0,qg=null,rg=1,sg=\"\";function tg(a…",
+        "post": [
+          "function ug(a,b,c){og[pg++]=rg;og[pg++]=sg;og[pg++]=qg;qg=a;var d=rg;a=sg;var e=32-oc(d)-1;d\u0026=~(1\u003c\u003ce);c+=1;var f=32-oc(b)+e;if(30\u003cf){var g=e-e%5;f=(d\u0026(1\u003c\u003cg)-1).toString(32);d\u003e\u003e=g;e-=g;rg=1\u003c\u003c32-oc(b)+e|c\u003c\u003ce|d;sg=f+a}else rg=1\u003c\u003cf|c\u003c\u003ce|d,sg=a}function vg(a){null!==a.return\u0026\u0026(tg(a,1),ug(a,1,0))}function…",
+          "function Ag(a,b){var c=Bg(5,null,null,0);c.elementType=\"DELETED\";c.stateNode=b;c.return=a;b=a.deletions;null===b?(a.deletions=[c],a.flags|=16):b.push(c)}",
+          "function Cg(a,b){switch(a.tag){case 5:var c=a.type;b=1!==b.nodeType||c.toLowerCase()!==b.nodeName.toLowerCase()?null:b;return null!==b?(a.stateNode=b,xg=a,yg=Lf(b.firstChild),!0):!1;case 6:return b=\"\"===a.pendingProps||3!==b.nodeType?null:b,null!==b?(a.stateNode=b,xg=a,yg=null,!0):!1;case 13:return …"
+        ]
+      },
+      "debug_id": "e4c8baa1-61a9-410a-9594-ff94ed5d25d7"
+    }
+  ],
+  "stacktrace": "Error: chaos: render error caught by the error boundary\n    at RenderBomb (src/components/ChaosPanel.tsx:18:20)\n    at Nh (node_modules/react-dom/cjs/react-dom.production.min.js:160:137)\n    at gj (node_modules/react-dom/cjs/react-dom.production.min.js:196:258)\n    at Vk (node_modules/react-dom/cjs/react-dom.production.min.js:291:88)\n    at tj (node_modules/react-dom/cjs/react-dom.production.min.js:279:389)\n    at tj (node_modules/react-dom/cjs/react-dom.production.min.js:279:320)\n    at tj (node_modules/react-dom/cjs/react-dom.production.min.js:279:180)\n    at Nk (node_modules/react-dom/cjs/react-dom.production.min.js:270:88)\n    at Ck (node_modules/react-dom/cjs/react-dom.production.min.js:272:300)\n    at jg (node_modules/react-dom/cjs/react-dom.production.min.js:127:105)"
+}
