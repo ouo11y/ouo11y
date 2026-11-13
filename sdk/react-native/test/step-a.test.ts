@@ -592,3 +592,46 @@ describe("propagation (PRP-3, PRP-6)", () => {
     expect(captured.spans.filter((s) => s.name === "HTTP GET")).toHaveLength(2);
   });
 });
+
+describe("replay drops are reported as ouo.sdk.dropped (ERR-7)", () => {
+  afterEach(() => {
+    delete g.expo;
+  });
+
+  it("the native counters that are drops arrive with signal replay, as deltas, once per flush", async () => {
+    const counters: Record<string, number> = { "replay.frames_dropped": 3, "replay.evicted": 1, "replay.chunks": 40, "replay.accepted": 39 };
+    const replayDiagnostics = vi.fn(() => ({ ...counters }));
+    g.expo = { modules: { OuoReplay: { ...nativeReplay, replayDiagnostics } } };
+    const { rum, captured } = await start({ replay: { enabled: true } });
+    await rum.flush();
+    expect(replayDiagnostics).toHaveBeenCalled();
+    expect(drops(captured).sort()).toEqual(["replay/frame_dropped=3", "replay/outbox_evicted=1"]);
+    // Only what is new is counted again; a counter that went down (a new stream) counts whole.
+    counters["replay.frames_dropped"] = 5;
+    counters["replay.evicted"] = 1;
+    counters["replay.store_refused"] = 1;
+    await rum.flush();
+    expect(drops(captured).sort()).toEqual(["replay/frame_dropped=2", "replay/frame_dropped=3", "replay/outbox_evicted=1", "replay/store_refused=1"]);
+    counters["replay.frames_dropped"] = 1;
+    await rum.flush();
+    expect(drops(captured).filter((d) => d.startsWith("replay/frame_dropped")).sort()).toEqual(["replay/frame_dropped=1", "replay/frame_dropped=2", "replay/frame_dropped=3"]);
+  });
+
+  it("read on a timer while replay is on; never without a native module", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const replayDiagnostics = vi.fn(() => ({ "replay.events_dropped": 2 }));
+      g.expo = { modules: { OuoReplay: { ...nativeReplay, replayDiagnostics } } };
+      const { rum } = await start({ replay: { enabled: true } });
+      const before = replayDiagnostics.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(DROP_REPORT_INTERVAL_MS * 3 + 10);
+      expect(replayDiagnostics.mock.calls.length - before).toBeGreaterThanOrEqual(3);
+      await rum._uninstall();
+      const after = replayDiagnostics.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(DROP_REPORT_INTERVAL_MS * 3);
+      expect(replayDiagnostics.mock.calls.length).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -15,7 +15,7 @@ import { appAttributes, isReservedName, primitiveAttributes } from "./attributes
 import { normalizeOptions } from "./config";
 import { ConsentStorage } from "./consent";
 import { crashMarker, createNativeCrashCapture, isReactNativeFatal, nativeCrashAttributes, type NativeCrashModule } from "./crash";
-import { DROP_EVENT, DropCounter } from "./drops";
+import { DROP_EVENT, DROP_REPORT_INTERVAL_MS, DropCounter } from "./drops";
 import { exceptionAttributes, serializeError } from "./errors/classify";
 import {
   CONTEXT_STORAGE_KEY,
@@ -246,6 +246,12 @@ function build(
   // Every record the SDK drops, by signal and reason (ERR-7); reported as `ouo.sdk.dropped` below.
   const drops = new DropCounter();
   hooks.push(() => drops.stop());
+  /** Replay's drops are counted natively (ERR-7): read once per report interval while replay is on. */
+  let replayDropsTimer: ReturnType<typeof setTimeout> | undefined;
+  hooks.push(() => {
+    clearTimeout(replayDropsTimer);
+    replayDropsTimer = undefined;
+  });
 
   // Late-bound: the session manager emits session events through this.
   let events: EventEmitter;
@@ -380,6 +386,16 @@ function build(
     ],
   });
   events = new EventEmitter(loggerProvider.getLogger(SDK_NAME, SDK_VERSION), logger);
+  const readReplayDrops = (): void => {
+    for (const d of replay.takeDrops()) drops.count("replay", d.reason, d.count);
+  };
+  if (replay.mode !== undefined) {
+    const poll = (): void => {
+      readReplayDrops();
+      replayDropsTimer = setTimeout(guard.wrap("timer.replay-drops", poll), DROP_REPORT_INTERVAL_MS);
+    };
+    replayDropsTimer = setTimeout(guard.wrap("timer.replay-drops", poll), DROP_REPORT_INTERVAL_MS);
+  }
   drops.onReport((list) => {
     // Without a valid session the report would be dropped itself: kept until there is one.
     if (!session.active()) return false;
@@ -467,6 +483,7 @@ function build(
 
   const flushOnce = async (): Promise<void> => {
     session.persistNow();
+    guard.run("flush.replay-drops", readReplayDrops);
     drops.flush();
     await Promise.all([tracerProvider.forceFlush(), loggerProvider.forceFlush(), replay.flush()]);
     // The batches are persisted by now; this tries to send them (and what earlier runs left).
@@ -681,6 +698,7 @@ function build(
     // Each step on its own: one that fails must not keep the others from running.
     if (end) guard.run("shutdown.session", () => session.shutdown());
     guard.run("shutdown.persist", () => session.stop());
+    guard.run("shutdown.replay-drops", readReplayDrops);
     guard.run("shutdown.drops", () => drops.flush());
     const exported = guard.run("shutdown.export", () => Promise.all([tracerProvider.shutdown(), loggerProvider.shutdown(), replayFlushed]).then(() => undefined), RESOLVED);
     // `end`: one deadline for the whole flush (`transport.shutdownDeadlineMs`). Else the shutdown

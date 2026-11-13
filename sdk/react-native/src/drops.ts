@@ -13,7 +13,8 @@ export const DROP_EVENT = "ouo.sdk.dropped";
 /** How often counts are reported, at most: the log batcher's flush interval. */
 export const DROP_REPORT_INTERVAL_MS = 1000;
 
-export type DropSignal = "log" | "span" | "attribute";
+/** `replay`: session replay records, counted by the native module and read by `replayDrops` in `index.ts`. */
+export type DropSignal = "log" | "span" | "attribute" | "replay";
 
 export type DropReason =
   /** The batch queue in memory was full. */
@@ -39,7 +40,13 @@ export type DropReason =
   /** The offline store could not be used: the records are in memory only (they are sent, but a kill loses them). */
   | "persistence_failed"
   /** The SDK disabled itself after too many internal errors. */
-  | "self_disabled";
+  | "self_disabled"
+  /** Replay: a look at the screen was not recorded (masking failed closed, PRV-8, or encoding failed). */
+  | "frame_dropped"
+  /** Replay: an event left out of a chunk (before a segment's keyframe, or malformed). */
+  | "event_dropped"
+  /** Replay: the disk queue refused a record, and capture stopped (RPL-18). */
+  | "store_refused";
 
 export interface DropCount {
   signal: DropSignal;

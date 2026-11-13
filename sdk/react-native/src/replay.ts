@@ -77,9 +77,25 @@ export interface NativeReplayModule {
    * delete.
    */
   discardPending?(): Promise<void>;
-  /** What replay dropped or could not do in this process, by reason. */
+  /** What replay dropped or could not do in this process, by reason (cumulative counters). */
   replayDiagnostics?(): Record<string, number>;
 }
+
+/**
+ * The native counters that are records replay dropped (ERR-7), and the `ouo.sdk.drop.reason`
+ * each is reported under with signal `replay`. The other counters (`replay.chunks`,
+ * `replay.accepted`, option problems) are not drops.
+ */
+export const REPLAY_DROP_REASONS = {
+  "replay.frames_dropped": "frame_dropped",
+  "replay.events_dropped": "event_dropped",
+  "replay.store_refused": "store_refused",
+  "replay.rejected_status": "rejected_status",
+  "replay.partial_rejected": "partial_rejected",
+  "replay.evicted": "outbox_evicted",
+} as const;
+
+export type ReplayDropReason = (typeof REPLAY_DROP_REASONS)[keyof typeof REPLAY_DROP_REASONS];
 
 export const NATIVE_MODULE_NAME = "OuoReplay";
 
@@ -287,6 +303,11 @@ export interface ReplayController {
   end(): void;
   /** Replay consent changed: false stops the recorder and deletes what was not sent, true starts it for the current session. */
   setAllowed(allowed: boolean): void;
+  /**
+   * What replay dropped since the last call, by reason (ERR-7), from the native counters. A
+   * counter that went down started over (a new stream after a rotation): its whole value is new.
+   */
+  takeDrops(): Array<{ reason: ReplayDropReason; count: number }>;
 }
 
 export function createReplayController(opts: ReplayControllerOptions): ReplayController {
@@ -373,6 +394,9 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
   });
 
   const hiddenReason = (): "screen" | "manual" => (screenHidden ? "screen" : "manual");
+
+  /** The native counters as last read by `takeDrops`. */
+  const lastDrops = new Map<string, number>();
 
   const startNative = (sessionId: string): void => {
     if (!native || active) return;
@@ -554,6 +578,21 @@ export function createReplayController(opts: ReplayControllerOptions): ReplayCon
       showing = undefined;
       pendingStart = undefined;
       stopNative("endSession");
+    },
+    takeDrops(): Array<{ reason: ReplayDropReason; count: number }> {
+      const out: Array<{ reason: ReplayDropReason; count: number }> = [];
+      if (!native) return out;
+      const counters = call("replayDiagnostics");
+      if (!counters || typeof counters !== "object") return out;
+      for (const [key, reason] of Object.entries(REPLAY_DROP_REASONS)) {
+        const value = (counters as Record<string, unknown>)[key];
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 0) continue;
+        const before = lastDrops.get(key) ?? 0;
+        lastDrops.set(key, value);
+        const count = value >= before ? value - before : value;
+        if (count > 0) out.push({ reason, count });
+      }
+      return out;
     },
     setAllowed(next: boolean): void {
       if (next === allowed) return;
