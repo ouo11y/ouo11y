@@ -14,6 +14,10 @@
  *
  * An event that cannot be masked is dropped (PRV-8), and a keyframe is taken so the recording
  * stays decodable.
+ *
+ * A keyframe is rrweb's Meta event with the full snapshot that follows it. When recording starts
+ * before the page's `load`, rrweb emits DomContentLoaded and Load first and snapshots after them:
+ * the engine discards what comes before the first keyframe.
  */
 import { record } from "rrweb";
 import { attempt, point } from "../guard";
