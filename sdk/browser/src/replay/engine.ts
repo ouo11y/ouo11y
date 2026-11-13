@@ -135,8 +135,11 @@ export class ReplayEngine {
   private unloading = false;
   private retryTimer: TimerHandle | null = null;
   private partial = false;
-  /** Data is discarded until the next keyframe (after a gap or a loss, RPL-8). */
-  private needKeyframe = false;
+  /**
+   * Data is discarded until the next keyframe: at the start of the stream, so chunk 0 is a
+   * keyframe whatever the format emits first (RPL-6), and after a gap or a loss (RPL-8).
+   */
+  private needKeyframe = true;
   private ended = false;
   private running = false;
   private releaseLock: (() => void) | undefined;

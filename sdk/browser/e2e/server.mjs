@@ -14,7 +14,10 @@ import { createServer, request } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { extname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
+// rrweb's own build, for the tests that play a recording back (its Replayer).
+const RRWEB = fileURLToPath(import.meta.resolve("rrweb"));
 const root = resolve(new URL("..", import.meta.url).pathname);
 const PAGE_PORT = Number(process.env.OUO_E2E_PAGE_PORT ?? 4180);
 const COLLECTOR_PORT = Number(process.env.OUO_E2E_COLLECTOR_PORT ?? PAGE_PORT + 1);
@@ -60,12 +63,13 @@ createServer((req, res) => {
     return;
   }
   // Server-rendered page stand-in: /ssr.html?traceparent=... writes the meta tag.
-  let file = url.pathname.startsWith("/dist/") ? join(root, url.pathname) : join(root, "e2e/pages", url.pathname === "/" ? "app.html" : url.pathname);
+  let file = url.pathname === "/rrweb.js" ? RRWEB : url.pathname.startsWith("/dist/") ? join(root, url.pathname) : join(root, "e2e/pages", url.pathname === "/" ? "app.html" : url.pathname);
   if (!existsSync(file) || statSync(file).isDirectory()) file = join(root, "e2e/pages/app.html");
   res.setHeader("content-type", types[extname(file)] ?? "application/octet-stream");
   res.setHeader("cache-control", "no-store");
   if (CSP[url.pathname]) res.setHeader("content-security-policy", CSP[url.pathname]);
-  createReadStream(file).pipe(res);
+  // ?delay= holds a file back: a page that is still loading (early.html).
+  setTimeout(() => createReadStream(file).pipe(res), Number(url.searchParams.get("delay") ?? 0));
 }).listen(PAGE_PORT, () => console.log(`e2e pages http://localhost:${PAGE_PORT}`));
 
 createServer((req, res) => {
