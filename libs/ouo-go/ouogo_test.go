@@ -93,7 +93,7 @@ func (f *fakeMuninn) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case base + "/" + replay:
 		// Muninn gzips JSON when the request accepts it.
 		w.Header().Set("Content-Encoding", "gzip")
-		_, _ = w.Write(gz([]byte(`{"session_id":"` + sess + `","replay_id":"` + replay + `","project":"demo","state":"complete","streams":[{"stream_id":"` + stream + `","state":"complete","end":null,"missing":[],"chunks":[{"sequence":0,"keyframe":true,"format":"rrweb/2","encoding":"gzip","attributes":{"ouo.replay.masked":true},"path":"/x"}]}]}`)))
+		_, _ = w.Write(gz([]byte(`{"session_id":"` + sess + `","replay_id":"` + replay + `","project":"demo","state":"complete","streams":[{"stream_id":"` + stream + `","state":"complete","end":null,"missing":[],"chunks":[{"sequence":0,"keyframe":true,"format":"rrweb/2","encoding":"gzip","attributes":{"ouo.replay.masked":true,"enduser.id":"user-42"},"path":"/x"}]}]}`)))
 	case base + "/" + replay + "/streams/" + stream + "/chunks/0":
 		if r.Header.Get("Accept-Encoding") != "gzip" {
 			http.Error(w, "want Accept-Encoding gzip", http.StatusBadRequest)
@@ -135,6 +135,7 @@ func TestResolve(t *testing.T) {
 		{"bob", "Superuser", None},
 		{"alice", "Viewer", C4},    // user entry wins, upward
 		{"mallory", "Admin", None}, // and downward
+		{"Alice", "Viewer", C4},    // logins compare without case, as Grafana's do
 	}
 	for _, c := range cases {
 		if got := Resolve(cfg, c.login, c.role).Level; got != c.want {
@@ -149,13 +150,13 @@ func TestResolve(t *testing.T) {
 
 func TestLevelJSON(t *testing.T) {
 	var cfg ClearanceConfig
-	if err := json.Unmarshal([]byte(`{"roles":{"Viewer":"c2","Editor":4},"users":{"a":"C5"}}`), &cfg); err != nil {
+	if err := json.Unmarshal([]byte(`{"roles":{"Viewer":2,"Editor":4},"users":{"a":5}}`), &cfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Roles["Viewer"] != C2 || cfg.Roles["Editor"] != C4 || cfg.Users["a"] != C5 {
 		t.Fatalf("got %+v", cfg)
 	}
-	for _, bad := range []string{`{"roles":{"Viewer":6}}`, `{"roles":{"Viewer":"admin"}}`, `{"roles":{"Viewer":-1}}`} {
+	for _, bad := range []string{`{"roles":{"Viewer":6}}`, `{"roles":{"Viewer":"c3"}}`, `{"roles":{"Viewer":-1}}`, `{"roles":{"Viewer":1.5}}`} {
 		if err := json.Unmarshal([]byte(bad), &cfg); err == nil {
 			t.Errorf("%s: want an error", bad)
 		}
@@ -166,15 +167,15 @@ func TestLevelJSON(t *testing.T) {
 // the BFF's answers are present. A change to `levels` must change this table.
 func TestLevelsAgainstFields(t *testing.T) {
 	type seen struct {
-		list, timeline, attributes, body, identityAttr, user, replays, manifest, chunk bool
+		list, timeline, attributes, body, identityAttr, user, replays, manifest, chunk, chunkIdentity bool
 	}
 	want := map[Level]seen{
 		None: {},
 		C1:   {list: true, timeline: true},
 		C2:   {list: true, timeline: true, attributes: true, body: true},
 		C3:   {list: true, timeline: true, attributes: true, body: true, replays: true, manifest: true, chunk: true},
-		C4:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true},
-		C5:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true},
+		C4:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true},
+		C5:   {list: true, timeline: true, attributes: true, body: true, identityAttr: true, user: true, replays: true, manifest: true, chunk: true, chunkIdentity: true},
 	}
 	ctx := context.Background()
 	for lv := None; lv <= C5; lv++ {
@@ -216,6 +217,10 @@ func TestLevelsAgainstFields(t *testing.T) {
 		m, err := c.GetManifest(ctx, cl, proj, sess, replay)
 		if err == nil {
 			got.manifest = len(m.Streams) == 1 && m.Streams[0].Chunks[0].Keyframe
+			got.chunkIdentity = m.Streams[0].Chunks[0].Attributes["enduser.id"] != nil
+			if m.Streams[0].Chunks[0].Attributes["ouo.replay.masked"] != true {
+				t.Errorf("%v: non-identity chunk attribute lost", lv)
+			}
 		} else if !errors.Is(err, ErrForbidden) {
 			t.Fatalf("%v: manifest: %v", lv, err)
 		}
@@ -312,5 +317,39 @@ func TestNotFound(t *testing.T) {
 	var be *BackendError
 	if _, err := c.GetManifest(ctx, Clearance{Level: C5}, proj, sess, replay); !errors.As(err, &be) {
 		t.Errorf("wrong token: %v", err)
+	}
+}
+
+func TestSentryBridgeUserAndTruncation(t *testing.T) {
+	// A session from the Sentry bridge carries user.id, not enduser.id.
+	a := &sessionAgg{}
+	a.add(lokiLine{Time: time.Unix(1, 0), Labels: map[string]string{"user_id": "sentry-user"}})
+	if got := (Clearance{Level: C4}).session(a).User; got != "sentry-user" {
+		t.Errorf("user from user.id: %q", got)
+	}
+	if got := (Clearance{Level: C3}).session(a).User; got != "" {
+		t.Errorf("c3 sees the user: %q", got)
+	}
+	c, _, _ := newClient(t)
+	c.EventLimit = 3
+	d, err := c.GetSession(context.Background(), Clearance{Level: C1}, proj, sess, TimeRange{})
+	if err != nil || !d.Truncated {
+		t.Errorf("a session at the event limit must say truncated: %v %+v", err, d)
+	}
+	c.EventLimit = 4
+	if d, _ := c.GetSession(context.Background(), Clearance{Level: C1}, proj, sess, TimeRange{}); d.Truncated {
+		t.Errorf("truncated below the limit")
+	}
+}
+
+func TestReplaysErrorIsGeneric(t *testing.T) {
+	c, _, _ := newClient(t)
+	c.Muninn.ReadToken = "wrong"
+	d, err := c.GetSession(context.Background(), Clearance{Level: C5}, proj, sess, TimeRange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.ReplaysError != "replays could not be read" || d.ReplaysErr == nil || strings.Contains(d.ReplaysError, "http") {
+		t.Errorf("replays error %q / %v", d.ReplaysError, d.ReplaysErr)
 	}
 }

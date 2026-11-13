@@ -70,6 +70,8 @@ export interface SessionDetail {
   /** null without replay clearance (c3). */
   replays: ReplaySummary[] | null;
   replays_error?: string;
+  /** More events in the range than one read returns. */
+  truncated: boolean;
   redacted: FieldGroup[];
 }
 

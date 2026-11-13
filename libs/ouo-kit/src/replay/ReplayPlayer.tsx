@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { ChunkFetcher, Manifest, StreamEntry } from '../api';
+import type { ChunkEntry, ChunkFetcher, Manifest } from '../api';
 import { parseNdjson, playableRuns, primaryStream } from './assemble';
 import { formatInfo } from './formats';
 import { RrwebPlayer } from './RrwebPlayer';
@@ -25,8 +25,9 @@ type Loaded =
  */
 export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: ReplayPlayerProps) {
   const streams = useMemo(() => manifest.streams ?? [], [manifest]);
-  const [streamId, setStreamId] = useState<string | undefined>(() => primaryStream(streams)?.stream_id);
-  const stream = streams.find((s) => s.stream_id === streamId);
+  // The picked stream, or the primary one: a new manifest without the picked stream falls back.
+  const [streamId, setStreamId] = useState<string>();
+  const stream = streams.find((s) => s.stream_id === streamId) ?? primaryStream(streams);
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
 
   useEffect(() => {
@@ -38,13 +39,14 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
     }
     const runs = playableRuns(stream);
     const format = runs[0]?.[0]?.format ?? stream.chunks?.[0]?.format ?? '';
+    const streamId = stream.stream_id;
     const info = formatInfo(format);
     if (!info.renderer) {
       set({ state: 'unplayable', message: `Stored, not playable here: ${info.reason}.` });
       return;
     }
     set({ state: 'loading' });
-    loadStructure(stream, runs.flat().map((c) => c.sequence), fetchChunk)
+    loadStructure(runs, (seq) => fetchChunk(streamId, seq))
       .then((events) => set({ state: 'ready', events }))
       .catch((err: unknown) => set({ state: 'error', message: err instanceof Error ? err.message : String(err) }));
     return () => {
@@ -57,7 +59,7 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
       {streams.length > 1 && (
         <label>
           Stream{' '}
-          <select value={streamId} onChange={(e) => setStreamId(e.target.value)}>
+          <select value={stream?.stream_id} onChange={(e) => setStreamId(e.target.value)}>
             {streams.map((s, i) => (
               <option key={s.stream_id} value={s.stream_id}>
                 {i + 1}: {new Date(s.start_time).toLocaleTimeString()} ({s.state}, {s.chunks?.length ?? 0} chunks)
@@ -74,19 +76,15 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
   );
 }
 
-/** Fetches the chunks of the stream's runs, a few at a time, and parses them per run. */
-async function loadStructure(stream: StreamEntry, sequences: number[], fetchChunk: ChunkFetcher): Promise<unknown[]> {
+/** Fetches the chunks of the runs, a few at a time, and parses them run by run. */
+async function loadStructure(runs: ChunkEntry[][], fetch: (seq: number) => Promise<ArrayBuffer>): Promise<unknown[]> {
   const bodies = new Map<number, ArrayBuffer>();
-  const queue = [...sequences];
+  const queue = runs.flat().map((c) => c.sequence);
   const worker = async () => {
     for (let seq = queue.shift(); seq !== undefined; seq = queue.shift()) {
-      bodies.set(seq, await fetchChunk(stream.stream_id, seq));
+      bodies.set(seq, await fetch(seq));
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
-  const events: unknown[] = [];
-  for (const run of playableRuns(stream)) {
-    events.push(...parseNdjson(run.map((c) => bodies.get(c.sequence)!)));
-  }
-  return events;
+  return runs.flatMap((run) => parseNdjson(run.map((c) => bodies.get(c.sequence)!)));
 }

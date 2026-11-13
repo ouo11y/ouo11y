@@ -48,6 +48,10 @@ PASS  viewer: manifest and chunk answer 403  (manifest 403, chunk 403: {"error":
 
 Screenshots (admin session page with the replay at its end, the five rows replayed; Viewer page with "Replays are hidden by your clearance") and every BFF response the Viewer received are in [reports/2026-11-13-e2e.html](../reports/2026-11-13-e2e.html). The MVP route proxy still answers 200 with the backend in place.
 
+## Review round
+
+A fresh-context review subagent reviewed PR #189 (the app refused to start a second session from this turn) and answered `Review: changes needed` with 17 findings. Fixed: chunk attributes in the manifest are stripped of identity below c4 (it was a leak at c3), the session user falls back to `user.id` (Sentry bridge), `GetSession` says `truncated` at its event limit, logins compare without case, backend failures answer "<store> could not be read" with the detail in Grafana's log, answers are `no-store`, plus the simplifications (Level is an integer only, `queryVector` and `sessionAgg` slimmer, no `Dispose`, runs computed once, URL defaults only in code, a Refresh button, a stream picker that follows a new manifest, Go caches kept by the Docker build). The ADR documents that a login override can be claimed by renaming a login. Kept: one lockfile per e2e folder, as every `tests/e2e/*` folder has. After the fixes: Go, Vitest, Jest (210), lint, typecheck, lychee and the e2e (14/14, PR #187 SDK) pass again.
+
 ## What is left
 
 - The founder's answers to ADR-0023 Q1 to Q10.

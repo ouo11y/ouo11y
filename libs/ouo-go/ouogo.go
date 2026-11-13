@@ -44,7 +44,10 @@ type BackendError struct {
 }
 
 func (e *BackendError) Error() string { return e.Backend + ": " + e.Err.Error() }
-func (e *BackendError) Unwrap() error { return e.Err }
+
+// Public is the message a caller may show a user: no URLs, queries or store answers.
+func (e *BackendError) Public() string { return e.Backend + " could not be read" }
+func (e *BackendError) Unwrap() error  { return e.Err }
 
 var (
 	reHex32   = regexp.MustCompile(`^[0-9a-f]{32}$`)
@@ -139,8 +142,12 @@ type SessionDetail struct {
 	Events  []Event         `json:"events"`
 	Replays []ReplaySummary `json:"replays"`
 	// ReplaysError is set when Muninn could not be read; the timeline is still answered.
-	ReplaysError string   `json:"replays_error,omitempty"`
-	Redacted     []string `json:"redacted"`
+	// ReplaysErr holds the detail for the caller's log; it is never serialised.
+	ReplaysError string `json:"replays_error,omitempty"`
+	ReplaysErr   error  `json:"-"`
+	// Truncated: the session has more events in the range than one read returns (EventLimit).
+	Truncated bool     `json:"truncated"`
+	Redacted  []string `json:"redacted"`
 }
 
 // SessionQuery filters ListSessions.
@@ -156,7 +163,6 @@ const replaySelector = `event_name!~"ouo[.]replay[.]chunk"`
 // sessionAgg accumulates one session's summary from its records.
 type sessionAgg struct {
 	Session
-	user string
 }
 
 func (a *sessionAgg) add(l lokiLine) {
@@ -174,8 +180,12 @@ func (a *sessionAgg) add(l lokiLine) {
 	if a.Service == "" {
 		a.Service = l.Labels["service_name"]
 	}
-	if u := l.Labels["enduser_id"]; u != "" {
-		a.user = u
+	// enduser.id from the SDKs (setUser); user.id from the Sentry bridge.
+	for _, k := range []string{"enduser_id", "user_id"} {
+		if u := l.Labels[k]; u != "" {
+			a.User = u
+			break
+		}
 	}
 }
 
@@ -193,9 +203,8 @@ func isError(labels map[string]string) bool {
 // session returns the summary this clearance may see.
 func (c Clearance) session(a *sessionAgg) Session {
 	s := a.Session
-	s.User = ""
-	if c.Can().Identity {
-		s.User = a.user
+	if !c.Can().Identity {
+		s.User = ""
 	}
 	return s
 }
@@ -237,7 +246,7 @@ func (c *Client) ListSessions(ctx context.Context, cl Clearance, q SessionQuery)
 	// Replay hint: sessions with chunk reference records in the range.
 	hint := `sum by (ouo_project_id, session_id) (count_over_time({ouo_project_id` + project +
 		`, event_name="ouo.replay.chunk"} [` + fmt.Sprintf("%ds", int(to.Sub(from).Seconds())) + `]))`
-	if series, _, err := c.Loki.queryVector(ctx, hint, to); err == nil {
+	if series, err := c.Loki.queryVector(ctx, hint, to); err == nil {
 		for _, m := range series {
 			if a := aggs[[2]string{m["ouo_project_id"], m["session_id"]}]; a != nil {
 				a.HasReplay = true
@@ -273,7 +282,8 @@ func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session 
 		return nil, err
 	}
 	logql := `{ouo_project_id="` + project + `", ` + replaySelector + `} | session_id="` + session + `"`
-	lines, err := c.Loki.queryRange(ctx, logql, from, to, orDefault(c.EventLimit, 5000), false)
+	limit := orDefault(c.EventLimit, 5000)
+	lines, err := c.Loki.queryRange(ctx, logql, from, to, limit, false)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +291,7 @@ func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session 
 		return nil, ErrNotFound
 	}
 	agg := &sessionAgg{Session: Session{Project: project, ID: session}}
-	out := &SessionDetail{Events: make([]Event, 0, len(lines)), Redacted: cl.redactedGroups()}
+	out := &SessionDetail{Events: make([]Event, 0, len(lines)), Truncated: len(lines) >= limit, Redacted: cl.redactedGroups()}
 	for _, l := range lines {
 		agg.add(l)
 		out.Events = append(out.Events, cl.event(l))
@@ -289,7 +299,8 @@ func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session 
 	if cl.Can().Replay {
 		replays, err := c.Muninn.listReplays(ctx, project, session)
 		if err != nil {
-			out.ReplaysError = err.Error()
+			// The detail (URLs, store answers) is for the caller's log, not for the browser.
+			out.ReplaysError, out.ReplaysErr = "replays could not be read", err
 		} else {
 			out.Replays = replays
 			agg.HasReplay = len(replays) > 0
@@ -327,7 +338,24 @@ func (c *Client) GetManifest(ctx context.Context, cl Clearance, project, session
 	if err := checkReplayIDs(project, session, replay); err != nil {
 		return nil, err
 	}
-	return c.Muninn.manifest(ctx, project, session, replay)
+	m, err := c.Muninn.manifest(ctx, project, session, replay)
+	if err != nil {
+		return nil, err
+	}
+	// Muninn returns every stored chunk attribute (MUN-6); an SDK or a bridge may have put
+	// identity there.
+	if !cl.Can().Identity {
+		for i := range m.Streams {
+			for j := range m.Streams[i].Chunks {
+				for k := range m.Streams[i].Chunks[j].Attributes {
+					if isIdentity(strings.ReplaceAll(k, ".", "_")) {
+						delete(m.Streams[i].Chunks[j].Attributes, k)
+					}
+				}
+			}
+		}
+	}
+	return m, nil
 }
 
 // GetChunk returns one chunk's bytes, decompressed. Needs Replay clearance.

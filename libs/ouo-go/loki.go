@@ -107,32 +107,27 @@ func (l *Loki) queryRange(ctx context.Context, logql string, from, to time.Time,
 	return out, nil
 }
 
-// queryVector runs an instant metric query and returns each series' labels and value.
-func (l *Loki) queryVector(ctx context.Context, logql string, at time.Time) ([]map[string]string, []float64, error) {
+// queryVector runs an instant metric query and returns each series' labels.
+func (l *Loki) queryVector(ctx context.Context, logql string, at time.Time) ([]map[string]string, error) {
 	q := url.Values{"query": {logql}, "time": {strconv.FormatInt(at.UnixNano(), 10)}}
 	a, err := l.get(ctx, "/loki/api/v1/query", q)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if a.Data.ResultType != "vector" {
-		return nil, nil, &BackendError{Backend: "loki", Err: fmt.Errorf("want vector, got %q", a.Data.ResultType)}
+		return nil, &BackendError{Backend: "loki", Err: fmt.Errorf("want vector, got %q", a.Data.ResultType)}
 	}
 	var series []struct {
 		Metric map[string]string `json:"metric"`
-		Value  [2]any            `json:"value"`
 	}
 	if err := json.Unmarshal(a.Data.Result, &series); err != nil {
-		return nil, nil, &BackendError{Backend: "loki", Err: fmt.Errorf("decode vector: %w", err)}
+		return nil, &BackendError{Backend: "loki", Err: fmt.Errorf("decode vector: %w", err)}
 	}
 	labels := make([]map[string]string, 0, len(series))
-	values := make([]float64, 0, len(series))
 	for _, s := range series {
-		str, _ := s.Value[1].(string)
-		f, _ := strconv.ParseFloat(str, 64)
 		labels = append(labels, s.Metric)
-		values = append(values, f)
 	}
-	return labels, values, nil
+	return labels, nil
 }
 
 func client(c *http.Client) *http.Client {

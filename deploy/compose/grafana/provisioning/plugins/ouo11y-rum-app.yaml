@@ -9,9 +9,11 @@
 # development value). It must equal rum-api's OUO_READ_TOKEN. Secure fields are
 # write-only: the settings API reports `secureJsonFields: {readToken: true}`.
 #
-# The plugin's backend (the BFF, ADR-0023) reads Loki and Muninn directly: lokiUrl,
-# muninnUrl, muninnTenant and secureJsonData.muninnReadToken (${OUO_MUNINN_READ_TOKEN}, set
-# by compose.muninn.yaml; empty without --muninn, when the explorer shows no replays).
+# The plugin's backend (the BFF, ADR-0023) reads Loki and Muninn directly. Its URLs and tenant
+# default to this stack's (lokiUrl http://loki:3100, muninnUrl http://muninn:3400,
+# muninnTenant anonymous; set them in jsonData elsewhere). secureJsonData.muninnReadToken is
+# ${OUO_MUNINN_READ_TOKEN}, set by compose.muninn.yaml; empty without --muninn, when the
+# explorer shows no replays.
 # clearance maps Grafana users to Clearance levels 0-5: by login (users) first, then by
 # org role (roles); anyone in neither gets 0 and sees nothing.
 #
@@ -27,9 +29,6 @@ apps:
     jsonData:
       rumApiUrl: http://rum-api:8080
       featureToggles: "${OUO_FEATURE_TOGGLES_ENABLE}"
-      lokiUrl: http://loki:3100
-      muninnUrl: http://muninn:3400
-      muninnTenant: anonymous
       clearance:
         roles:
           Viewer: 1

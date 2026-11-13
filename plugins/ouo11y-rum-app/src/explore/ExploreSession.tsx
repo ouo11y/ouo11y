@@ -47,6 +47,11 @@ export default function ExploreSession() {
               {detail.data.session.user && <Badge color="purple" text={`user ${detail.data.session.user}`} />}
             </Stack>
             <ClearanceNote me={me.data} redacted={detail.data.redacted} />
+            {detail.data.truncated && (
+              <Alert severity="warning" title="Partial timeline">
+                This session has more events than one read returns; the latest ones are not shown.
+              </Alert>
+            )}
             <div className={styles.columns}>
               <section className={styles.timeline} data-testid="explore-timeline">
                 <h4>Timeline</h4>

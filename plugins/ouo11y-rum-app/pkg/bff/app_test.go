@@ -116,3 +116,19 @@ func mustClearance(t *testing.T, s string) ouogo.ClearanceConfig {
 	}
 	return c
 }
+
+func TestBackendErrorsStayInTheLog(t *testing.T) {
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal detail http://secret-host:9000", http.StatusInternalServerError)
+	}))
+	defer down.Close()
+	a := New(Settings{LokiURL: down.URL, MuninnURL: down.URL}, "tok")
+	admin := &backend.User{Login: "a", Role: "Admin"}
+	for _, p := range []string{"/v1/sessions", "/v1/projects/demo/sessions/" + sess + "/replays/" + sess} {
+		st, b := call(t, a, admin, p)
+		msg, _ := b["error"].(string)
+		if st != 502 || strings.Contains(msg, "secret-host") || strings.Contains(msg, down.URL) || !strings.HasSuffix(msg, "could not be read") {
+			t.Errorf("%s: %d %q", p, st, msg)
+		}
+	}
+}

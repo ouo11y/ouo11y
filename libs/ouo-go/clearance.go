@@ -54,26 +54,11 @@ func (l Level) Can() Capabilities {
 
 func (l Level) String() string { return "c" + strconv.Itoa(int(l)) }
 
-// UnmarshalJSON accepts 3 or "c3".
+// UnmarshalJSON accepts an integer from 0 to 5.
 func (l *Level) UnmarshalJSON(b []byte) error {
 	var n int
-	if err := json.Unmarshal(b, &n); err == nil {
-		return l.set(n)
-	}
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("clearance level: want 0-5 or \"c0\"-\"c5\", got %s", b)
-	}
-	n, err := strconv.Atoi(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(s)), "c"))
-	if err != nil {
-		return fmt.Errorf("clearance level: want 0-5 or \"c0\"-\"c5\", got %q", s)
-	}
-	return l.set(n)
-}
-
-func (l *Level) set(n int) error {
-	if n < int(None) || n > int(C5) {
-		return fmt.Errorf("clearance level %d out of range 0-5", n)
+	if err := json.Unmarshal(b, &n); err != nil || n < int(None) || n > int(C5) {
+		return fmt.Errorf("clearance level: want an integer 0-5, got %s", b)
 	}
 	*l = Level(n)
 	return nil
@@ -99,12 +84,16 @@ type Clearance struct {
 func (c Clearance) Can() Capabilities { return c.Level.Can() }
 
 // Resolve finds a user's level (ADR-0023 section 4.2). Deny by default: a user who is in
-// neither map gets 0.
+// neither map gets 0. Logins compare without case, as Grafana's do.
 func Resolve(cfg ClearanceConfig, login, role string) Clearance {
 	c := Clearance{Login: login, Role: role}
-	if lv, ok := cfg.Users[login]; ok && login != "" {
-		c.Level = lv
-		return c
+	if login != "" {
+		for u, lv := range cfg.Users {
+			if strings.EqualFold(u, login) {
+				c.Level = lv
+				return c
+			}
+		}
 	}
 	roles := cfg.Roles
 	if roles == nil {

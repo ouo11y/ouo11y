@@ -35,8 +35,6 @@ type App struct {
 	clearance ouogo.ClearanceConfig
 }
 
-var _ instancemgmt.InstanceDisposer = (*App)(nil)
-
 // NewApp builds an instance from the app settings Grafana passes.
 func NewApp(_ context.Context, s backend.AppInstanceSettings) (instancemgmt.Instance, error) {
 	var cfg Settings
@@ -76,9 +74,6 @@ func New(cfg Settings, muninnReadToken string) *App {
 	a.CallResourceHandler = httpadapter.New(mux)
 	return a
 }
-
-// Dispose is called when the settings change and a new instance replaces this one.
-func (a *App) Dispose() {}
 
 // clearanceOf resolves the calling user's level. No user (should not happen through
 // Grafana) is level 0.
@@ -128,6 +123,9 @@ func (a *App) session(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, err)
 		return
 	}
+	if out.ReplaysErr != nil {
+		log.DefaultLogger.FromContext(r.Context()).Error("replay list failed", "path", r.URL.Path, "error", out.ReplaysErr.Error())
+	}
 	writeJSON(w, out)
 }
 
@@ -154,7 +152,8 @@ func (a *App) chunk(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("X-Ouo-Replay-Format", out.Format)
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	// no-store: a lowered Clearance level must take effect at once, also for bytes already seen.
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(out.Body)
 }
 
@@ -185,18 +184,19 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func writeErr(w http.ResponseWriter, r *http.Request, err error) {
-	status := http.StatusInternalServerError
+	// Users see the status and a short message; URLs, queries and store answers go to the log.
+	status, msg := http.StatusInternalServerError, "internal error"
 	var bad *ouogo.BadRequestError
 	var be *ouogo.BackendError
 	switch {
 	case errors.Is(err, ouogo.ErrForbidden):
-		status = http.StatusForbidden
+		status, msg = http.StatusForbidden, err.Error()
 	case errors.Is(err, ouogo.ErrNotFound):
-		status = http.StatusNotFound
+		status, msg = http.StatusNotFound, err.Error()
 	case errors.As(err, &bad):
-		status = http.StatusBadRequest
+		status, msg = http.StatusBadRequest, err.Error()
 	case errors.As(err, &be):
-		status = http.StatusBadGateway
+		status, msg = http.StatusBadGateway, be.Public()
 	}
 	if status >= 500 {
 		log.DefaultLogger.FromContext(r.Context()).Error("resource request failed", "path", r.URL.Path, "error", err.Error())
@@ -204,5 +204,5 @@ func writeErr(w http.ResponseWriter, r *http.Request, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }

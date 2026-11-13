@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { css } from '@emotion/css';
 import { type GrafanaTheme2 } from '@grafana/data';
 import { PluginPage } from '@grafana/runtime';
-import { Alert, Badge, EmptyState, LoadingPlaceholder, RadioButtonGroup, Stack, useStyles2 } from '@grafana/ui';
+import { Alert, Badge, Button, EmptyState, LoadingPlaceholder, RadioButtonGroup, Stack, useStyles2 } from '@grafana/ui';
 import { PLUGIN_BASE_URL, ROUTES } from '../constants';
 import { bff, useBff } from './bff';
 import { ClearanceNote } from './ClearanceNote';
@@ -34,7 +34,12 @@ export default function ExploreSessions() {
     <PluginPage>
       <Stack direction="column" gap={2}>
         <Stack justifyContent="space-between" alignItems="center">
-          <RadioButtonGroup options={RANGES} value={range} onChange={(v) => setWindow({ range: v, to: Date.now() })} />
+          <Stack gap={1}>
+            <RadioButtonGroup options={RANGES} value={range} onChange={(v) => setWindow({ range: v, to: Date.now() })} />
+            <Button variant="secondary" icon="sync" onClick={() => setWindow({ range, to: Date.now() })}>
+              Refresh
+            </Button>
+          </Stack>
           {me.data && <Badge color="blue" text={`Clearance c${me.data.level}`} />}
         </Stack>
         <ClearanceNote me={me.data} redacted={list.data?.redacted} />

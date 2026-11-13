@@ -37,19 +37,20 @@ What exists: `plugins/ouo11y-rum-app` is MVP code, a frontend only. It reads MVP
 
 ## 3. The BFF API
 
-Resource paths, all `GET`, all JSON unless stated, all under `/api/plugins/ouo11y-rum-app/resources/v1`. The version is in the path; a breaking change adds `v2` beside it. Errors are `{"error": "<message>"}` with 400 (bad identifier or time), 403 (Clearance too low), 404, or 502 (a backend failed). Times are milliseconds since the epoch.
+Resource paths, all `GET`, all JSON unless stated, all under `/api/plugins/ouo11y-rum-app/resources/v1`. The version is in the path; a breaking change adds `v2` beside it. Errors are `{"error": "<message>"}` with 400 (bad identifier or time), 403 (Clearance too low), 404, or 502 (a backend failed; the message names the store only, the detail goes to Grafana's log). Answers carry `Cache-Control: no-store`, so a lowered level takes effect at once. Times are milliseconds since the epoch.
 
 | Path | Answer | Needs |
 |---|---|---|
-| `/me` | `{login, role, level, can: {attributes, replay, identity}}` | any signed-in user; level 0 answers too, so the UI can explain itself |
+| `/me` | `{login, role, level, can: {timeline, attributes, replay, identity}}` | any signed-in user; level 0 answers too, so the UI can explain itself |
 | `/sessions?from&to&project&limit` | `{sessions: [Session], truncated, redacted: [...]}` | c1 |
 | `/projects/{project}/sessions/{session}?from&to` | `{session: Session, events: [Event], replays: [Replay] \| null, redacted: [...]}` | c1 |
-| `/projects/{project}/sessions/{session}/replays/{replay}` | The Muninn manifest (spec 7.2), each chunk's `path` rewritten to the BFF's chunk path | c3 |
+| `/projects/{project}/sessions/{session}/replays/{replay}` | The Muninn manifest (spec 7.2) without the chunks' `path` (a reader builds the BFF chunk path from the ids), and without identity attributes on chunks below c4 | c3 |
 | `/projects/{project}/sessions/{session}/replays/{replay}/streams/{stream}/chunks/{sequence}` | The chunk's bytes, **decompressed** when its encoding is `gzip`, with `X-Ouo-Replay-Format` | c3 |
 
 Types (Go structs in `ouo-go`, mirrored in `libs/ouo-kit/src/api.ts`):
 
-- `Session`: `project`, `id`, `service`, `start`, `end`, `event_count`, `error_count`, `has_replay` (a hint from Loki reference records, RDR-1), `user` (c4).
+- `Session`: `project`, `id`, `service`, `start`, `end`, `event_count`, `error_count`, `has_replay` (a hint from Loki reference records, RDR-1), `user` (c4; `enduser.id`, else `user.id` as the Sentry bridge writes it).
+- `SessionDetail.truncated`: the session has more events in the range than one read returns.
 - `Event`: `time`, `name`, `severity`, `view_id`, `trace_id`, `span_id`, `attributes` (c2), `body` (c2).
 - `Replay`: Muninn's list entry (spec 7.1).
 - `redacted`: the names of the field groups Clearance removed from this answer (`attributes`, `replay`, `identity`), so the UI can say "hidden by your clearance" instead of "none".
@@ -77,7 +78,7 @@ The capabilities of each level are one table in `ouo-go` (`clearance.go`), so re
 
 Grafana passes the calling user (login and org role) to the backend with every request. The level is:
 
-1. the user's entry in `clearance.users` (by login), if there is one, else
+1. the user's entry in `clearance.users` (by login, without case, as Grafana compares logins), if there is one, else
 2. the role's entry in `clearance.roles`, else
 3. **0**.
 
@@ -94,6 +95,7 @@ Both maps are in the plugin's settings (`jsonData.clearance`), provisioned like 
 - **It cannot redact inside a recording.** A chunk is shown whole or not at all. Text, inputs and images in an rrweb chunk are as masked as the SDK made them at record time (PRV-5 to PRV-8), no more. Redacting inside a chunk means parsing each format in the BFF; the decompress step of section 3 is the place it will go.
 - **It does not find personal data inside values.** Identity is a list of attribute names. A URL or an exception message that contains an email address is shown at c2.
 - **It is per Grafana org, not per project.** A user's level applies to every project the plugin can read (Q9).
+- **A login is not a strong identity.** Overrides are keyed by login, and the map is readable (next point). Where users may change their own login (Grafana's default for local users), a user can rename themselves to a login listed with a higher level that no one holds. Use overrides only for logins that exist, prefer roles, or let an identity provider own the logins. Teams or user ids (Q2) close this.
 - **Its configuration is not secret.** Grafana gives every signed-in user the plugin's `jsonData`, so the level map, logins included, is readable by Viewers. It holds no data and no credential; the Muninn token is in `secureJsonData`.
 - **It does not cover Grafana's own Explore.** A user who can query the Loki datasource directly sees what Loki holds. Clearance protects the plugin's API; operators restrict the datasources to Admins (or remove them) where that matters (Q3).
 
