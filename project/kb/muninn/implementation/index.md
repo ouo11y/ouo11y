@@ -1,6 +1,6 @@
 # Muninn: building it
 
-What was learned building `services/muninn` and `deploy/compose/collector/config.muninn.yaml` (agent [muninn-build](../../../agents/muninn-build/index.md)). The design itself (ADR-0019, `docs/specs/muninn.md`, `project/kb/muninn/collector-path/`) is in PR #180.
+What was learned building `services/muninn` and `deploy/compose/collector/config.muninn.yaml` (agent [muninn-build](../../../agents/muninn-build/index.md)). The design itself: [ADR-0019](../../../../docs/adr/0019-collector-to-muninn.md), [docs/specs/muninn.md](../../../../docs/specs/muninn.md), [collector-path/](../collector-path/index.md).
 
 | Entry | What it answers |
 |---|---|

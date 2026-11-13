@@ -4,6 +4,8 @@
 
 Versions: Sentry self-hosted 26.10.0. Research date 2026-11-10. Every rule below cites an observation or source in the sibling entries. This is a recipe, not a decision; Muninn's design (Step 8) decides.
 
+**Decided direction (2026-11-11, [ADR-0019](../../../../../docs/adr/0019-collector-to-muninn.md) section 9, proposed):** Muninn does not call vendor APIs. This recipe is input for a Sentry reader in the plugin BFF (`ouo-go`); read "Muninn" below as "the BFF library".
+
 ## Facts the recipe rests on
 
 | # | Fact | Evidence |

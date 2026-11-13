@@ -2,7 +2,7 @@
 
 ouo's replay store. The OTel Collector sends it replay chunk records over OTLP/HTTP; it keeps one immutable object per chunk in S3-compatible storage (or a directory) and serves them to the plugin's back end. No database, no stored index: keys are laid out by tenant, project, session and replay, and a replay's manifest is computed from one listing.
 
-Design: ADR-0019 "Collector to Muninn" and the spec `docs/specs/muninn.md`, both in pull request #180 (proposed, not merged yet). This module implements that draft spec on the recommended answers to its open questions Q1 to Q15; the summary [2026-11-13-muninn-build.md](../../project/agents/muninn-build/summaries/2026-11-13-muninn-build.md) lists where the code depends on each one.
+Design: [ADR-0019](../../docs/adr/0019-collector-to-muninn.md) "Collector to Muninn" (proposed) and the spec [docs/specs/muninn.md](../../docs/specs/muninn.md) (draft). This module implements that draft spec on the recommended answers to its open questions Q1 to Q15; the summary [2026-11-13-muninn-build.md](../../project/agents/muninn-build/summaries/2026-11-13-muninn-build.md) lists where the code depends on each one.
 
 ## What it serves
 

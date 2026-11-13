@@ -1,4 +1,3 @@
-| [muninn/](muninn/index.md) | Muninn, the replay store: what building it and its Collector config taught (read-path gzip pitfalls, ocb and MinIO quirks, which Collector points running it settled) |
 # Knowledge base
 
 The knowledge base for the post-MVP work. Entries live in descriptive topic folders, `project/kb/<area>/<subject>/<topic>.md`, and every folder has an `index.md`. Add one line here for every new area.
@@ -13,3 +12,4 @@ MVP-era knowledge is in [kb-archive](../kb-archive/index.md). It was mostly writ
 | [client-sdk-safety/](client-sdk-safety/index.md) | The golden rule, "the app must not pay for the SDK's failures", as a 61-item checklist with incidents, grades of our four SDKs, and the spec proposal for Step 7 |
 | [vendor-internals/](vendor-internals/index.md) | How Sentry, Datadog and PostHog work inside on web and mobile: SDK architecture and options, wire formats with captured fixtures, reliability, storage, and the read APIs Muninn can use, with HTML explainers |
 | [client-sdk-web/](client-sdk-web/index.md) | How `@ouo11y/browser` is built after its rebuild on the spec (ADR-0018): per-requirement compliance report, architecture, the replay format on the wire, and the OpenTelemetry JS and browser quirks met on the way |
+| [muninn/](muninn/index.md) | The replay store (step 8): how a replay chunk travels from an SDK through the Collector into Muninn and back to a player, what the Collector guarantees, with an HTML explainer; what building it and its Collector config taught (read-path gzip pitfalls, ocb and MinIO quirks) |

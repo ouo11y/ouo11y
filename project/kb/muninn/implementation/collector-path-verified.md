@@ -1,6 +1,6 @@
 # The stock Collector path to Muninn: what running it showed
 
-> The design (PR #180, `project/kb/muninn/collector-path/durable-handoff.md` on that branch) read the Collector v0.160 source and listed what still needed a test. What did building and running `deploy/compose/collector/config.muninn.yaml` settle, and what is still open?
+> The design ([durable-handoff.md](../collector-path/durable-handoff.md)) read the Collector v0.160 source and listed what still needed a test. What did building and running `deploy/compose/collector/config.muninn.yaml` settle, and what is still open?
 
 Checked on 2026-11-13 in ouo-env `muninn-collector-build-43a659` (ouo-collector 0.5.0 built from `collector/builder.yaml`, Muninn on MinIO), with `tests/e2e/muninn/run.mjs` and the logs of both services.
 
