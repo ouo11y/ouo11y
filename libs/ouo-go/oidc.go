@@ -34,7 +34,8 @@ type OIDC struct {
 
 	mu      sync.Mutex
 	keys    *jose.JSONWebKeySet
-	fetched time.Time
+	fetched time.Time // when keys were fetched
+	tried   time.Time // when a fetch was last attempted, successful or not
 }
 
 // Asymmetric algorithms only: with HS256 the "key" would be a secret the verifier must
@@ -45,8 +46,9 @@ const (
 	// oidcLeeway allows for clock difference between the provider and this host.
 	oidcLeeway = 30 * time.Second
 	// A token signed with a key id we do not hold makes us fetch the keys again (the
-	// provider rotated), but not more often than this: a forged kid must not become a
-	// request to the provider per call.
+	// provider rotated), but not more often than this, whether the last fetch worked or
+	// not: a forged kid, or a provider that is down, must not become a request (and a
+	// wait) per call.
 	jwksMinRefetch = time.Minute
 	// Keys are fetched again after this long, so a key the provider withdrew stops working.
 	jwksMaxAge = time.Hour
@@ -120,12 +122,8 @@ func (o *OIDC) key(ctx context.Context, kid string) (*jose.JSONWebKey, error) {
 		}
 		for i := range o.keys.Keys {
 			k := &o.keys.Keys[i]
-			// Public signing keys only; a token without a kid is accepted only when the
-			// provider publishes a single key.
-			if !k.IsPublic() || (k.Use != "" && k.Use != "sig") {
-				continue
-			}
-			if k.KeyID == kid || (kid == "" && len(o.keys.Keys) == 1) {
+			// Public signing keys only, matched by key id.
+			if k.KeyID == kid && k.IsPublic() && (k.Use == "" || k.Use == "sig") {
 				return k
 			}
 		}
@@ -137,9 +135,10 @@ func (o *OIDC) key(ctx context.Context, kid string) (*jose.JSONWebKey, error) {
 	if k := find(); k != nil {
 		return k, nil
 	}
-	if o.keys != nil && o.now().Sub(o.fetched) < jwksMinRefetch {
+	if !o.tried.IsZero() && o.now().Sub(o.tried) < jwksMinRefetch {
 		return nil, fmt.Errorf("oidc: no key %q", kid)
 	}
+	o.tried = o.now()
 	client := o.HTTP
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}

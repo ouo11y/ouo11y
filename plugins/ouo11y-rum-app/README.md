@@ -50,6 +50,14 @@ Backend resources, all `GET` under `/api/datasources/uid/ouo11y/resources/v1`: `
 | `secureJsonData.clearance` | a JSON object: `mode` (`groups` or `roles`), `groups` (identity-provider group to level 0-5; the highest of a user's groups wins), `roles` (Viewer, Editor, Admin to level). No user can read it back. No setting, or another mode: everyone is level 0 |
 | `secureJsonData.muninnReadToken` | Muninn's read token |
 
+For groups mode, get these right (ADR-0024):
+
+- Grafana signs users in with OIDC (`[auth.generic_oauth]`) and has `use_refresh_token = true`. Without it a user falls to level 0 when their ID token expires.
+- The groups are in the **ID token** (Keycloak: a group-membership mapper with "add to ID token").
+- `oidc.issuer` is the token's `iss` exactly, character for character; `oidc.audience` is Grafana's OAuth client id; `oidc.jwksUrl` is `https` unless Grafana and the provider share a private network.
+- Group names match exactly. A group change shows at the user's next sign-in or token refresh.
+- A Grafana org Admin can create datasources and so is outside Clearance.
+
 `ouo-env up <env> --muninn --idp` runs the stack with Keycloak and groups mode.
 
 | Level | Sees |

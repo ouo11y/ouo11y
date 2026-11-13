@@ -34,7 +34,7 @@ The secure setting `clearance` has a `mode` and two maps. Exactly one mode appli
 | `roles` | the level of the user's Grafana org role in `roles`. For a Grafana with no IdP: local development and the plain compose stack |
 | anything else, or no setting | 0 for everyone |
 
-Deny by default, at every step: no token, a token that fails any check, a group that is not in the map, no group at all, all give level 0. In `groups` mode the org role and the login are never read, so a Grafana Admin who did not sign in through the IdP has level 0 in the plugin. There is no default map: a stack that wants `roles` mode says so.
+Deny by default, at every step: no token, a token that fails any check, a group that is not in the map, no group at all, all give level 0. In `groups` mode the org role and the login are never read, so a Grafana Admin who did not sign in through the IdP has level 0 on the provisioned datasource (but see section 5: an Admin can make a datasource of their own). There is no default map: a stack that wants `roles` mode says so.
 
 **The per-login override is removed.** It was the one thing a user could claim by renaming themselves, and groups do its job: to give one person a level, put them in a group.
 
@@ -49,7 +49,7 @@ Deny by default, at every step: no token, a token that fails any check, a group 
 - `aud` contains the configured audience (the OAuth client id Grafana signs in with);
 - it has an `exp`, and it is not expired (30 seconds of leeway for clock difference) and not before its `nbf`.
 
-Keys are cached for an hour; an unknown key id refetches them at most once a minute, so a rotated key is picked up and a forged key id does not become a request per call. If the keys cannot be fetched and none are held, nothing verifies.
+A token must name its key (`kid`). Keys are cached for an hour; an unknown key id, or a provider that did not answer, makes at most one fetch a minute, so a rotated key is picked up and neither a forged key id nor a provider that is down becomes a request per call. If the keys cannot be fetched and none are held, nothing verifies.
 
 `X-Id-Token` is a request header, and a browser can send one. That is why the content of the header is worth nothing without the signature. For a user who signed in through the IdP, Grafana overwrites the header with the stored token.
 
@@ -73,10 +73,11 @@ This closes the gap ADR-0023 section 4.4 stated ("its configuration is not secre
 
 - **It needs an OIDC sign-in.** SAML is Enterprise. Auth-proxy and JWT sign-in have no forwarded ID token; they would use `X-Grafana-Id` with `id_use_external_groups_for_groups_claim`, a third mode that is not built.
 - **Groups must be in the ID token.** A provider that puts groups only in the access token or the userinfo answer needs a mapper (Keycloak: a group-membership mapper with "add to ID token"). Providers that send group ids (Entra ID) are mapped by id.
-- **A valid token of another user would be honoured.** A signed-in Grafana user with no IdP tokens of their own who presents another user's valid, unexpired ID token gets that user's level. Grafana keeps ID tokens on its server and never sends them to a browser, so this needs a theft from Grafana's database or from the network between Grafana and the IdP. Binding the token to the calling user (matching it against `X-Grafana-Id`) closes it and is not built.
+- **A Grafana org Admin is outside Clearance.** Whoever may create datasources can add a second `ouo11y-rum-datasource` instance with a `clearance` of their own choosing (roles mode, Admin at c5) and read through it; the review did exactly that. It is the same class as an Admin querying Loki in Explore (ADR-0023 section 4.4). Clearance separates Viewers and Editors from each other; it does not hold against the person who administers the Grafana org. Give the Admin role only to people cleared for everything.
+- **A valid token of another user would be honoured.** A signed-in Grafana user with no IdP tokens of their own who presents another user's valid, unexpired ID token gets that user's level (confirmed in review). Grafana never sends ID tokens to a browser. They can be obtained from Grafana's database, from the network between Grafana and the IdP, or by an Admin who points any `oauthPassThru` datasource at a server they control, which then receives users' tokens; that Admin is already outside Clearance by the point above. Binding the token to the calling user (matching it against `X-Grafana-Id`) closes it and is not built.
 - **A revoked group lives until the token expires**, as above.
 - **Grafana's own Explore is still outside Clearance** (ADR-0023 section 4.4), and Clearance is still per Grafana org, not per project.
-- **The nested datasource is a second unsigned plugin id.** `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` must list `ouo11y-rum-app,ouo11y-rum-datasource`; with only the first, the app loads and the Session explorer has no backend. The compose stack, the Grafana image and the chart's Grafana list both; the released quickstart file follows the released image and changes with the next plugin release.
+- **The nested datasource is a second unsigned plugin id.** `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS` must list `ouo11y-rum-app,ouo11y-rum-datasource`; with only the first, the app loads and the Session explorer has no backend. The compose stack, the Grafana image and the chart's Grafana list both. **The Helm chart does not provision the datasource or its settings yet**, so the Session explorer has no backend in a chart install until it does (Helm was out of scope here); the released quickstart file follows the released image and changes with the next plugin release.
 
 ## 6. What was built
 

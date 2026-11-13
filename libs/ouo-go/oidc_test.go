@@ -2,8 +2,11 @@ package ouogo
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -132,21 +135,21 @@ func TestOIDCRejects(t *testing.T) {
 	forgedPayload := b64(claims([]string{"privacy", "admins"}))
 
 	cases := map[string]string{
-		"no token":                         "",
-		"not a JWT":                        "privacy",
-		"expired":                          sign(t, p.key, p.kid, with("exp", testNow.Add(-time.Hour).Unix())),
-		"no expiry":                        sign(t, p.key, p.kid, with("exp", nil)),
-		"not valid yet":                    sign(t, p.key, p.kid, with("nbf", testNow.Add(time.Hour).Unix())),
-		"wrong issuer":                     sign(t, p.key, p.kid, with("iss", "https://evil.test/realms/ouo")),
-		"wrong audience":                   sign(t, p.key, p.kid, with("aud", "another-client")),
-		"no audience":                      sign(t, p.key, p.kid, with("aud", nil)),
-		"signed by another key, same kid":  sign(t, attacker, p.kid, claims([]string{"privacy"})),
-		"signed by another key, other kid": sign(t, attacker, "k2", claims([]string{"privacy"})),
-		"payload changed after signing":    parts[0] + "." + forgedPayload + "." + parts[2],
-		"signature removed":                parts[0] + "." + parts[1] + ".",
-		"alg none":                         b64(map[string]any{"alg": "none", "typ": "JWT"}) + "." + forgedPayload + ".",
-		"alg HS256 keyed with the public key": b64(map[string]any{"alg": "HS256", "typ": "JWT", "kid": p.kid}) + "." + forgedPayload + "." +
-			base64.RawURLEncoding.EncodeToString([]byte("forged")),
+		"no token":                            "",
+		"not a JWT":                           "privacy",
+		"expired":                             sign(t, p.key, p.kid, with("exp", testNow.Add(-time.Hour).Unix())),
+		"no expiry":                           sign(t, p.key, p.kid, with("exp", nil)),
+		"not valid yet":                       sign(t, p.key, p.kid, with("nbf", testNow.Add(time.Hour).Unix())),
+		"wrong issuer":                        sign(t, p.key, p.kid, with("iss", "https://evil.test/realms/ouo")),
+		"wrong audience":                      sign(t, p.key, p.kid, with("aud", "another-client")),
+		"no audience":                         sign(t, p.key, p.kid, with("aud", nil)),
+		"signed by another key, same kid":     sign(t, attacker, p.kid, claims([]string{"privacy"})),
+		"signed by another key, other kid":    sign(t, attacker, "k2", claims([]string{"privacy"})),
+		"payload changed after signing":       parts[0] + "." + forgedPayload + "." + parts[2],
+		"signature removed":                   parts[0] + "." + parts[1] + ".",
+		"alg none":                            b64(map[string]any{"alg": "none", "typ": "JWT"}) + "." + forgedPayload + ".",
+		"alg HS256 keyed with the public key": hs256(t, &p.key.PublicKey, b64(map[string]any{"alg": "HS256", "typ": "JWT", "kid": p.kid})+"."+forgedPayload),
+		"no key id":                           sign(t, p.key, "", claims([]string{"privacy"})),
 	}
 	for name, tok := range cases {
 		if got, err := p.verifier().Groups(ctx, tok); err == nil || got != nil {
@@ -163,6 +166,18 @@ func TestOIDCRejects(t *testing.T) {
 			t.Errorf("config %+v: groups %v, want an error", v, got)
 		}
 	}
+}
+
+// hs256 signs with the provider's public key as the HMAC secret: the algorithm-confusion attack.
+func hs256(t *testing.T, pub *rsa.PublicKey, signingInput string) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mac := hmac.New(sha256.New, der)
+	mac.Write([]byte(signingInput))
+	return signingInput + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func TestOIDCKeys(t *testing.T) {
@@ -195,9 +210,28 @@ func TestOIDCKeys(t *testing.T) {
 	if _, err := v.Groups(ctx, sign(t, old, "k1", c)); err == nil {
 		t.Errorf("a token signed with the withdrawn key verified")
 	}
-	// The provider is down and no keys are held: an error, not a pass.
-	down := &OIDC{Issuer: testIssuer, Audience: testAudience, JWKSURL: "http://127.0.0.1:1/certs", Now: v.Now}
-	if _, err := down.Groups(ctx, sign(t, p.key, p.kid, c)); err == nil {
-		t.Errorf("verified without keys")
+	// The provider is down and no keys are held: an error, not a pass, and one attempt a
+	// minute, not one per call.
+	attempts := 0
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	defer dead.Close()
+	down := &OIDC{Issuer: testIssuer, Audience: testAudience, JWKSURL: dead.URL, Now: v.Now}
+	for range 5 {
+		if _, err := down.Groups(ctx, sign(t, p.key, p.kid, c)); err == nil {
+			t.Errorf("verified without keys")
+		}
+	}
+	if attempts != 1 {
+		t.Errorf("provider down: %d fetches for 5 calls, want 1", attempts)
+	}
+	// It comes back: verified again after the interval.
+	down.JWKSURL = p.srv.URL
+	now = now.Add(2 * time.Minute)
+	c["exp"] = now.Add(time.Minute).Unix()
+	if _, err := down.Groups(ctx, sign(t, p.key, p.kid, c)); err != nil {
+		t.Errorf("provider back: %v", err)
 	}
 }

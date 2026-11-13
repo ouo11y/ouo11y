@@ -63,9 +63,18 @@ PASS  local Admin: level 0 in groups mode (the org role is not read)  ({"login":
 18/18 passed
 ```
 
+## Review round
+
+A fresh-context subagent reviewed PR #191 (the app refused to start a second session from this turn): `Review: changes needed`, 7 findings; the token check held against its attacks (HS256 keyed with the realm's public key, `alg: none` with the real key id, a changed payload, `master` realm tokens, the access token in `X-Id-Token`), and it confirmed the Grafana source reading. Fixed: a provider that is down is asked at most once a minute, not once per call (with a test); a token must name its key id (the "no kid, single key" rule is gone); the HS256 test makes the real attack; ADR-0024 section 5 now says a Grafana org Admin is outside Clearance (the reviewer created a second datasource instance in roles mode and read at c5) and how an ID token could be obtained for replay; the plugin README lists what an operator must get right (`use_refresh_token`, exact issuer, groups in the ID token); the ADR says the chart does not provision the datasource. Left as is: the Admin gap and token binding (documented, founder Q4), the chart's datasource (Helm out of scope).
+
+After the fixes: Go tests (also `-race`), `lychee`, and `clearance-idp.mjs` 18/18 on a fresh `clearidp`, and 18/18 again after recreating the Keycloak container. That second run exists because the first rerun failed at sign-in: a recreated Keycloak imported the realm with new user ids, and Grafana (users kept in its volume) refused them (`user.sync: user not found`). The realm file now gives the three users fixed ids.
+
+Envs: `clearroles` was removed after its run; `clearidp` was taken down with `ouo-env down clearidp --purge` at the end of the session. Nothing is left running.
+
 ## What is left, and what the next agent must know
 
 - **Founder**: ADR-0024 Q1 to Q5. Q1 is the one that matters: the BFF moved from the app's backend to a nested datasource's, because nothing else on open-source Grafana carries the user's IdP token.
+- **A Grafana org Admin is outside Clearance** (can add a datasource instance with its own mapping), like Explore in ADR-0023.
 - **Not built** (ADR-0024 section 5): binding the ID token to the calling Grafana user; a mode for auth-proxy or JWT sign-in; SAML (Enterprise); Helm values for the datasource and its settings (the chart only allows the second unsigned id).
 - **Tested on Keycloak only.** Another IdP may name the claim differently, send group ids, or put groups only in the access token.
 - **A stack that sets only `GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ouo11y-rum-app` loses the Session explorer's backend** once this plugin version is installed (the MVP pages keep working). The quickstart file and the example stacks pin released images and change with the next plugin release; their unsigned list needs the second id then.

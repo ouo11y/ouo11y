@@ -31,17 +31,17 @@
   ],
   "users": [
     {
-      "username": "lena", "email": "lena@ouo.test", "emailVerified": true, "enabled": true,
+      "id": "0e5f2c1a-6b1d-4c3e-9a70-000000000001", "username": "lena", "email": "lena@ouo.test", "emailVerified": true, "enabled": true,
       "firstName": "Lena", "lastName": "Support", "groups": ["/rum-support"],
       "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
     },
     {
-      "username": "omar", "email": "omar@ouo.test", "emailVerified": true, "enabled": true,
+      "id": "0e5f2c1a-6b1d-4c3e-9a70-000000000002", "username": "omar", "email": "omar@ouo.test", "emailVerified": true, "enabled": true,
       "firstName": "Omar", "lastName": "Privacy", "groups": ["/rum-privacy"],
       "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
     },
     {
-      "username": "nora", "email": "nora@ouo.test", "emailVerified": true, "enabled": true,
+      "id": "0e5f2c1a-6b1d-4c3e-9a70-000000000003", "username": "nora", "email": "nora@ouo.test", "emailVerified": true, "enabled": true,
       "firstName": "Nora", "lastName": "Nogroup",
       "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
     }
