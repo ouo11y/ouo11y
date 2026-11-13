@@ -30,7 +30,7 @@ func (s *FS) path(key string) string { return filepath.Join(s.root, filepath.Fro
 func (s *FS) Create(_ context.Context, key string, data []byte, _ map[string]string) error {
 	final := s.path(key)
 	dir := filepath.Dir(final)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := s.mkdirSynced(dir); err != nil {
 		return err
 	}
 	tmp, err := writeTemp(dir, data)
@@ -63,6 +63,30 @@ func (s *FS) Put(_ context.Context, key string, data []byte) error {
 		return err
 	}
 	return syncDir(dir)
+}
+
+// mkdirSynced creates dir like MkdirAll and syncs every directory whose entry it
+// added, so a new session's path survives a crash after the 2xx (MUN-16).
+func (s *FS) mkdirSynced(dir string) error {
+	if _, err := os.Stat(dir); err == nil {
+		return nil
+	}
+	var created []string
+	for d := dir; d != s.root && d != filepath.Dir(d); d = filepath.Dir(d) {
+		if _, err := os.Stat(d); err == nil {
+			break
+		}
+		created = append(created, d)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, d := range created {
+		if err := syncDir(filepath.Dir(d)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeTemp(dir string, data []byte) (string, error) {

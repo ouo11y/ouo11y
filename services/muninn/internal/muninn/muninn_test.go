@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,6 +47,9 @@ func iv(i int64) *commonpb.AnyValue {
 }
 func bv(b bool) *commonpb.AnyValue {
 	return &commonpb.AnyValue{Value: &commonpb.AnyValue_BoolValue{BoolValue: b}}
+}
+func dv(f float64) *commonpb.AnyValue {
+	return &commonpb.AnyValue{Value: &commonpb.AnyValue_DoubleValue{DoubleValue: f}}
 }
 
 type rec struct {
@@ -300,6 +304,9 @@ func TestRejections(t *testing.T) {
 		{"too large", scopeReplay, proj, "too_large", chunk(strm, 0, "rrweb/2", "identity", make([]byte, 1<<20+1))},
 		{"attr size", scopeReplay, proj, "bad_attribute", good.with("big", sv(strings.Repeat("a", 17<<10)))},
 		{"end state", scopeReplay, proj, "bad_attribute", ended(strm, "done", 3)},
+		{"nan", scopeReplay, proj, "bad_attribute", good.with("x", dv(math.NaN()))},
+		{"inf in end record", scopeReplay, proj, "bad_attribute", ended(strm, "complete", 0).with("x", dv(math.Inf(1)))},
+		{"nan in array", scopeReplay, proj, "bad_attribute", good.with("x", &commonpb.AnyValue{Value: &commonpb.AnyValue_ArrayValue{ArrayValue: &commonpb.ArrayValue{Values: []*commonpb.AnyValue{dv(math.NaN())}}}})},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -589,5 +596,30 @@ func TestReadGzip(t *testing.T) {
 	b, _ := io.ReadAll(zr)
 	if !strings.Contains(string(b), `"chunk_count":1`) {
 		t.Fatal(string(b))
+	}
+}
+
+// A stored object that cannot be decoded is skipped on reads (the rest of the session
+// stays readable) and turns a repeat of that chunk into a rejection, never a 503 the
+// Collector would retry for ever.
+func TestCorruptObject(t *testing.T) {
+	h := newHarness(t)
+	h.mustStore(chunk(strm, 0, "rrweb/2", "gzip", gz("a")), chunk(strm, 1, "rrweb/2", "gzip", gz("b")))
+	ctx := context.Background()
+	k := h.srv.keys.chunk("anonymous", proj, sess, rep, strm, 1)
+	_ = h.st.Delete(ctx, k)
+	_ = h.st.Create(ctx, k, []byte("garbage"), nil)
+	h.srv.headers = map[string]header{}
+	_ = h.st.Create(ctx, h.srv.keys.ended("anonymous", proj, sess, rep, strm2), []byte("{not json"), nil)
+	code, ri := h.manifest(rep)
+	if code != 200 || ri.ChunkCount != 1 {
+		t.Fatalf("manifest %d, %d chunks", code, ri.ChunkCount)
+	}
+	if w := h.get(fmt.Sprintf("/api/v1/projects/%s/sessions/%s/replays", proj, sess)); w.Code != 200 {
+		t.Fatalf("list %d", w.Code)
+	}
+	code, rej, msg := h.send(request(proj, scopeReplay, chunk(strm, 1, "rrweb/2", "gzip", gz("b"))))
+	if code != 200 || rej != 1 || !strings.HasPrefix(msg, "conflict:") {
+		t.Fatalf("repeat over a corrupt object: %d %d %q", code, rej, msg)
 	}
 }

@@ -96,6 +96,21 @@ None of these diverges from a MUST; each is a choice the spec leaves open, liste
 - **Helm** (out of scope here): a Muninn Deployment and ClusterIP Service on port 3400 with an S3 secret (bucket, keys) and the ingest and read tokens; the collector as a StatefulSet with a PersistentVolumeClaim at `/var/lib/otelcol/replay-queue` (Q12) running `config.muninn.yaml`; `MUNINN_ENDPOINT`, `MUNINN_INGEST_TOKEN`, `MUNINN_TENANT` in its environment; alert on the Collector's failed-send counter for `otlp_http/muninn`.
 - The MVP path (`config.yaml`, `ouoreplay*`, rum-api's replay code) stays until the founder removes it. Without `--muninn`, nothing changes for any env.
 
+## Review
+
+The app could not start a separate reviewer session from this run (Remote Control), so the second read came from a fresh subagent with no access to the author's reasoning. Its verdict was `Review: changes needed`, and it posted that on the PR.
+
+| # | Finding | Answer |
+|---|---|---|
+| 1 | High: a NaN or ±Inf double attribute made `json.Marshal` fail. For a chunk that meant a 503 on every retry, which pins a queue consumer for ever. For an end record it stored an empty `ended.json` that then broke reads. | Fixed. `validate` rejects non-finite numbers at any depth as `bad_attribute`. Marshal errors become rejections. A repeat over an unreadable stored chunk is a `conflict`, not a 503. Tests added. |
+| 2 | Medium: one undecodable object made the whole session list and manifest answer 503. | Fixed. Decode failures are wrapped in `errCorrupt`, then logged and skipped. Store errors still answer 503. Test added. |
+| 3 | Low: the sweeper lists the whole store every interval; the spec says per project. | Kept. The request cost is the same: one list request per 1000 objects, whichever way the listing is split. Splitting per project needs a delimiter listing in `store.Store`, which is one more concept. Worth doing when memory per sweep matters. |
+| 4 | Low: S3 `notFound` matched any 404, including a missing bucket, and `Ping` ignored the result of `BucketExists`. | Fixed. Only `NoSuchKey` counts as not found, and `Ping` fails when the bucket is missing. |
+| 5 | Low: new parent directories were not fsynced. | Fixed. `mkdirSynced` syncs the parent of each directory it creates. |
+| 6 | Low: an error in `transform/replay-ref` would fail the SDK request after the chunk was already queued. | Fixed. The body is cleared first, and `error_mode` is `ignore`. |
+| – | Simplify: the `read()` wrapper also wraps the two DELETE routes. | Renamed to `api()`. |
+| – | Simplify: `--muninn` stays on for later `up` runs. | Kept on purpose, like the env's port block: a plain `up` should not silently switch the replay path. `down --purge` resets it. |
+
 ## Env
 
-`muninn-collector-build-43a659` was used for all runs. Its state at the end of the session is in the tracker.
+`muninn-collector-build-43a659` was used for all runs. After the review fixes it was rebuilt, and the end-to-end check passed 25 of 25 again in 64 s. The env was then taken down with `ouo-env down`; its volumes are kept, and `--purge` removes them.

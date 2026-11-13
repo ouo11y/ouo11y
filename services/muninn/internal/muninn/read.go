@@ -29,8 +29,8 @@ type readCtx struct {
 	tenant, project, session string
 }
 
-// read wraps a read or delete route: token, tenant, path identifiers, metrics.
-func (s *Server) read(route string, h func(http.ResponseWriter, *http.Request, readCtx)) http.Handler {
+// api wraps a read or delete route: token, tenant, path identifiers, metrics.
+func (s *Server) api(route string, h func(http.ResponseWriter, *http.Request, readCtx)) http.Handler {
 	return recoverWith(http.StatusServiceUnavailable, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cw := &countingWriter{ResponseWriter: w}
 		defer func() {
@@ -82,7 +82,7 @@ func (s *Server) header(ctx context.Context, key string) (header, error) {
 	}
 	n, err := headerLen(b)
 	if err != nil {
-		return h, fmt.Errorf("%s: %w", key, err)
+		return h, fmt.Errorf("%s: %w", key, err) // wraps errCorrupt
 	}
 	if n > len(b) {
 		if b, err = s.store.GetRange(ctx, key, 0, int64(n)); err != nil {
@@ -185,7 +185,8 @@ func (s *Server) buildReplay(ctx context.Context, rc readCtx, replay string, obj
 			d := json.NewDecoder(strings.NewReader(string(b)))
 			d.UseNumber()
 			if err := d.Decode(&h); err != nil {
-				return nil, fmt.Errorf("%s: %w", o.Key, err)
+				slog.WarnContext(ctx, "skipping unreadable object", "key", o.Key, "err", err)
+				continue // one bad object must not hide the rest of the session
 			}
 			e := &endInfo{EndState: attrString(h.Attributes, "ouo.replay.end_state"), EndReason: attrString(h.Attributes, "ouo.replay.end_reason"), TimeUnixNano: h.TimeUnixNano}
 			if n, ok := attrInt(h.Attributes, "ouo.replay.last_sequence"); ok {
@@ -200,6 +201,10 @@ func (s *Server) buildReplay(ctx context.Context, rc readCtx, replay string, obj
 			h, err := s.header(ctx, o.Key)
 			if errors.Is(err, store.ErrNotFound) {
 				continue // deleted between list and read
+			}
+			if errors.Is(err, errCorrupt) {
+				slog.WarnContext(ctx, "skipping unreadable object", "key", o.Key, "err", err)
+				continue
 			}
 			if err != nil {
 				return nil, err

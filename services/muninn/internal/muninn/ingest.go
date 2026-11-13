@@ -213,8 +213,11 @@ func (s *Server) store1(ctx context.Context, tenant string, it item, tomb map[st
 	rec := header{Attributes: it.attrs, TimeUnixNano: strconv.FormatUint(it.timeUnixNano, 10), ReceivedAt: s.now().UnixMilli(), Project: it.project}
 
 	if it.event == eventEnded {
-		b, _ := json.Marshal(rec)
-		err := s.store.Create(ctx, s.keys.ended(tenant, it.project, it.session, it.replay, it.stream), b, tags)
+		b, err := json.Marshal(rec)
+		if err != nil { // cannot happen once validate refused non-finite numbers; never a 503 that repeats
+			return "", reject("bad_attribute", "attributes do not encode: %v", err), nil
+		}
+		err = s.store.Create(ctx, s.keys.ended(tenant, it.project, it.session, it.replay, it.stream), b, tags)
 		if errors.Is(err, store.ErrExists) {
 			return "duplicate", nil, nil // MUN-8: the first one stays
 		}
@@ -227,7 +230,7 @@ func (s *Server) store1(ctx context.Context, tenant string, it item, tomb map[st
 	key := s.keys.chunk(tenant, it.project, it.session, it.replay, it.stream, it.seq)
 	obj, err := encodeChunk(rec, it.body)
 	if err != nil {
-		return "", nil, err
+		return "", reject("bad_attribute", "attributes do not encode: %v", err), nil
 	}
 	err = s.store.Create(ctx, key, obj, tags)
 	if err == nil {
@@ -237,6 +240,10 @@ func (s *Server) store1(ctx context.Context, tenant string, it item, tomb map[st
 		return "", nil, err
 	}
 	h, err := s.header(ctx, key)
+	if errors.Is(err, errCorrupt) {
+		// A retry would meet the same object: reject rather than answer 503 for ever.
+		return "", reject("conflict", "chunk %s/%d is stored but unreadable", it.stream, it.seq), nil
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -276,6 +283,11 @@ func (s *Server) validate(scope, project string, projectOK bool, lr *logspb.LogR
 	it.attrs = make(map[string]any, len(lr.GetAttributes()))
 	for _, kv := range lr.GetAttributes() {
 		size += proto.Size(kv)
+		if !finite(kv.GetValue()) {
+			// JSON has no NaN or Inf, and a record that cannot be stored must be rejected,
+			// not answered 503: the Collector would retry it for ever (MUN-9).
+			return it, reject("bad_attribute", "%s is not a finite number", kv.GetKey())
+		}
 		a[kv.GetKey()] = kv.GetValue()
 		it.attrs[kv.GetKey()] = jsonValue(kv.GetValue())
 	}
@@ -434,6 +446,27 @@ func (v *attrs) seq(k string) int64 {
 		v.err = reject("bad_id", "%s %d out of range", k, n)
 	}
 	return n
+}
+
+// finite reports whether v holds no NaN or infinite double, at any depth.
+func finite(v *commonpb.AnyValue) bool {
+	switch x := v.GetValue().(type) {
+	case *commonpb.AnyValue_DoubleValue:
+		return !math.IsNaN(x.DoubleValue) && !math.IsInf(x.DoubleValue, 0)
+	case *commonpb.AnyValue_ArrayValue:
+		for _, e := range x.ArrayValue.GetValues() {
+			if !finite(e) {
+				return false
+			}
+		}
+	case *commonpb.AnyValue_KvlistValue:
+		for _, kv := range x.KvlistValue.GetValues() {
+			if !finite(kv.GetValue()) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func stringAttr(kvs []*commonpb.KeyValue, k string) (string, bool) {

@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -38,9 +39,10 @@ func NewS3(cfg S3Config) (*S3, error) {
 	return &S3{c: c, bucket: cfg.Bucket}, nil
 }
 
+// notFound is a missing key only: a missing bucket (NoSuchBucket, also a 404) is a
+// configuration fault that must surface as 503, not as "no such replay".
 func notFound(err error) bool {
-	r := minio.ToErrorResponse(err)
-	return r.Code == "NoSuchKey" || r.StatusCode == http.StatusNotFound
+	return minio.ToErrorResponse(err).Code == "NoSuchKey"
 }
 
 // Create uses a conditional PUT (If-None-Match: *); the store answers 412 when the
@@ -105,6 +107,9 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 }
 
 func (s *S3) Ping(ctx context.Context) error {
-	_, err := s.c.BucketExists(ctx, s.bucket)
+	ok, err := s.c.BucketExists(ctx, s.bucket)
+	if err == nil && !ok {
+		err = fmt.Errorf("bucket %q does not exist", s.bucket)
+	}
 	return err
 }

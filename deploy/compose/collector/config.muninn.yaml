@@ -110,13 +110,17 @@ processors:
   # gets ouo.replay.ref and loses the chunk bytes. An empty string, not nil: set(body, nil)
   # is a no-op without the ottl.set.allowNil gate and would send the chunk to Loki.
   # ouo.replay.ended records pass unchanged.
+  # The body goes first, and errors are ignored: this copy is a hint, and by the time it
+  # runs the chunk may already be in Muninn's queue, so failing here would only make the
+  # SDK resend (and queue) the chunk again. A record the ref cannot be built for still
+  # reaches Loki without its bytes.
   transform/replay-ref:
-    error_mode: propagate
+    error_mode: ignore
     log_statements:
       - context: log
         statements:
-          - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
           - set(log.body, "") where log.event_name == "ouo.replay.chunk"
+          - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
 
 exporters:
   otlp_grpc/tempo:

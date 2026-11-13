@@ -79,11 +79,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ready", s.ready)
 	mux.Handle("POST /otlp/v1/logs", recoverWith(http.StatusServiceUnavailable, http.HandlerFunc(s.ingest)))
 	const base = "/api/v1/projects/{project}/sessions/{session}/replays"
-	mux.Handle("GET "+base, s.read("list", s.listReplays))
-	mux.Handle("DELETE "+base, s.read("delete_session", s.deleteSession))
-	mux.Handle("GET "+base+"/{replay}", s.read("manifest", s.getReplay))
-	mux.Handle("DELETE "+base+"/{replay}", s.read("delete_replay", s.deleteReplay))
-	mux.Handle("GET "+base+"/{replay}/streams/{stream}/chunks/{seq}", s.read("chunk", s.getChunk))
+	mux.Handle("GET "+base, s.api("list", s.listReplays))
+	mux.Handle("DELETE "+base, s.api("delete_session", s.deleteSession))
+	mux.Handle("GET "+base+"/{replay}", s.api("manifest", s.getReplay))
+	mux.Handle("DELETE "+base+"/{replay}", s.api("delete_replay", s.deleteReplay))
+	mux.Handle("GET "+base+"/{replay}/streams/{stream}/chunks/{seq}", s.api("chunk", s.getChunk))
 	return mux
 }
 

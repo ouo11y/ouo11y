@@ -79,7 +79,10 @@ func encodeChunk(h header, body []byte) ([]byte, error) {
 	return append(out, body...), nil
 }
 
-var errContainer = errors.New("not a muninn chunk container")
+// errCorrupt marks a stored object that cannot be decoded: not a store failure, so not a 503.
+var errCorrupt = errors.New("corrupt object")
+
+var errContainer = fmt.Errorf("%w: not a muninn chunk container", errCorrupt)
 
 // headerLen returns the total length of preamble plus header, from the first 9 bytes.
 func headerLen(b []byte) (int, error) {
@@ -102,7 +105,7 @@ func decodeChunk(b []byte) (h header, body []byte, err error) {
 	d := json.NewDecoder(bytes.NewReader(b[preamble:n]))
 	d.UseNumber()
 	if err := d.Decode(&h); err != nil {
-		return h, nil, err
+		return h, nil, fmt.Errorf("%w: header: %v", errCorrupt, err)
 	}
 	return h, b[n:], nil
 }
