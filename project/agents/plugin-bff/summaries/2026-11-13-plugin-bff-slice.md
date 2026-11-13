@@ -67,4 +67,4 @@ A fresh-context review subagent reviewed PR #189 (the app refused to start a sec
 - `npm run build -w plugins/ouo11y-rum-app` now needs Go or Docker. CI jobs that build the plugin (node, examples, images, release) have Docker; on the rootless runners the script runs the container as root on purpose ([kb](../../../kb/plugin/bff/grafana-backend-plugin.md)).
 - Attribute names reach the BFF with `_` for `.` ([kb](../../../kb/plugin/bff/loki-answers.md)); identity is matched by exact names plus `enduser_`, never `user_` (it would catch `user_agent_original`).
 - Grafana gives every user the plugin's `jsonData`: keep secrets in `secureJsonData`.
-- Env `pluginbff` (`http://grafana.pluginbff.ouo.localhost`, admin / testing567, user `e2e-viewer` added by the e2e) state is given in the PR's final comment.
+- Env `pluginbff` is left **running** for the founder to look at: `http://grafana.pluginbff.ouo.localhost` (admin / testing567; Viewer `e2e-viewer` / `e2e-viewer-local-only`, created by the e2e). Tear it down with `deploy/envs/ouo-env down pluginbff`.
