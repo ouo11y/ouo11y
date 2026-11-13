@@ -33,6 +33,10 @@ services:
       GF_USERS_DEFAULT_THEME: dark
       GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app
       GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo11y-rum-app
+      # A managed service account for the plugin's backend (plugin.json "iam"), which reads
+      # team memberships for Clearance by team (ADR-0023).
+      GF_FEATURE_TOGGLES_ENABLE: externalServiceAccounts
+      GF_AUTH_MANAGED_SERVICE_ACCOUNTS_ENABLED: "true"
       # Read by grafana/provisioning/plugins/ouo11y-rum-app.yaml (secureJsonData.readToken):
       # the plugin's route proxy adds `Authorization: Bearer <token>` to every rum-api
       # call, so the token never reaches the browser. Must equal rum-api's OUO_READ_TOKEN.

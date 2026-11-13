@@ -16,8 +16,8 @@ import (
 )
 
 // teams finds which of the teams named in the Clearance settings a user belongs to, through
-// Grafana's HTTP API with the plugin's managed service account (plugin.json "iam": teams:read
-// and teams.permissions:read). Grafana does not pass a user's teams to a backend plugin.
+// Grafana's HTTP API with the plugin's managed service account (plugin.json "iam": teams:read,
+// teams.permissions:read, and org.users:read, without which the members list is empty). Grafana does not pass a user's teams to a backend plugin.
 // Members of the named teams are cached for teamTTL, so a membership change takes effect
 // within that time.
 type teams struct {

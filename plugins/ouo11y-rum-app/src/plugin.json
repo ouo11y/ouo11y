@@ -76,7 +76,8 @@
   "iam": {
     "permissions": [
       { "action": "teams:read", "scope": "teams:*" },
-      { "action": "teams.permissions:read", "scope": "teams:*" }
+      { "action": "teams.permissions:read", "scope": "teams:*" },
+      { "action": "org.users:read", "scope": "users:*" }
     ]
   },
   "routes": [
