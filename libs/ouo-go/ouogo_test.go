@@ -122,38 +122,50 @@ func newClient(t *testing.T) (*Client, *fakeLoki, *fakeMuninn) {
 }
 
 func TestResolve(t *testing.T) {
-	cfg := ClearanceConfig{Users: map[string]Level{"alice": C4, "mallory": None}}
+	groups := ClearanceConfig{Mode: ModeGroups,
+		Groups: map[string]Level{"support": C1, "engineers": C3, "privacy": C4},
+		Roles:  map[string]Level{"Admin": C5}} // ignored in groups mode
+	roles := ClearanceConfig{Mode: ModeRoles,
+		Roles:  map[string]Level{"Viewer": C1, "Editor": C3, "Admin": C5},
+		Groups: map[string]Level{"privacy": C4}} // ignored in roles mode
 	cases := []struct {
-		login, role string
-		want        Level
+		name   string
+		cfg    ClearanceConfig
+		role   string
+		groups []string
+		want   Level
 	}{
-		{"bob", "Viewer", C1},
-		{"bob", "Editor", C3},
-		{"bob", "Admin", C5},
-		{"bob", "None", None},
-		{"bob", "", None},
-		{"bob", "Superuser", None},
-		{"alice", "Viewer", C4},    // user entry wins, upward
-		{"mallory", "Admin", None}, // and downward
-		{"Alice", "Viewer", C4},    // logins compare without case, as Grafana's do
+		{"one group", groups, "Viewer", []string{"support"}, C1},
+		{"highest group wins", groups, "Viewer", []string{"support", "privacy", "engineers"}, C4},
+		{"highest group wins, any order", groups, "Viewer", []string{"privacy", "support"}, C4},
+		{"unknown group", groups, "Viewer", []string{"finance"}, None},
+		{"unknown beside known", groups, "Viewer", []string{"finance", "engineers"}, C3},
+		{"no groups (no token, or one that did not verify)", groups, "Admin", nil, None},
+		{"group names are exact", groups, "Viewer", []string{"Privacy", "/privacy"}, None},
+		{"groups mode never reads the role", groups, "Admin", []string{"support"}, C1},
+		{"role", roles, "Editor", nil, C3},
+		{"role not in the map", roles, "None", nil, None},
+		{"empty role", roles, "", nil, None},
+		{"roles mode never reads groups", roles, "Viewer", []string{"privacy"}, C1},
+		{"no mode", ClearanceConfig{Roles: roles.Roles, Groups: groups.Groups}, "Admin", []string{"privacy"}, None},
+		{"unknown mode", ClearanceConfig{Mode: "users", Roles: roles.Roles}, "Admin", nil, None},
 	}
 	for _, c := range cases {
-		if got := Resolve(cfg, c.login, c.role).Level; got != c.want {
-			t.Errorf("Resolve(%q, %q) = %v, want %v", c.login, c.role, got, c.want)
+		// The login never decides a level: the same answer for any login.
+		for _, login := range []string{"bob", "admin", ""} {
+			if got := Resolve(c.cfg, login, c.role, c.groups).Level; got != c.want {
+				t.Errorf("%s (login %q): %v, want %v", c.name, login, got, c.want)
+			}
 		}
-	}
-	// An explicit roles map replaces the default one: deny by default for roles it lacks.
-	if got := Resolve(ClearanceConfig{Roles: map[string]Level{"Admin": C2}}, "x", "Viewer").Level; got != None {
-		t.Errorf("Viewer with a roles map that omits it = %v, want c0", got)
 	}
 }
 
 func TestLevelJSON(t *testing.T) {
 	var cfg ClearanceConfig
-	if err := json.Unmarshal([]byte(`{"roles":{"Viewer":2,"Editor":4},"users":{"a":5}}`), &cfg); err != nil {
+	if err := json.Unmarshal([]byte(`{"mode":"groups","roles":{"Viewer":2,"Editor":4},"groups":{"a":5}}`), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Roles["Viewer"] != C2 || cfg.Roles["Editor"] != C4 || cfg.Users["a"] != C5 {
+	if cfg.Mode != ModeGroups || cfg.Roles["Viewer"] != C2 || cfg.Roles["Editor"] != C4 || cfg.Groups["a"] != C5 {
 		t.Fatalf("got %+v", cfg)
 	}
 	for _, bad := range []string{`{"roles":{"Viewer":6}}`, `{"roles":{"Viewer":"c3"}}`, `{"roles":{"Viewer":-1}}`, `{"roles":{"Viewer":1.5}}`} {

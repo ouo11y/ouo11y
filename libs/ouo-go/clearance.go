@@ -64,43 +64,56 @@ func (l *Level) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// ClearanceConfig maps Grafana users to levels: by login first, then by org role, else 0.
-type ClearanceConfig struct {
-	Roles map[string]Level `json:"roles,omitempty"`
-	Users map[string]Level `json:"users,omitempty"`
-}
+// Clearance modes (ADR-0024).
+const (
+	// ModeGroups: the level comes from the user's identity-provider groups, read from a
+	// verified ID token.
+	ModeGroups = "groups"
+	// ModeRoles: the level comes from the user's Grafana org role. For a Grafana with no
+	// identity provider (local development).
+	ModeRoles = "roles"
+)
 
-// DefaultRoles applies when the configuration has no roles map: Viewer c1, Editor c3, Admin c5.
-var DefaultRoles = map[string]Level{"Viewer": C1, "Editor": C3, "Admin": C5}
+// ClearanceConfig says where a user's level comes from. Exactly one mode applies; any
+// other Mode value, the empty one included, gives every user level 0.
+type ClearanceConfig struct {
+	Mode string `json:"mode"`
+	// Groups maps an identity-provider group to a level (ModeGroups). A user gets the
+	// highest level among their groups.
+	Groups map[string]Level `json:"groups,omitempty"`
+	// Roles maps a Grafana org role (Viewer, Editor, Admin) to a level (ModeRoles).
+	Roles map[string]Level `json:"roles,omitempty"`
+}
 
 // Clearance is the caller's resolved level. Every read function of this package takes one.
 type Clearance struct {
 	Login string `json:"login"`
 	Role  string `json:"role"`
+	// Mode is the ClearanceConfig mode the level was decided in.
+	Mode  string `json:"mode"`
 	Level Level  `json:"level"`
 }
 
 // Can is shorthand for c.Level.Can().
 func (c Clearance) Can() Capabilities { return c.Level.Can() }
 
-// Resolve finds a user's level (ADR-0023 section 4.2). Deny by default: a user who is in
-// neither map gets 0. Logins compare without case, as Grafana's do.
-func Resolve(cfg ClearanceConfig, login, role string) Clearance {
-	c := Clearance{Login: login, Role: role}
-	if login != "" {
-		for u, lv := range cfg.Users {
-			if strings.EqualFold(u, login) {
+// Resolve finds a user's level (ADR-0024). Deny by default: no mode, an unknown mode, a
+// user whose groups (or role) are not in the map, all get 0. In ModeGroups the role is
+// not read, and in ModeRoles the groups are not: the caller passes the groups of a token
+// it has verified, or nil.
+func Resolve(cfg ClearanceConfig, login, role string, groups []string) Clearance {
+	c := Clearance{Login: login, Role: role, Mode: cfg.Mode}
+	switch cfg.Mode {
+	case ModeGroups:
+		for _, g := range groups {
+			if lv, ok := cfg.Groups[g]; ok && lv > c.Level {
 				c.Level = lv
-				return c
 			}
 		}
-	}
-	roles := cfg.Roles
-	if roles == nil {
-		roles = DefaultRoles
-	}
-	if lv, ok := roles[role]; ok && role != "" {
-		c.Level = lv
+	case ModeRoles:
+		if lv, ok := cfg.Roles[role]; ok && role != "" {
+			c.Level = lv
+		}
 	}
 	return c
 }

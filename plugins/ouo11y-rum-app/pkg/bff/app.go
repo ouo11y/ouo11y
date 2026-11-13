@@ -1,5 +1,9 @@
 // Package bff is the plugin's backend: resource endpoints that call ouo-go with the calling
-// Grafana user's Clearance (ADR-0023 section 3). The frontend talks to nothing else.
+// user's Clearance (ADR-0023 section 3, ADR-0024). The frontend talks to nothing else.
+//
+// It runs as the backend of the plugin's nested datasource (ouo11y-rum-datasource), not of
+// the app: Grafana forwards the signed-in user's identity-provider tokens only to a
+// datasource that sets oauthPassThru, and Clearance in groups mode reads the ID token.
 package bff
 
 import (
@@ -19,35 +23,46 @@ import (
 	ouogo "github.com/ouo11y/ouo11y/libs/ouo-go"
 )
 
-// Settings is the plugin's jsonData as far as the BFF reads it. The MVP pages' keys
-// (rumApiUrl, featureToggles) sit beside these.
+// Settings is the datasource's jsonData. Any signed-in user can read jsonData, so the
+// Clearance mapping is not here: it is the secure field "clearance".
 type Settings struct {
-	LokiURL      string                `json:"lokiUrl"`
-	MuninnURL    string                `json:"muninnUrl"`
-	MuninnTenant string                `json:"muninnTenant"`
-	Clearance    ouogo.ClearanceConfig `json:"clearance"`
+	LokiURL      string `json:"lokiUrl"`
+	MuninnURL    string `json:"muninnUrl"`
+	MuninnTenant string `json:"muninnTenant"`
+	// OIDC says how to verify the ID token Grafana forwards (groups mode).
+	OIDC *ouogo.OIDC `json:"oidc"`
 }
 
-// App is one plugin instance (one Grafana org).
+// App is one datasource instance (one Grafana org).
 type App struct {
 	backend.CallResourceHandler
 	client    *ouogo.Client
 	clearance ouogo.ClearanceConfig
+	oidc      *ouogo.OIDC
 }
 
-// NewApp builds an instance from the app settings Grafana passes.
-func NewApp(_ context.Context, s backend.AppInstanceSettings) (instancemgmt.Instance, error) {
+// NewDatasource builds an instance from the datasource settings Grafana passes:
+// jsonData (Settings) and the secure fields muninnReadToken and clearance, a JSON
+// ouogo.ClearanceConfig. No clearance field means every user is level 0.
+func NewDatasource(_ context.Context, s backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 	var cfg Settings
 	if len(s.JSONData) > 0 {
 		if err := json.Unmarshal(s.JSONData, &cfg); err != nil {
-			return nil, fmt.Errorf("plugin settings: %w", err)
+			return nil, fmt.Errorf("datasource settings: %w", err)
 		}
 	}
-	return New(cfg, s.DecryptedSecureJSONData["muninnReadToken"]), nil
+	var cl ouogo.ClearanceConfig
+	if v := s.DecryptedSecureJSONData["clearance"]; v != "" {
+		if err := json.Unmarshal([]byte(v), &cl); err != nil {
+			// The value is secret: the error says where, not what.
+			return nil, errors.New("datasource settings: the secure field clearance is not a valid Clearance configuration")
+		}
+	}
+	return New(cfg, cl, s.DecryptedSecureJSONData["muninnReadToken"]), nil
 }
 
-// New builds the BFF from settings; defaults are the compose stack's service names.
-func New(cfg Settings, muninnReadToken string) *App {
+// New builds the BFF from settings; URL defaults are the compose stack's service names.
+func New(cfg Settings, clearance ouogo.ClearanceConfig, muninnReadToken string) *App {
 	def := func(v, d string) string {
 		if v == "" {
 			return d
@@ -63,7 +78,8 @@ func New(cfg Settings, muninnReadToken string) *App {
 				ReadToken: muninnReadToken,
 			},
 		},
-		clearance: cfg.Clearance,
+		clearance: clearance,
+		oidc:      cfg.OIDC,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/me", a.me)
@@ -75,14 +91,24 @@ func New(cfg Settings, muninnReadToken string) *App {
 	return a
 }
 
-// clearanceOf resolves the calling user's level. No user (should not happen through
-// Grafana) is level 0.
+// clearanceOf resolves the calling user's level. In groups mode the groups come from the
+// ID token Grafana forwards in X-Id-Token, and only when it verifies against the identity
+// provider's keys: a browser can send that header too, so its content alone is worth
+// nothing. No token, a token that fails any check, or no OIDC settings: no groups, level 0.
 func (a *App) clearanceOf(r *http.Request) ouogo.Clearance {
-	u := backend.UserFromContext(r.Context())
-	if u == nil {
-		return ouogo.Clearance{}
+	var login, role string
+	if u := backend.UserFromContext(r.Context()); u != nil {
+		login, role = u.Login, u.Role
 	}
-	return ouogo.Resolve(a.clearance, u.Login, u.Role)
+	var groups []string
+	if a.clearance.Mode == ouogo.ModeGroups && a.oidc != nil {
+		var err error
+		if groups, err = a.oidc.Groups(r.Context(), r.Header.Get(backend.OAuthIdentityIDTokenHeaderName)); err != nil {
+			groups = nil
+			log.DefaultLogger.FromContext(r.Context()).Debug("ID token not accepted, level 0", "login", login, "error", err.Error())
+		}
+	}
+	return ouogo.Resolve(a.clearance, login, role, groups)
 }
 
 type meAnswer struct {
