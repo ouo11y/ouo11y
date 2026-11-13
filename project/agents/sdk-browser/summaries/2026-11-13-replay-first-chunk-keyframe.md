@@ -47,5 +47,7 @@ One line in `sdk/browser/src/replay/engine.ts`: `needKeyframe` starts as `true`.
 ## Left, for whoever is next
 
 - `collector down: chunks wait in IndexedDB...` (`e2e/replay.spec.ts`) failed once in Firefox and passed 8 of 8 on repeat: the test sets the collector fault after the page is ready, so a first chunk can leave before it. Not caused by this change, not touched here. CI retries once.
-- If masking the `Meta` event or the `FullSnapshot` itself throws, the adapter drops that one event and the other half of the keyframe still goes out. Not seen in practice; not changed here.
+- If masking the `FullSnapshot` throws, the adapter drops it and the `Meta` still goes out as a keyframe chunk without a snapshot (as before). If masking the first `Meta` throws (its URL cannot be sanitised), the snapshot after it is now discarded with everything else until the next keyframe request (interval, 300 s by default, or a visibility change); before this change it went out as a chunk 0 with `keyframe=false`. Discarding is what RPL-6 asks for. Not seen in practice; not changed here.
+- Reviewer's idea, not done: rrweb's `recordAfter: "DOMContentLoaded"` would start recording before `load` on pages whose `load` is late; the engine rule already handles the event order that gives.
+- Review (second session, PR #187): approve, three non-blocking points, answered in the PR (`adapter.ts` comment, this list, the Firefox sentence in the kb entry).
 - No env was started. No dependency added.

@@ -13,7 +13,7 @@ Which case a page is in depends on how it loads the SDK:
 
 - A `<script type="module">` (how our e2e page `app.html` loads it) runs after parsing, so `readyState` is `interactive`: never the second case.
 - A classic `<script>` bundle in the body (the Muninn e2e page, most bundled apps whose parser is still busy, a slow blocking script after the SDK's) starts the SDK while `readyState` is `loading`: the second case.
-- Firefox runs a dynamic `import()` made by a classic script only once the parser is free, so a test page built on `import()` reaches the second case in Chromium and WebKit only.
+- While a parser-blocking script is pending, Firefox holds a dynamic `import()` made by a classic script, so the test page (`import()` then a slow blocking script) reaches the second case in Chromium and WebKit only. A document that is only slow to arrive reaches it in Firefox too, but the reviewer measured that variant as flaky (2 of about 12 Firefox runs started replay after the hold).
 
 ## What went wrong
 
