@@ -20,6 +20,12 @@ export const ROUTES = [
   { name: "mimir", service: "mimir", port: 9009 },
 ];
 
+// With --muninn (deploy/compose/compose.muninn.yaml, ADR-0019): the replay store, internal
+// like rum-api, routed for the laptop only.
+export const MUNINN_ROUTES = [{ name: "muninn", service: "muninn", port: 3400 }];
+// Services of compose.muninn.yaml whose loopback host ports would collide between envs.
+export const MUNINN_UNPUBLISHED = ["muninn", "minio"];
+
 // Host ports published on every interface, for SDKs on a simulator or a phone (which
 // cannot use the proxy: a physical device does not resolve *.localhost).
 export const INGEST = [
@@ -225,11 +231,13 @@ export function renderOverlay(s) {
   ];
   const services = {};
   const add = (svc, lines) => (services[svc] ??= []).push(...lines);
-  for (const svc of ["grafana", "loki", "tempo", "mimir", "rum-api", "otel-collector", "backend"]) {
+  const muninn = Boolean(s.muninn);
+  const extraSvcs = muninn ? ["muninn", "minio", "muninn-init"] : [];
+  for (const svc of ["grafana", "loki", "tempo", "mimir", "rum-api", "otel-collector", "backend", ...extraSvcs]) {
     add(svc, ["    labels:", ...labels.map((l) => `      - ${q(l)}`)]);
   }
   const bySvc = {};
-  for (const r of ROUTES) (bySvc[r.service] ??= []).push(r);
+  for (const r of muninn ? [...ROUTES, ...MUNINN_ROUTES] : ROUTES) (bySvc[r.service] ??= []).push(r);
   for (const [svc, routes] of Object.entries(bySvc)) {
     // Traefik joins each env's own default network (ouo-env connects it); env services never
     // join a shared network, where compose would alias them by their bare service name
@@ -248,7 +256,7 @@ export function renderOverlay(s) {
     }
     add(svc, tl.map((l) => `      - ${q(l)}`));
   }
-  for (const svc of UNPUBLISHED) add(svc, ["    ports: !reset []"]);
+  for (const svc of [...UNPUBLISHED, ...(muninn ? MUNINN_UNPUBLISHED : [])]) add(svc, ["    ports: !reset []"]);
   for (const svc of ["otel-collector", "backend"]) {
     const pub = INGEST.filter((p) => p.service === svc).map((p) => `      - ${q(`${ports[p.name]}:${p.port}`)}`);
     add(svc, ["    ports: !override", ...pub]);
@@ -282,10 +290,11 @@ export function renderOverlay(s) {
 export const envNetwork = (env) => `${project(env)}_default`;
 
 // Shell exports that point deploy/scripts/{wait-ready,smoke,e2e}.sh at an env.
-export function exportsOf(env, block) {
+export function exportsOf(env, block, muninn = false) {
   const p = portsOf(block);
   const u = (n) => urlOf(env, n);
   return [
+    ...(muninn ? [["OUO_MUNINN_URL", u("muninn")], ["OUO_COMPOSE_PROJECT", project(env)]] : []),
     ["OUO_GRAFANA_URL", u("grafana")],
     ["OUO_RUM_API_URL", u("rum-api")],
     ["OUO_OTLP_URL", `http://localhost:${p.otlp}`],

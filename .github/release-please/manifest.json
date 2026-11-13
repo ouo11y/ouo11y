@@ -1,10 +1,11 @@
 {
-  "sdk/browser": "0.3.1",
+  "sdk/browser": "0.4.1",
   "sdk/react-native": "0.3.0",
   "sdk/ios": "0.3.0",
   "plugins/ouo11y-rum-app": "0.10.0",
   "collector": "0.5.0",
   "services/rum-api": "0.6.0",
+  "services/muninn": "0.1.0",
   "deploy/images/grafana": "0.6.0",
   "deploy/helm/ouo": "0.2.0"
 }

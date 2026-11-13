@@ -28,7 +28,7 @@ export interface ReplayAdapter {
   readonly format: string;
   /** Whether chunk bodies are gzipped by the engine (`ouo.replay.encoding`: `gzip`, else `identity`). */
   readonly compress: boolean;
-  /** Begins recording; the first data is a keyframe. */
+  /** Begins recording. The engine discards what comes before the first keyframe. */
   start(sink: AdapterSink): void;
   /** Produces a keyframe now (RPL-6, RPL-8, RPL-9). */
   requestKeyframe(): void;

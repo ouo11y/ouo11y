@@ -13,6 +13,7 @@ Owns `sdk/browser` (`@ouo11y/browser`).
   - [2026-10-24-n36a-delivery.md](summaries/2026-10-24-n36a-delivery.md) N36 part A: delivery layer (retry, gzip, keepalive split, IndexedDB offline store), first-party endpoint docs, network-fault e2e in three engines
   - [2026-11-03-p1-privacy-defaults.md](summaries/2026-11-03-p1-privacy-defaults.md) P1 (client JUHI): `maskAllText` default on with `ouo-unmask`, click names masked, `excludeRoutes`, RN `excludeScreens` / `hideScreen()`, hidden marker in the plugin, ADR-0003 revision
   - [2026-11-12-rebuild-on-the-spec.md](summaries/2026-11-12-rebuild-on-the-spec.md) Rebuilt on the client SDK spec (ADR-0020): spec API and wire, sessions, bypass set, consent, URL sanitising, OTLP replay (`replay.mode: structure/dom`, format `rrweb/2`; the pixel recorder paused), fault injection, 157 of 157 web MUSTs recorded with tests, demo app and live-stack verification
+  - [2026-11-13-replay-first-chunk-keyframe.md](summaries/2026-11-13-replay-first-chunk-keyframe.md) Fix: chunk 0 of a replay stream is always the keyframe (rrweb's page-load events before the first snapshot are discarded); unit and real-browser `Replayer` tests
 - `scripts/` [build_compliance.py](scripts/build_compliance.py) builds the per-requirement compliance report
 - `findings/` [web-compliance.json](findings/web-compliance.json) the data behind that report
 - `reports/` HTML reports

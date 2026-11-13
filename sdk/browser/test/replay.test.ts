@@ -244,8 +244,11 @@ class StubAdapter implements ReplayAdapter {
   sink: AdapterSink | undefined;
   keyframes = 0;
   constructor(readonly compress: boolean) {}
+  /** Data the format emits before its first keyframe (rrweb's page-load events). */
+  early: string[] = [];
   start(sink: AdapterSink): void {
     this.sink = sink;
+    for (const e of this.early) this.push(e);
     this.push("K0", true);
   }
   requestKeyframe(): void {
@@ -321,6 +324,23 @@ describe("engine contract with a stub format (RPL-4 to RPL-11, RPL-15 to RPL-21,
     expect(list[0]!.attributes).toMatchObject({ "ouo.replay.format": "stub/1", "ouo.replay.encoding": "identity" });
     expect(ended()[0]!.attributes).toMatchObject({ "ouo.replay.end_state": "complete", "ouo.replay.last_sequence": 2, "ouo.replay.end_reason": "stop" });
     expect(h.endings).toEqual(["stop"]);
+  });
+
+  it.each(["session", "buffer"] as const)("%s mode: what the format emits before its first keyframe is discarded, so chunk 0 starts with the keyframe (RPL-6)", async (mode) => {
+    const h = harness({ mode });
+    h.adapter.early = ["dom-content-loaded", "load"];
+    h.engine.start();
+    h.adapter.push("a");
+    await wait(150);
+    h.adapter.push("b");
+    h.engine.trigger("manual");
+    await h.engine.end("stop");
+    await collector.settled();
+    const list = chunks();
+    checkStream(list);
+    expect(list.map(bodyText)).toEqual(["K0a", "b"]);
+    expect(list.map((c) => [c.attributes["ouo.replay.sequence"], c.attributes["ouo.replay.segment.index"], c.attributes["ouo.replay.keyframe"]])).toEqual([[0, 0, true], [1, 0, false]]);
+    expect(ended()[0]!.attributes).toMatchObject({ "ouo.replay.end_state": "complete", "ouo.replay.last_sequence": 1 });
   });
 
   it("a chunk larger than the limit is split, never truncated: the concatenation is the payload (RPL-7, RPL-11)", async () => {

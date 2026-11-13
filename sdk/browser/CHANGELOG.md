@@ -2,6 +2,26 @@
 
 All notable changes to `@ouo11y/browser` (named `@ouo/browser` until 2026-10-18). The format follows Keep a Changelog; versions follow SemVer (0.x: minor bumps may break).
 
+## [0.4.1](https://github.com/ouo11y/ouo11y/compare/browser-v0.4.0...browser-v0.4.1) (2026-11-13)
+
+
+### Fixed
+
+* **browser:** the first chunk of a replay stream is always a keyframe ([#187](https://github.com/ouo11y/ouo11y/issues/187)) ([bf55e6a](https://github.com/ouo11y/ouo11y/commit/bf55e6a5405116e6812d3c63874d47f391b02789))
+
+## [0.4.0](https://github.com/ouo11y/ouo11y/compare/browser-v0.3.1...browser-v0.4.0) (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **browser:** rebuild the web SDK on the client SDK spec (ADR-0020) ([#182](https://github.com/ouo11y/ouo11y/issues/182))
+* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens
+
+### Added
+
+* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens ([3af96e4](https://github.com/ouo11y/ouo11y/commit/3af96e42e1ed199c31989d907b57bfaf0ca6ca96))
+* **browser:** rebuild the web SDK on the client SDK spec (ADR-0020) ([#182](https://github.com/ouo11y/ouo11y/issues/182)) ([533131d](https://github.com/ouo11y/ouo11y/commit/533131dec2dfcb48cde67999862dca819b3a2909))
+
 ## [0.3.1](https://github.com/ouo11y/ouo11y/compare/browser-v0.3.0...browser-v0.3.1) (2026-11-01)
 
 ### Fixed

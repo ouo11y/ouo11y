@@ -9,7 +9,7 @@ A chunk may end in the middle of a unit (a large unit is split across chunks, ne
 ## `rrweb/2` (`replay.mode: "structure/dom"`)
 
 - Unit: one rrweb 2 event as JSON, followed by `\n` (UTF-8). So the payload is newline-delimited JSON.
-- A segment starts with a `Meta` event (type 4) and the `FullSnapshot` (type 2) after it. `ouo.replay.keyframe=true` marks the chunk that begins with the `Meta` event.
+- A segment starts with a `Meta` event (type 4) and the `FullSnapshot` (type 2) after it. `ouo.replay.keyframe=true` marks the chunk that begins with the `Meta` event. Chunk 0 of a stream is always such a chunk: what rrweb emits before its first snapshot is discarded ([why](rrweb-events-before-the-first-snapshot.md)).
 - Masking, done on the device before the event is encoded: text nodes are `***` (whitespace-only text is kept, it is layout); form values are `***`; `title`, `alt`, `placeholder`, `aria-label` and similar attributes are `***`; checked and selected states are dropped where the value is masked; `img`, `picture`, `video`, `audio`, `canvas`, `embed`, `object` are recorded as empty boxes of the same size; `href`, `src`, `action` and the page URL are sanitised like every other URL.
 - `data-ouo-unmask` on an element records its subtree as written; `data-ouo-mask` inside it masks again; `data-ouo-block` blocks. Fields with `type=password`, an `autocomplete` of `current-password`, `new-password`, `one-time-code` or `cc-*`, or a name or id that looks like a secret, are masked whatever the page says.
 

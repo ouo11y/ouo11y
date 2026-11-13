@@ -76,3 +76,29 @@ test("collector down: chunks wait in IndexedDB and a later page delivers the str
   expect(c.ended[0]!.attributes["ouo.replay.last_sequence"]).toBe(seqs.length - 1);
   expect(await pageErrors(page)).toEqual([]);
 });
+
+test("SDK started while the document loads: chunk 0 is the keyframe and plays back alone (RPL-6)", async ({ page, browserName }) => {
+  await open(page, "/early.html?replay=session");
+  // The case under test: rrweb started before `load`, where it emits its page-load events first.
+  // Firefox runs the page's dynamic import only once the parser is free, so there it starts after.
+  if (browserName !== "firefox") await expect.poll(() => page.evaluate(() => (window as unknown as { replayStartedIn?: string }).replayStartedIn)).toBe("loading");
+  await page.waitForLoadState("load");
+  await page.click("#mutate");
+  await expect.poll(async () => (await captured(page)).chunks.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  const chunks = (await captured(page)).chunks;
+  checkStream(chunks);
+  expect(chunks.map((c) => c.attributes["ouo.replay.segment.index"])).toEqual(chunks.map(() => 0));
+  const first = payload(chunks.slice(0, 1)).toString("utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { type: number });
+  expect(first.slice(0, 2).map((e) => e.type)).toEqual([4, 2]);
+
+  // A player given chunk 0 and nothing else builds the page.
+  await page.goto("/?sdk=0");
+  await page.evaluate(async (events) => {
+    const { Replayer } = (await import("/rrweb.js" as string)) as { Replayer: new (events: unknown[], o: { root: Element }) => { pause(at: number): void } };
+    new Replayer(events, { root: document.body }).pause(0);
+  }, first);
+  const played = page.frameLocator(".replayer-wrapper iframe");
+  await expect(played.locator("#public")).toHaveText("Public heading");
+  await expect(played.locator("#mutate")).toHaveCount(1);
+  await expect(played.locator("h1")).not.toContainText("Jane");
+});

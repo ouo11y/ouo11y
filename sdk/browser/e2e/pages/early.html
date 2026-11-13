@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ouo e2e: SDK started while the document loads</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <h1 class="hero">Welcome back, Jane Doe</h1>
+    <p id="status">loading</p>
+    <button id="fetch">Fetch</button>
+    <button id="slow">Slow request</button>
+    <button id="route">Open product 7</button>
+    <button id="dead">Does nothing</button>
+    <button id="mutate">Mutate</button>
+    <button id="throw">Throw</button>
+    <button id="handled">Handled error</button>
+    <div data-ouo-unmask>
+      <p id="public">Public heading</p>
+    </div>
+    <div id="out"></div>
+    <script>
+      // The SDK starts now; the script below keeps the parser busy, so replay starts before `load`.
+      import("/app.js");
+      const seen = setInterval(() => {
+        if (!window.ouo?.diagnostics().replayRecording) return;
+        window.replayStartedIn = document.readyState;
+        clearInterval(seen);
+      }, 10);
+    </script>
+    <script src="/late.js?delay=2000"></script>
+  </body>
+</html>
