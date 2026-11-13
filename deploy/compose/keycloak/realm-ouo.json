@@ -1,0 +1,49 @@
+{
+  "realm": "ouo",
+  "enabled": true,
+  "accessTokenLifespan": 60,
+  "groups": [{ "name": "rum-support" }, { "name": "rum-engineers" }, { "name": "rum-privacy" }],
+  "clients": [
+    {
+      "clientId": "grafana",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "ouo-dev-grafana-oidc-secret",
+      "redirectUris": ["${OUO_GRAFANA_ROOT_URL}/login/generic_oauth"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "defaultClientScopes": ["basic", "profile", "email"],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "lena", "email": "lena@ouo.test", "emailVerified": true, "enabled": true,
+      "firstName": "Lena", "lastName": "Support", "groups": ["/rum-support"],
+      "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
+    },
+    {
+      "username": "omar", "email": "omar@ouo.test", "emailVerified": true, "enabled": true,
+      "firstName": "Omar", "lastName": "Privacy", "groups": ["/rum-privacy"],
+      "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
+    },
+    {
+      "username": "nora", "email": "nora@ouo.test", "emailVerified": true, "enabled": true,
+      "firstName": "Nora", "lastName": "Nogroup",
+      "credentials": [{ "type": "password", "value": "testing567", "temporary": false }]
+    }
+  ]
+}

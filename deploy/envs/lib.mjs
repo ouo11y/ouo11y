@@ -25,6 +25,8 @@ export const ROUTES = [
 export const MUNINN_ROUTES = [{ name: "muninn", service: "muninn", port: 3400 }];
 // Services of compose.muninn.yaml whose loopback host ports would collide between envs.
 export const MUNINN_UNPUBLISHED = ["muninn", "minio"];
+// With --idp (deploy/compose/compose.idp.yaml, ADR-0024): Keycloak, which the browser must reach.
+export const IDP_ROUTES = [{ name: "keycloak", service: "keycloak", port: 8080 }];
 
 // Host ports published on every interface, for SDKs on a simulator or a phone (which
 // cannot use the proxy: a physical device does not resolve *.localhost).
@@ -232,12 +234,13 @@ export function renderOverlay(s) {
   const services = {};
   const add = (svc, lines) => (services[svc] ??= []).push(...lines);
   const muninn = Boolean(s.muninn);
-  const extraSvcs = muninn ? ["muninn", "minio", "muninn-init"] : [];
+  const idp = Boolean(s.idp);
+  const extraSvcs = [...(muninn ? ["muninn", "minio", "muninn-init"] : []), ...(idp ? ["keycloak"] : [])];
   for (const svc of ["grafana", "loki", "tempo", "mimir", "rum-api", "otel-collector", "backend", ...extraSvcs]) {
     add(svc, ["    labels:", ...labels.map((l) => `      - ${q(l)}`)]);
   }
   const bySvc = {};
-  for (const r of muninn ? [...ROUTES, ...MUNINN_ROUTES] : ROUTES) (bySvc[r.service] ??= []).push(r);
+  for (const r of [...ROUTES, ...(muninn ? MUNINN_ROUTES : []), ...(idp ? IDP_ROUTES : [])]) (bySvc[r.service] ??= []).push(r);
   for (const [svc, routes] of Object.entries(bySvc)) {
     // Traefik joins each env's own default network (ouo-env connects it); env services never
     // join a shared network, where compose would alias them by their bare service name
@@ -256,7 +259,7 @@ export function renderOverlay(s) {
     }
     add(svc, tl.map((l) => `      - ${q(l)}`));
   }
-  for (const svc of [...UNPUBLISHED, ...(muninn ? MUNINN_UNPUBLISHED : [])]) add(svc, ["    ports: !reset []"]);
+  for (const svc of [...UNPUBLISHED, ...(muninn ? MUNINN_UNPUBLISHED : []), ...(idp ? ["keycloak"] : [])]) add(svc, ["    ports: !reset []"]);
   for (const svc of ["otel-collector", "backend"]) {
     const pub = INGEST.filter((p) => p.service === svc).map((p) => `      - ${q(`${ports[p.name]}:${p.port}`)}`);
     add(svc, ["    ports: !override", ...pub]);
@@ -266,6 +269,15 @@ export function renderOverlay(s) {
     `      GF_SERVER_ROOT_URL: ${q(`${urlOf(s.env, "grafana")}/`)}`,
     `      GF_SECURITY_ADMIN_PASSWORD: ${q(GRAFANA_PASSWORD)}`,
   ]);
+  if (idp) {
+    // The browser-facing Keycloak URL is the token issuer; Grafana's redirect URI is per env.
+    const kc = urlOf(s.env, "keycloak");
+    add("keycloak", ["    environment:", `      KC_HOSTNAME: ${q(kc)}`, `      OUO_GRAFANA_ROOT_URL: ${q(urlOf(s.env, "grafana"))}`]);
+    add("grafana", [
+      `      GF_AUTH_GENERIC_OAUTH_AUTH_URL: ${q(`${kc}/realms/ouo/protocol/openid-connect/auth`)}`,
+      `      OUO_OIDC_ISSUER: ${q(`${kc}/realms/ouo`)}`,
+    ]);
+  }
   add("rum-api", [
     "    environment:",
     `      GRAFANA_URL: ${q(urlOf(s.env, "grafana"))}`,

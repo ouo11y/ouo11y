@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ouo-env: named local environments behind one Traefik proxy (roadmap B2).
 //
-//   deploy/envs/ouo-env up    <env> [--ref <git ref>] [--src <checkout>] [--images] [--no-build] [--muninn]
+//   deploy/envs/ouo-env up    <env> [--ref <git ref>] [--src <checkout>] [--images] [--no-build] [--muninn] [--idp]
 //   deploy/envs/ouo-env down  <env> [--purge]
 //   deploy/envs/ouo-env ls
 //   deploy/envs/ouo-env gc    [--purge] [--dry-run]
@@ -205,6 +205,7 @@ async function waitReady(s, seconds = 180) {
     ["otlp", `http://localhost:${p.otlp}/v1/traces`, (c) => c > 0],
   ];
   if (s.muninn) checks.push(["muninn", `${lib.urlOf(s.env, "muninn")}/ready`, (c) => c === 200]);
+  if (s.idp) checks.push(["keycloak", `${lib.urlOf(s.env, "keycloak")}/realms/ouo/.well-known/openid-configuration`, (c) => c === 200]);
   const deadline = Date.now() + seconds * 1000;
   for (const [name, url, ok] of checks) {
     let code = 0;
@@ -229,6 +230,7 @@ function printUrls(s, lan) {
   console.log(`  grafana   ${lib.urlOf(s.env, "grafana")}  (admin / ${lib.GRAFANA_PASSWORD})`);
   for (const n of ["rum-api", "otlp", "replay", "sentry-bridge", "backend", "loki", "tempo", "mimir"]) console.log(`  ${n.padEnd(13)} ${lib.urlOf(s.env, n)}`);
   if (s.muninn) console.log(`  ${"muninn".padEnd(13)} ${lib.urlOf(s.env, "muninn")}  (replay store, ADR-0019; replay chunks go to OTLP /v1/logs)`);
+  if (s.idp) console.log(`  ${"keycloak".padEnd(13)} ${lib.urlOf(s.env, "keycloak")}  (realm ouo: lena, omar, nora / ${lib.GRAFANA_PASSWORD}; admin / ${lib.GRAFANA_PASSWORD})`);
   const ip = lan ? lanIP() : "localhost";
   console.log(`  devices (${lan ? "phone on the same Wi-Fi" : "simulator; --lan for a phone"}):`);
   console.log(`    OTLP     http://${ip}:${p.otlp}   replay http://${ip}:${p.replay}   Sentry DSN host ${ip}:${p.sentry}   backend http://${ip}:${p.backend}`);
@@ -254,6 +256,8 @@ async function up(env, flags) {
     commit: git(src, "rev-parse", "--short", "HEAD"),
     // --muninn (kept for later ups): compose.muninn.yaml, the spec-wire collector config and Muninn.
     muninn: Boolean(flags.muninn || prev?.muninn),
+    // --idp (kept for later ups): compose.idp.yaml, Keycloak and Grafana signing in through it.
+    idp: Boolean(flags.idp || prev?.idp),
   };
   fs.mkdirSync(path.join(STATE, env), { recursive: true });
   fs.writeFileSync(path.join(STATE, env, "compose.env.yaml"), lib.renderOverlay(s));
@@ -261,6 +265,7 @@ async function up(env, flags) {
   ensureProxy();
   const extra = flags.images ? [path.join(src, "deploy/compose/compose.images.yaml")] : [];
   if (s.muninn) extra.push(path.join(src, "deploy/compose/compose.muninn.yaml"));
+  if (s.idp) extra.push(path.join(src, "deploy/compose/compose.idp.yaml"));
   if (!flags.images && !flags["no-build"]) buildPlugin(src);
   if (flags["copy-from"]) copyVolumes(flags["copy-from"], s, flags["copy-rum-api-data"]);
   retry(() => compose(s, ["up", "-d", ...(flags.images || flags["no-build"] ? [] : ["--build"]), "--remove-orphans"], extra));

@@ -1,0 +1,47 @@
+# Opt-in: an OIDC identity provider (Keycloak, realm `ouo`) and Grafana signing users in through
+# it, so Clearance can be decided from IdP groups (ADR-0024). For local envs and the e2e check
+# only: every value below is a public development value.
+#
+#   deploy/envs/ouo-env up <env> --muninn --idp
+#
+# Realm `ouo` (keycloak/realm-ouo.json): client `grafana`, a `groups` claim in the ID token,
+# groups rum-support, rum-engineers and rum-privacy, users lena (rum-support), omar
+# (rum-privacy) and nora (no group), all with the password testing567. Access and ID tokens
+# live 60 seconds, so a group change shows within a minute.
+#
+# The browser reaches Keycloak at OUO_KEYCLOAK_URL (the token issuer); Grafana and the plugin
+# backend reach it at http://keycloak:8080 (KC_HOSTNAME_BACKCHANNEL_DYNAMIC).
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--http-port=8080", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: testing567
+      KC_HOSTNAME: ${OUO_KEYCLOAK_URL:-http://localhost:8180}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      OUO_GRAFANA_ROOT_URL: ${OUO_GRAFANA_ROOT_URL:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:${OUO_KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./keycloak/realm-ouo.json:/opt/keycloak/data/import/realm-ouo.json:ro
+
+  grafana:
+    depends_on:
+      - keycloak
+    environment:
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: Keycloak
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: grafana
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ouo-dev-grafana-oidc-secret
+      GF_AUTH_GENERIC_OAUTH_SCOPES: openid email profile
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: ${OUO_KEYCLOAK_URL:-http://localhost:8180}/realms/ouo/protocol/openid-connect/auth
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: http://keycloak:8080/realms/ouo/protocol/openid-connect/token
+      GF_AUTH_GENERIC_OAUTH_API_URL: http://keycloak:8080/realms/ouo/protocol/openid-connect/userinfo
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      # Grafana refreshes the user's tokens when they expire; the plugin backend then gets a
+      # fresh ID token with the user's current groups.
+      GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN: "true"
+      # Read by grafana/provisioning (the ouo11y datasource): the issuer the backend expects.
+      OUO_OIDC_ISSUER: ${OUO_KEYCLOAK_URL:-http://localhost:8180}/realms/ouo
