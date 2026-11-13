@@ -84,6 +84,25 @@ until the semantics walk of the Compose modifiers work package.
   Android 15, else a process at most 10 s older than the JS runtime); a process started earlier for
   a receiver or a service makes the launch warm.
 
+## Replay over OTLP (`pixel/frames`)
+
+With `OuoReplayConfig.otlp` (a `ReplayOTLPOptions`; from React Native, `start(endpoint, { otlp: { logsUrl, ... } })`)
+the same capture loop sends the replay as OTLP log records instead of `/v1/replay/chunks`
+(ADR-0021 decision 5, client SDK spec 11). Without it nothing changes. The Kotlin twins of the Swift
+files in `sdk/ios/Sources/OuoReplayCore/OTLP`, with the same names, rules and bytes:
+
+| Where | What |
+|---|---|
+| `ReplayFormatAdapter`, `PixelFrames` (core), `PixelFormatAdapter` (Android) | The seam between "when to look" and "what is recorded". One format: `ouo-frames/3`, newline-delimited JSON events `frame` (keyframe), `patch`, `touch` |
+| `ReplayStream` | Replay id, stream id, segment index, sequence; chunks closed at 256 KiB compressed, 5 s, stream end or background; a body over 1 MiB is split, never truncated; the buffer ring (`buffer: { seconds }`) and `capture(trigger)`; `ouo.replay.ended`, also for a stream a kill left open (`open-stream.json`) |
+| `ReplayEnvelope`, `ProtoWriter` | One `ExportLogsServiceRequest` per chunk, written by hand (scope `ouo.replay`, event `ouo.replay.chunk`, bytes body, the attributes of spec 11.3). `ReplayEnvelopeTest` asserts the request equals the iOS bytes |
+| `ReplayDelivery` | Its own `DiskQueue` folder (`outbox-otlp`): persisted before the first send, the same bytes on a retry, `partial_success` read, `Retry-After` capped at 300 s, backoff with full jitter, the oldest chunks evicted first and their stream marked partial |
+| `ReplayMaskRegistry` | `mask(reactTag)` / `unmask(reactTag)` for every recorder. On the OTLP path masking is strict: a secure input (password types, password transformation, password, card and one-time-code autofill hints) is always masked and a mask inside an unmasked subtree wins |
+| `ReplayOTLPOptions` | The options as JavaScript passes them, read without ever throwing |
+
+Every entry point catches what it throws (ERR-1): `ReplayFaultTest` injects an adapter that throws
+or returns garbage, a disk and a collector that fail, and malformed options.
+
 ## Use (React Native)
 
 Nothing to do: `initRUM({ replay: { enabled: true } })` starts it through the Expo module on both

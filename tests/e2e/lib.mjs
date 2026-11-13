@@ -10,6 +10,9 @@ export const PROJECT_TOKEN = env.OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000
 export const PROJECT_ID = env.OUO_PROJECT_ID ?? "demo";
 export const BASIC = "Basic " + (env.OUO_PROJECT_BASIC || Buffer.from(`${PROJECT_ID}:${PROJECT_TOKEN}`, "utf8").toString("base64"));
 export const READ_TOKEN = env.OUO_READ_TOKEN ?? "rt_dev_0000000000000000";
+// Muninn, the replay store (ADR-0019): `ouo-env up <env> --muninn` exports OUO_MUNINN_URL; compose.muninn.yaml's defaults otherwise.
+export const MUNINN = (env.OUO_MUNINN_URL ?? `http://localhost:${env.OUO_MUNINN_PORT ?? 3400}`).replace(/\/$/, "");
+export const MUNINN_READ_TOKEN = env.OUO_MUNINN_READ_TOKEN ?? "mrt_dev_0000000000000000";
 export const TEMPO_DS_UID = env.OUO_TEMPO_DS_UID ?? "tempo";
 export const GRAFANA = (env.OUO_GRAFANA_URL ?? `http://localhost:${env.OUO_GRAFANA_PORT ?? 3000}`).replace(/\/$/, "");
 export const GRAFANA_AUTH = env.OUO_GRAFANA_AUTH ?? "admin:testing567";
@@ -33,7 +36,13 @@ export function readHeaders() {
 
 export async function getJSON(url, headers = {}) {
   // rum-api reads carry the read token; Grafana calls carry basic auth; the token never goes elsewhere.
-  const auth = url.startsWith(RUM + "/") ? readHeaders() : url.startsWith(GRAFANA + "/") ? grafanaAuth() : {};
+  const auth = url.startsWith(RUM + "/")
+    ? readHeaders()
+    : url.startsWith(GRAFANA + "/")
+      ? grafanaAuth()
+      : url.startsWith(MUNINN + "/") && MUNINN_READ_TOKEN
+        ? { authorization: `Bearer ${MUNINN_READ_TOKEN}` }
+        : {};
   const res = await fetch(url, { headers: { ...auth, ...headers } });
   const text = await res.text();
   if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}: ${text.slice(0, 300)}`);

@@ -1,0 +1,109 @@
+{
+  "verdict": "pass",
+  "requests": 47,
+  "faultsInjected": 0,
+  "accepted": {
+    "/v1/logs": 33,
+    "/v1/traces": 14
+  },
+  "telemetry": {
+    "events": {
+      "session.start": 2,
+      "navigation": 10,
+      "app.jank": 12,
+      "ouo.app.start": 2,
+      "http.request.failed": 14,
+      "ouo.screen.display": 10,
+      "feedback": 1,
+      "app.lifecycle": 4,
+      "session.end": 1
+    },
+    "spans": {
+      "HTTP GET": 9,
+      "HTTP POST": 5
+    }
+  },
+  "streams": [
+    {
+      "stream": "1352c65a0bd5d59ee82328d537863048",
+      "chunks": 9,
+      "highestSequence": 8,
+      "duplicates": 0,
+      "bytes": 117825,
+      "ended": [
+        {
+          "lastSequence": 8,
+          "endState": "partial",
+          "endReason": "background_kill"
+        }
+      ]
+    },
+    {
+      "stream": "c1dbd537575c6418b439d542eee790e0",
+      "chunks": 2,
+      "highestSequence": 1,
+      "duplicates": 0,
+      "bytes": 25929,
+      "ended": []
+    }
+  ],
+  "openStreams": [
+    "c1dbd537575c6418b439d542eee790e0"
+  ],
+  "rules": {
+    "one_chunk_per_request": {
+      "rule": "TRN-5: a replay request holds exactly one log record",
+      "result": "pass",
+      "checked": 12,
+      "failures": []
+    },
+    "no_content_encoding": {
+      "rule": "8.1: no Content-Encoding on a replay request (the body is compressed by the format layer)",
+      "result": "pass",
+      "checked": 11,
+      "failures": []
+    },
+    "chunk_attributes": {
+      "rule": "RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14)",
+      "result": "pass",
+      "checked": 11,
+      "failures": []
+    },
+    "body_size": {
+      "rule": "a chunk body is at most 1 MiB",
+      "result": "pass",
+      "checked": 11,
+      "failures": []
+    },
+    "hash_and_size": {
+      "rule": "RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received",
+      "result": "pass",
+      "checked": 11,
+      "failures": []
+    },
+    "body_decodes": {
+      "rule": "the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type`; ouo-video/1: encoding identity, a header line and a well-formed mp4",
+      "result": "pass",
+      "checked": 22,
+      "failures": []
+    },
+    "sequence": {
+      "rule": "per stream the sequences are 0, 1, 2, ... with no gap",
+      "result": "pass",
+      "checked": 2,
+      "failures": []
+    },
+    "keyframe": {
+      "rule": "the first chunk of each segment has keyframe=true and starts with a `frame` event (`video` for ouo-video/1, where every chunk is a segment)",
+      "result": "pass",
+      "checked": 11,
+      "failures": []
+    },
+    "ended": {
+      "rule": "RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen",
+      "result": "pass",
+      "checked": 1,
+      "failures": []
+    }
+  }
+}

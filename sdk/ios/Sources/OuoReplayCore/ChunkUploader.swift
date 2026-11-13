@@ -8,10 +8,14 @@ public struct ChunkResponse: Equatable, ExpressibleByIntegerLiteral {
     public var status: Int
     /// `Retry-After` in seconds (the receiver sends whole seconds with 429 and 503).
     public var retryAfter: TimeInterval?
+    /// The response body, when the transport kept it: the OTLP replay queue reads
+    /// `partial_success` from it (`ReplayDelivery`). The chunk uploader ignores it.
+    public var body: Data?
 
-    public init(status: Int, retryAfter: TimeInterval? = nil) {
+    public init(status: Int, retryAfter: TimeInterval? = nil, body: Data? = nil) {
         self.status = status
         self.retryAfter = retryAfter
+        self.body = body
     }
 
     public init(integerLiteral status: Int) {
@@ -40,10 +44,10 @@ public final class URLSessionTransport: ChunkTransport {
     }
 
     public func send(_ request: URLRequest, completion: @escaping (Result<ChunkResponse, Swift.Error>) -> Void) {
-        let task = session.dataTask(with: request) { _, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
             if let error { completion(.failure(error)); return }
             let http = response as? HTTPURLResponse
-            completion(.success(ChunkResponse(status: http?.statusCode ?? 0, retryAfter: http?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init))))
+            completion(.success(ChunkResponse(status: http?.statusCode ?? 0, retryAfter: http?.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init), body: data)))
         }
         task.resume()
     }
@@ -191,16 +195,28 @@ public final class ChunkUploader {
     /// Encodes, compresses and writes the chunk to the queue folder before returning (the spool
     /// is cleared after this returns), then starts sending. Safe from any thread.
     public func enqueue(_ chunk: FrameChunk) {
-        let body: Data
+        let json: Data
         do {
-            body = try Gzip.compress(try chunk.encodedJSON())
+            json = try chunk.encodedJSON()
         } catch {
             logger.warn("could not encode chunk seq=\(chunk.seq): \(error)")
             return
         }
+        enqueue(json: json, sessionId: chunk.sessionId, seq: chunk.seq, summary: "\(chunk.frames.count) frames \(chunk.touches.count) touches")
+    }
+
+    /// Compresses and queues one chunk body of any kind; the headers carry `sessionId` and `seq`.
+    public func enqueue(json: Data, sessionId: String, seq: Int, summary: String = "") {
+        let body: Data
+        do {
+            body = try Gzip.compress(json)
+        } catch {
+            logger.warn("could not compress chunk seq=\(seq): \(error)")
+            return
+        }
         // Disk full or not writable: the queue sends it once from memory rather than nothing; a
         // held chunk is dropped instead (its session's keep/drop decision has not been made).
-        let tag = "\(chunk.sessionId).\(chunk.seq).json.gz"
+        let tag = "\(sessionId).\(seq).json.gz"
         if config.hold {
             guard held.put(body, tag: tag, sendIfRefused: false) else {
                 lock.withLock { droppedHere += 1 }
@@ -209,7 +225,7 @@ public final class ChunkUploader {
         } else if !queued.put(body, tag: tag) {
             return
         }
-        logger.log("\(config.hold ? "held" : "queued") session=\(chunk.sessionId) seq=\(chunk.seq) \(chunk.frames.count) frames \(chunk.touches.count) touches \(body.count) bytes gzip")
+        logger.log("\(config.hold ? "held" : "queued") session=\(sessionId) seq=\(seq) \(summary) \(body.count) bytes gzip")
     }
 
     /// Tries to send what is queued (this process's chunks and those an earlier one left) and

@@ -4,7 +4,7 @@ import type { ExpoConfig } from "expo/config";
  * APP_VERSION switches `service.version` so the health split by version has data:
  *   APP_VERSION=2.4.0 npx expo start --ios
  * EXPO_PUBLIC_OTLP_ENDPOINT is the collector's OTLP/HTTP base URL (ADR-0007: the collector is the
- * only edge; the SDK derives the replay receiver on port 4319 from port 4318), EXPO_PUBLIC_OUO_PROJECT_ID
+ * only edge; replay chunks go to its logs route as OTLP log records), EXPO_PUBLIC_OUO_PROJECT_ID
  * and EXPO_PUBLIC_OUO_PROJECT_TOKEN the project credential (sent as HTTP Basic); all three default to
  * the stock compose stack and its development project. BACKEND_URL is the demo backend.
  * From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP.
@@ -36,13 +36,16 @@ const config: ExpoConfig = {
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
     otlpEndpoint: process.env.EXPO_PUBLIC_OTLP_ENDPOINT ?? "http://localhost:4318",
-    replayEndpoint: process.env.EXPO_PUBLIC_OUO_REPLAY_ENDPOINT || undefined,
     projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
     projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
+    // EXPO_PUBLIC_OUO_REPLAY_MODE: what replay records (`pixel/frames`, the default, or `pixel/video`, iOS).
+    replayMode: process.env.EXPO_PUBLIC_OUO_REPLAY_MODE ?? "pixel/frames",
     // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
     // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
     conformance: process.env.OUO_CONFORMANCE === "1",
+    // OUO_DEBUG=1: the SDK's debug log in a Release build (the native replay log goes to NSLog / logcat).
+    debug: process.env.OUO_DEBUG === "1",
   },
 };
 

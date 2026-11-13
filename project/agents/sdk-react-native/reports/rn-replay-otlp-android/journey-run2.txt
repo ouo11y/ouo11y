@@ -1,0 +1,20 @@
+Run 2: journey-android.sh with a stub backend, then 70 s in the background and resume (session rotation)
+
+verdict: PASS
+requests: 44 (faults injected: 0; accepted logs 32, traces 12)
+  [PASS] one_chunk_per_request: TRN-5: a replay request holds exactly one log record (12 checked)
+  [PASS] no_content_encoding: 8.1: no Content-Encoding on a replay request (the body is compressed by the format layer) (9 checked)
+  [PASS] chunk_attributes: RPL-13: every MUST attribute of 11.3 is present and typed; no ouo.replay.ref (RPL-14) (9 checked)
+  [PASS] body_size: a chunk body is at most 1 MiB (9 checked)
+  [PASS] hash_and_size: RPL-12: ouo.replay.sha256 and ouo.replay.byte_size match the body received (9 checked)
+  [PASS] body_decodes: the body decodes (gzip when ouo.replay.encoding says so) and every line is JSON with `t` and `type` (18 checked)
+  [PASS] sequence: per stream the sequences are 0, 1, 2, ... with no gap (3 checked)
+  [PASS] keyframe: the first chunk of each segment has keyframe=true and starts with a `frame` event (4 checked)
+  [PASS] ended: RPL-20, RPL-26: one ouo.replay.ended per finished stream, MUST attributes present, last_sequence is the highest sequence seen (3 checked)
+  stream 11527693585b1afa1f09326e2257e805: 0 chunk(s), highest sequence null, 0 bytes, 0 duplicate(s), ended: partial/background_kill/last=1
+  stream ee72d0e76189335e559491ad3c53e42c: 5 chunk(s), highest sequence 4, 38954 bytes, 0 duplicate(s), ended: partial/background_kill/last=4
+  stream 19fe7b60a1a6085e3e0dc234306c8ac1: 3 chunk(s), highest sequence 2, 11968 bytes, 0 duplicate(s), ended: complete/session_end/last=2
+  stream f8b3dc4b46c9b1a837c2f78398f0e39d: 1 chunk(s), highest sequence 0, 3912 bytes, 0 duplicate(s), ended: no
+  telemetry events: session.end=3, session.start=3, navigation=10, ouo.stall=9, ouo.app.start=2, http.request=11, ouo.screen.display=10, app.jank=9, ui.tap=1, http.request.failed=1, app.lifecycle=5
+  telemetry session.id: 10db4ae2-fae8-46b3-8919-40518f87a34e=1, fb20424b-80da-4462-a1fe-f771e27084fe=44, 7c8e2c17-1450-4617-8908-37863e7237aa=16, bd48f37d-d813-4d15-92ad-7f1ba0ad92d1=3
+  spans: HTTP GET=10, HTTP POST=2

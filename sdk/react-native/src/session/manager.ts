@@ -11,7 +11,8 @@ export const USER_STORAGE_KEY = "ouo.user";
 export const CRASH_STORAGE_KEY = "ouo.crash";
 export const DEFAULT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_MAX_DURATION_MS = 4 * 60 * 60 * 1000;
-export const DEFAULT_BACKGROUND_TIMEOUT_MS = 30 * 1000;
+/** Spec section 3.2: 15 minutes in the background ends the session. */
+export const DEFAULT_BACKGROUND_TIMEOUT_MS = 15 * 60 * 1000;
 /** The last-activity time is written to storage at most once per 5 s (spec SES-6). */
 export const PERSIST_THROTTLE_MS = 5000;
 /** A hung AsyncStorage read must not delay `session.start` for longer than this. */

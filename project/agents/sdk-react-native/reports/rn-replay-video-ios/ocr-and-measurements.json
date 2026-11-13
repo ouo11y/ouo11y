@@ -1,0 +1,672 @@
+{
+ "what": "OCR (Vision, accurate) of every frame of every run of the replaydemo journey (examples/ouo-ios, legacy upload path, same recorder core and masking plan as pixel/video over OTLP), iOS 27.0 simulator iPhone 17 Pro, Apple Silicon Mac. 'Total 4.50' is unmasked on purpose with .ouoUnmask().",
+ "baselineSpike": {
+  "note": "the unchanged spike (Sentry masking), 6 runs",
+  "runs": [
+   {
+    "run": "sentry-video-1",
+    "frames": 49,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ]
+   },
+   {
+    "run": "sentry-video-2",
+    "frames": 53,
+    "framesWithText": [],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-3",
+    "frames": 54,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ]
+   },
+   {
+    "run": "sentry-video-4",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ]
+   },
+   {
+    "run": "sentry-video-5",
+    "frames": 55,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ]
+   },
+   {
+    "run": "sentry-video-6",
+    "frames": 55,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Espresso cup, 4.50",
+       "Card ending 4242",
+       "Total 4.50",
+       "Add to cart"
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "fixed": {
+  "note": "this branch, 10 rounds, each recorder once per round, interleaved",
+  "runs": [
+   {
+    "run": "frames-1",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-10",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-2",
+    "frames": 28,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-3",
+    "frames": 28,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-4",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-5",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-6",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-7",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-8",
+    "frames": 28,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "frames-9",
+    "frames": 27,
+    "framesWithText": [
+     {
+      "frame": "00001-001.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-1",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-10",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-2",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-3",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-4",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-5",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-6",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00002-000.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-7",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-8",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   },
+   {
+    "run": "sentry-video-9",
+    "frames": 53,
+    "framesWithText": [
+     {
+      "frame": "00001-002.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-003.png",
+      "text": [
+       "Total 4.50"
+      ]
+     },
+     {
+      "frame": "00001-004.png",
+      "text": [
+       "Total 4.50"
+      ]
+     }
+    ],
+    "framesWithMaskedTextReadable": []
+   }
+  ]
+ },
+ "measurements": {
+  "frames": {
+   "n": 10,
+   "kib_per_min": {
+    "median": 208.85,
+    "min": 204.8,
+    "max": 217.2
+   },
+   "bytes_sent": {
+    "median": 179525.0,
+    "min": 175904,
+    "max": 186843
+   },
+   "requests": {
+    "median": 8.0,
+    "min": 8,
+    "max": 8
+   },
+   "frames": {
+    "median": 27.0,
+    "min": 27,
+    "max": 28
+   },
+   "captures": {
+    "median": 48.0,
+    "min": 48,
+    "max": 48
+   },
+   "main_ms_mean": {
+    "median": 20.66,
+    "min": 19.85,
+    "max": 21.69
+   },
+   "main_ms_p50": {
+    "median": 28.27,
+    "min": 24.28,
+    "max": 28.57
+   },
+   "main_ms_p90": {
+    "median": 31.45,
+    "min": 30.52,
+    "max": 32.07
+   },
+   "main_ms_max": {
+    "median": 33.62,
+    "min": 32.18,
+    "max": 42.87
+   },
+   "main_ms_total": {
+    "median": 991.78,
+    "min": 952.65,
+    "max": 1041.08
+   },
+   "runs_with_text_frames": 10
+  },
+  "sentry-video": {
+   "n": 10,
+   "kib_per_min": {
+    "median": 97.65,
+    "min": 96.6,
+    "max": 102.0
+   },
+   "bytes_sent": {
+    "median": 83865.5,
+    "min": 83018,
+    "max": 87711
+   },
+   "requests": {
+    "median": 11.0,
+    "min": 10,
+    "max": 11
+   },
+   "frames": {
+    "median": 53.0,
+    "min": 53,
+    "max": 53
+   },
+   "captures": {
+    "median": 54.0,
+    "min": 54,
+    "max": 55
+   },
+   "main_ms_mean": {
+    "median": 32.37,
+    "min": 30.15,
+    "max": 34.81
+   },
+   "main_ms_p50": {
+    "median": 45.26,
+    "min": 34.64,
+    "max": 46.14
+   },
+   "main_ms_p90": {
+    "median": 48.66,
+    "min": 48.22,
+    "max": 49.96
+   },
+   "main_ms_max": {
+    "median": 51.8,
+    "min": 49.61,
+    "max": 121.24
+   },
+   "main_ms_total": {
+    "median": 1756.29,
+    "min": 1627.92,
+    "max": 1879.56
+   },
+   "runs_with_text_frames": 10
+  }
+ },
+ "mainThreadMsPerMinute": {
+  "frames": {
+   "median": 1181,
+   "min": 1136,
+   "max": 1239
+  },
+  "sentry-video": {
+   "median": 2092,
+   "min": 1938,
+   "max": 2238
+  }
+ },
+ "rnJourneyOtlp": {
+  "note": "examples/ouo-mobile scripts/journey.sh against fake-collector.mjs, maskText false (the demo's setting), one run each; first stream",
+  "ouo-video/1": {
+   "chunks": 9,
+   "seconds": 48.0,
+   "bytes": 117825,
+   "kibPerMin": 143.8
+  },
+  "ouo-frames/3": {
+   "chunks": 5,
+   "seconds": 38.9,
+   "bytes": 74653,
+   "kibPerMin": 112.4
+  }
+ }
+}

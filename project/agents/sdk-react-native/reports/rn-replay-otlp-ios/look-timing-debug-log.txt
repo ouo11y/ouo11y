@@ -1,0 +1,55 @@
+23:57:58.487 2026-11-12 23:57:58.487 Df (Foundation) [ouo replay] started otlp logs=http://localhost:24318/v1/logs mode=pixel/frames cadence=session buffer=off replay=948f234a8a4137828a6e80e265d4bdb8 stream=a748fe0337ca3453d38db6a071fafcd1
+23:57:58.539 2026-11-12 23:57:58.539 Df (Foundation) [ouo replay] look resume: main 22 ms, waited 15 ms, encode 14 ms
+23:57:59.616 2026-11-12 23:57:59.616 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 5 ms, encode 103 ms
+23:58:00.507 2026-11-12 23:58:00.507 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 0 ms, encode 4 ms
+23:58:01.515 2026-11-12 23:58:01.515 Df (Foundation) [ouo replay] look timer: main 14 ms, waited 3 ms, encode 11 ms
+23:58:02.534 2026-11-12 23:58:02.534 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 15 ms, encode 16 ms
+23:58:03.518 2026-11-12 23:58:03.518 Df (Foundation) [ouo replay] look timer: main 14 ms, waited 1 ms, encode 12 ms
+23:58:03.524 2026-11-12 23:58:03.524 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.0.chunk.pb
+23:58:04.822 2026-11-12 23:58:04.822 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 1 ms, encode 81 ms
+23:58:05.708 2026-11-12 23:58:05.708 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 0 ms, encode 2 ms
+23:58:06.715 2026-11-12 23:58:06.715 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 0 ms, encode 5 ms
+23:58:07.713 2026-11-12 23:58:07.713 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 3 ms
+23:58:08.831 2026-11-12 23:58:08.831 Df (Foundation) [ouo replay] look timer: main 20 ms, waited 1 ms, encode 3 ms
+23:58:09.986 2026-11-12 23:58:09.986 Df (Foundation) [ouo replay] look timer: main 18 ms, waited 155 ms, encode 4 ms
+23:58:10.118 2026-11-12 23:58:10.118 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.1.chunk.pb
+23:58:11.311 2026-11-12 23:58:11.311 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 2 ms, encode 6 ms
+23:58:12.313 2026-11-12 23:58:12.313 Df (Foundation) [ouo replay] look timer: main 18 ms, waited 0 ms, encode 8 ms
+23:58:13.311 2026-11-12 23:58:13.311 Df (Foundation) [ouo replay] look timer: main 22 ms, waited 0 ms, encode 2 ms
+23:58:14.317 2026-11-12 23:58:14.317 Df (Foundation) [ouo replay] look timer: main 18 ms, waited 1 ms, encode 10 ms
+23:58:15.950 2026-11-12 23:58:15.950 Df (Foundation) [ouo replay] look timer: main 25 ms, waited 0 ms, encode 5 ms
+23:58:16.495 2026-11-12 23:58:16.495 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.2.chunk.pb
+23:58:16.947 2026-11-12 23:58:16.947 Df (Foundation) [ouo replay] look timer: main 22 ms, waited 0 ms, encode 4 ms
+23:58:17.939 2026-11-12 23:58:17.939 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 2 ms
+23:58:18.951 2026-11-12 23:58:18.951 Df (Foundation) [ouo replay] look timer: main 25 ms, waited 0 ms, encode 3 ms
+23:58:19.940 2026-11-12 23:58:19.940 Df (Foundation) [ouo replay] look timer: main 14 ms, waited 0 ms, encode 2 ms
+23:58:21.205 2026-11-12 23:58:21.205 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 0 ms, encode 3 ms
+23:58:22.215 2026-11-12 23:58:22.215 Df (Foundation) [ouo replay] look timer: main 26 ms, waited 0 ms, encode 2 ms
+23:58:23.211 2026-11-12 23:58:23.211 Df (Foundation) [ouo replay] look timer: main 20 ms, waited 0 ms, encode 2 ms
+23:58:24.206 2026-11-12 23:58:24.206 Df (Foundation) [ouo replay] look timer: main 14 ms, waited 0 ms, encode 2 ms
+23:58:25.206 2026-11-12 23:58:25.206 Df (Foundation) [ouo replay] look timer: main 14 ms, waited 0 ms, encode 2 ms
+23:58:26.494 2026-11-12 23:58:26.494 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.3.chunk.pb
+23:58:26.565 2026-11-12 23:58:26.565 Df (Foundation) [ouo replay] look timer: main 26 ms, waited 0 ms, encode 2 ms
+23:58:27.565 2026-11-12 23:58:27.565 Df (Foundation) [ouo replay] look timer: main 27 ms, waited 0 ms, encode 2 ms
+23:58:28.556 2026-11-12 23:58:28.556 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 0 ms, encode 2 ms
+23:58:29.557 2026-11-12 23:58:29.557 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 2 ms
+23:58:30.558 2026-11-12 23:58:30.558 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 0 ms, encode 2 ms
+23:58:31.559 2026-11-12 23:58:31.559 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 0 ms, encode 2 ms
+23:58:32.512 2026-11-12 23:58:32.512 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.4.chunk.pb
+23:58:32.568 2026-11-12 23:58:32.568 Df (Foundation) [ouo replay] look timer: main 25 ms, waited 0 ms, encode 2 ms
+23:58:33.558 2026-11-12 23:58:33.558 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 0 ms, encode 2 ms
+23:58:34.562 2026-11-12 23:58:34.562 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 4 ms
+23:58:35.566 2026-11-12 23:58:35.566 Df (Foundation) [ouo replay] look timer: main 17 ms, waited 0 ms, encode 5 ms
+23:58:36.562 2026-11-12 23:58:36.562 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 2 ms
+23:58:37.568 2026-11-12 23:58:37.568 Df (Foundation) [ouo replay] look timer: main 21 ms, waited 0 ms, encode 2 ms
+23:58:38.678 2026-11-12 23:58:38.678 Df (Foundation) [ouo replay] look timer: main 26 ms, waited 26 ms, encode 80 ms
+23:58:39.568 2026-11-12 23:58:39.568 Df (Foundation) [ouo replay] look timer: main 15 ms, waited 0 ms, encode 6 ms
+23:58:39.576 2026-11-12 23:58:39.576 Df (Foundation) [ouo replay] sent a748fe0337ca3453d38db6a071fafcd1.5.chunk.pb
+23:58:40.566 2026-11-12 23:58:40.566 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 2 ms
+23:58:41.570 2026-11-12 23:58:41.570 Df (Foundation) [ouo replay] look timer: main 18 ms, waited 1 ms, encode 2 ms
+23:58:42.580 2026-11-12 23:58:42.580 Df (Foundation) [ouo replay] look timer: main 27 ms, waited 0 ms, encode 3 ms
+23:58:43.570 2026-11-12 23:58:43.570 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 3 ms
+23:58:44.578 2026-11-12 23:58:44.578 Df (Foundation) [ouo replay] look timer: main 22 ms, waited 0 ms, encode 4 ms
+23:58:45.574 2026-11-12 23:58:45.574 Df (Foundation) [ouo replay] look timer: main 19 ms, waited 0 ms, encode 3 ms
+23:58:46.619 2026-11-12 23:58:46.619 Df (Foundation) [ouo replay] look timer: main 19 ms, waited 43 ms, encode 5 ms
+23:58:47.573 2026-11-12 23:58:47.573 Df (Foundation) [ouo replay] look timer: main 16 ms, waited 0 ms, encode 4 ms

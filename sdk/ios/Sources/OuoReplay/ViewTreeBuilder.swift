@@ -37,13 +37,65 @@ enum ViewTreeBuilder {
         return entry
     }
 
-    static func walk(_ window: UIWindow, maxDepth: Int = 64) -> Walk {
+    /// What the OTLP replay path adds to the walk (the legacy recorder passes none): secure fields
+    /// and the host's overrides from the mask registry.
+    struct Detail {
+        var masks = ReplayMaskRegistry.Snapshot()
+    }
+
+    static func walk(_ window: UIWindow, maxDepth: Int = 64, detail: Detail? = nil) -> Walk {
         var animations = 0
-        let tree = node(for: window, maxDepth: maxDepth, animations: &animations)
+        let tree = node(for: window, maxDepth: maxDepth, animations: &animations, detail: detail)
         return Walk(tree: tree, animations: animations)
     }
 
-    private static func node(for view: UIView, maxDepth: Int, animations: inout Int) -> ViewNode {
+    // MARK: detail (OTLP replay path)
+
+    private static let reactTagSelector = NSSelectorFromString("reactTag")
+    /// Content types that hold a secret whether or not the field hides its characters.
+    private static let secretContentTypes: Set<UITextContentType> = [.password, .newPassword, .oneTimeCode, .creditCardNumber]
+
+    /// The React tag of a React Native view: Paper keeps it in `reactTag`, Fabric in `tag`. Under
+    /// Fabric every component view descends from `RCTViewComponentView`, also those whose own class
+    /// is not `RCT…` (Expo module views, react-native-svg, WebView), so the class chain decides,
+    /// not the name: a host's `mask(ref)` on such a view masks it as on Android. A plain UIKit
+    /// view's `tag` is the app's own number, not a React tag, and is not read.
+    private static func reactTag(of view: UIView, names: (name: String, superclasses: [String])) -> Int? {
+        if view.responds(to: reactTagSelector), let n = view.perform(reactTagSelector)?.takeUnretainedValue() as? NSNumber {
+            return n.intValue
+        }
+        guard view.tag > 0 else { return nil }
+        return names.name.hasPrefix("RCT") || names.superclasses.contains(where: { $0.hasPrefix("RCT") }) ? view.tag : nil
+    }
+
+    /// The text field or text view behind an input node (React Native's Fabric input wraps it), and
+    /// whether what it holds is a secret (PRV-7).
+    private static func input(of view: UIView, names: (name: String, superclasses: [String])) -> (field: UIView, secure: Bool)? {
+        func describe(_ v: UIView) -> (field: UIView, secure: Bool)? {
+            if let f = v as? UITextField {
+                return (f, f.isSecureTextEntry || f.textContentType.map(secretContentTypes.contains) ?? false)
+            }
+            if let t = v as? UITextView {
+                return (t, t.isSecureTextEntry || t.textContentType.map(secretContentTypes.contains) ?? false)
+            }
+            return nil
+        }
+        if let own = describe(view) { return own }
+        guard RedactionRules.inputClasses.contains(names.name) || names.superclasses.contains(where: RedactionRules.inputClasses.contains) else { return nil }
+        for sub in view.subviews {
+            if let inner = describe(sub) { return inner }
+        }
+        return (view, false)
+    }
+
+    private static func node(for view: UIView, maxDepth: Int, animations: inout Int, detail: Detail?) -> ViewNode {
+        var secure = false
+        var maskOverride: ViewNode.MaskOverride?
+        if let detail {
+            let names = names(of: type(of: view))
+            secure = input(of: view, names: names)?.secure ?? false
+            maskOverride = detail.masks.override(reactTag: reactTag(of: view, names: names), accessibilityIdentifier: view.accessibilityIdentifier)
+        }
         let frame = view.convert(view.bounds, to: nil)
         let names = names(of: type(of: view))
         let layer = view.layer
@@ -57,14 +109,15 @@ enum ViewTreeBuilder {
             return !inPlaceKeyPaths.contains(path)
         }
         // Scrolling moves content without an animation, and the screen shows the previous offset.
-        if let scroll = view as? UIScrollView, scroll.isDragging || scroll.isDecelerating {
-            moving = true
+        if let scroll = view as? UIScrollView {
+            if scroll.isDragging || scroll.isDecelerating { moving = true }
+            if !view.isHidden, ScrollMotion.isMoving(scroll, now: ProcessInfo.processInfo.systemUptime) { moving = true }
         }
         var children: [ViewNode] = []
         var truncated = false
         if !invisible {
             if maxDepth > 0 {
-                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations) }
+                children = view.subviews.map { node(for: $0, maxDepth: maxDepth - 1, animations: &animations, detail: detail) }
             } else {
                 truncated = !view.subviews.isEmpty
             }
@@ -85,8 +138,67 @@ enum ViewTreeBuilder {
             animating: !keys.isEmpty,
             moving: moving,
             truncated: truncated,
-            children: children
+            children: children,
+            secure: secure,
+            maskOverride: maskOverride
         )
+    }
+}
+
+/// Whether a scroll view's content is moving right now, when nothing on its layer says so. A
+/// programmatic scroll (`setContentOffset(_:animated: true)`) moves the offset from a display link:
+/// no layer animation, not dragging, not decelerating, the presentation layer equal to the model,
+/// yet the render lags the model by a frame, so text slid out from under its mask (found by the
+/// `pixel/video` leak measurement, in both pixel recorders). The scroll views a walk meets are
+/// sampled once per main run-loop pass (an observer before Core Animation's commit); one whose
+/// offset changed within `settle` is moving, so masked content in it drops the frame. Main thread.
+enum ScrollMotion {
+    static let settle: TimeInterval = 0.1
+    private static let watched = NSHashTable<UIScrollView>.weakObjects()
+    private static let lastOffset = NSMapTable<UIScrollView, NSValue>.weakToStrongObjects()
+    private static let changedAt = NSMapTable<UIScrollView, NSNumber>.weakToStrongObjects()
+    private static var observer: CFRunLoopObserver?
+
+    static func isMoving(_ scroll: UIScrollView, now: TimeInterval) -> Bool {
+        sample(scroll, now: now)
+        if !watched.contains(scroll) {
+            watched.add(scroll)
+            installIfNeeded()
+        }
+        guard let at = changedAt.object(forKey: scroll)?.doubleValue else { return false }
+        return now - at < settle
+    }
+
+    private static func sample(_ scroll: UIScrollView, now: TimeInterval) {
+        let offset = scroll.contentOffset
+        if let last = lastOffset.object(forKey: scroll)?.cgPointValue, last != offset {
+            changedAt.setObject(NSNumber(value: now), forKey: scroll)
+        }
+        lastOffset.setObject(NSValue(cgPoint: offset), forKey: scroll)
+    }
+
+    /// Removes the run-loop observer and forgets every scroll view: capture stopped, nothing samples
+    /// them until the next walk installs it again.
+    static func stop() {
+        if let observer {
+            CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes)
+            self.observer = nil
+        }
+        watched.removeAllObjects()
+        lastOffset.removeAllObjects()
+        changedAt.removeAllObjects()
+    }
+
+    /// One observer while capture runs (`stop()` removes it); the tables are weak, so a gone scroll
+    /// view costs nothing.
+    private static func installIfNeeded() {
+        guard observer == nil else { return }
+        let o = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, 0) { _, _ in
+            let now = ProcessInfo.processInfo.systemUptime
+            for scroll in watched.allObjects { sample(scroll, now: now) }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), o, .commonModes)
+        observer = o
     }
 }
 #endif

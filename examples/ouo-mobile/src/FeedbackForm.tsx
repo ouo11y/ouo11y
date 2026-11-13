@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, TextInput, View } from "react-native";
-import { maskedArea } from "./journey";
+import { maskedArea, typeable } from "./journey";
 import { rum } from "./rum";
 import { Button, styles } from "./ui";
 
@@ -12,6 +12,8 @@ export function FeedbackForm() {
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
   const [sent, setSent] = useState<string | undefined>();
+  useEffect(() => typeable("feedback-message", setMessage), []);
+  useEffect(() => typeable("feedback-contact", setContact), []);
   const send = () => {
     const id = rum.feedback({ message, contact, screenshot: true });
     if (!id) return;

@@ -15,7 +15,6 @@ export let ouo: RUM | undefined;
 export function initOuo(mode: RumMode, replay: boolean): RUM {
   ouo = initRUM({
     endpoint: config.ouoOtlpEndpoint,
-    replayEndpoint: config.ouoReplayEndpoint,
     projectId: config.ouoProjectId,
     projectToken: config.ouoProjectToken,
     service: { name: "sentry-demo-ouo", version: config.release.split("@")[1]?.split("+")[0] ?? "0.0.0", environment: config.environment },

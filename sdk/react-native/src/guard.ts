@@ -34,6 +34,7 @@ const state = {
   logger: undefined as DebugLogger | undefined,
   onDisable: undefined as (() => void) | undefined,
   reporting: false,
+  disabling: false,
 };
 
 function isThenable(v: unknown): v is PromiseLike<unknown> {
@@ -89,6 +90,7 @@ export const guard = {
     state.errors = 0;
     state.disabled = false;
     state.reporting = false;
+    state.disabling = false;
     state.threshold = typeof t === "number" && Number.isFinite(t) && t >= 1 ? Math.floor(t) : DEFAULT_SELF_DISABLE_THRESHOLD;
     state.logger = options.logger;
     state.onDisable = options.onDisable;
@@ -108,8 +110,11 @@ export const guard = {
   report(seam: string, err: unknown): void {
     state.errors++;
     diagnose(seam, err);
-    if (state.disabled || state.errors < state.threshold) return;
-    state.disabled = true;
+    if (state.disabled || state.disabling || state.errors < state.threshold) return;
+    // The teardown runs while guarded code still works (it stops the native recorder through
+    // the guarded native module); only then is everything a no-op. An error it causes is
+    // counted but cannot start a second teardown.
+    state.disabling = true;
     const onDisable = state.onDisable;
     state.onDisable = undefined;
     try {
@@ -117,6 +122,8 @@ export const guard = {
     } catch (e) {
       diagnose("self-disable", e);
     }
+    state.disabled = true;
+    state.disabling = false;
     diagnose("self-disable", `${state.errors} internal errors: the SDK stopped capture and is now a no-op`);
   },
 

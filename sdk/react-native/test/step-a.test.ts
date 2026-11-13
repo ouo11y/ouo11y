@@ -102,7 +102,7 @@ describe("configuration never throws (CFG-1, CFG-2, CFG-3)", () => {
     }
     // Defaults when nothing is given; a rate below 0 clamps to 0; NaN is the default.
     const plain = normalizeOptions(base).config!;
-    expect(plain.session).toEqual({ inactivityTimeoutMs: 30 * 60_000, backgroundTimeoutMs: 30_000, maxDurationMs: 4 * 3600_000, sampleRate: 1 });
+    expect(plain.session).toEqual({ inactivityTimeoutMs: 30 * 60_000, backgroundTimeoutMs: 15 * 60_000, maxDurationMs: 4 * 3600_000, sampleRate: 1 });
     expect(normalizeOptions({ ...base, session: { sampleRate: -2 } }).config!.session.sampleRate).toBe(0);
     expect(normalizeOptions({ ...base, session: { sampleRate: NaN } }).config!.session.sampleRate).toBe(1);
   });
@@ -125,7 +125,7 @@ describe("configuration never throws (CFG-1, CFG-2, CFG-3)", () => {
     expect(getRUM()).toBeUndefined();
     const real = initRUM(base);
     expect(getRUM()).toBe(real);
-    expect(real.getSessionId()).toMatch(/^[0-9a-f-]{36}$/);
+    expect(real.getSessionId()).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it("the project token, or any prefix of it, is in no diagnostic, URL or record", async () => {
@@ -297,7 +297,8 @@ describe("public API per spec 3.1", () => {
   it("replay.start / stop / capture / mask / unmask reach the native module when it has the method", async () => {
     const extra = { capture: vi.fn(), mask: vi.fn() };
     g.expo = { modules: { OuoReplay: { ...nativeReplay, ...extra } } };
-    const { rum } = await start({ replay: { enabled: true } });
+    // A session recording into a buffer: the only kind `capture()` has something to send for.
+    const { rum } = await start({ replay: { enabled: true, sampleRate: 0, onErrorSampleRate: 1 } });
     expect(rum.replay.isRecording()).toBe(true);
     sdk.replay.stop();
     expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
@@ -306,7 +307,7 @@ describe("public API per spec 3.1", () => {
     sdk.replay.capture();
     sdk.replay.mask(42);
     expect(() => sdk.replay.unmask(42)).not.toThrow(); // not in this native module: a no-op
-    expect(extra.capture).toHaveBeenCalledTimes(1);
+    expect(extra.capture.mock.calls).toEqual([["manual"]]);
     expect(extra.mask).toHaveBeenCalledWith(42);
     delete g.expo;
   });
@@ -589,5 +590,48 @@ describe("propagation (PRP-3, PRP-6)", () => {
     expect(captured.requests[1]!.headers).toEqual({});
     // The requests are still recorded.
     expect(captured.spans.filter((s) => s.name === "HTTP GET")).toHaveLength(2);
+  });
+});
+
+describe("replay drops are reported as ouo.sdk.dropped (ERR-7)", () => {
+  afterEach(() => {
+    delete g.expo;
+  });
+
+  it("the native counters that are drops arrive with signal replay, as deltas, once per flush", async () => {
+    const counters: Record<string, number> = { "replay.frames_dropped": 3, "replay.evicted": 1, "replay.chunks": 40, "replay.accepted": 39 };
+    const replayDiagnostics = vi.fn(() => ({ ...counters }));
+    g.expo = { modules: { OuoReplay: { ...nativeReplay, replayDiagnostics } } };
+    const { rum, captured } = await start({ replay: { enabled: true } });
+    await rum.flush();
+    expect(replayDiagnostics).toHaveBeenCalled();
+    expect(drops(captured).sort()).toEqual(["replay/frame_dropped=3", "replay/outbox_evicted=1"]);
+    // Only what is new is counted again; a counter that went down (a new stream) counts whole.
+    counters["replay.frames_dropped"] = 5;
+    counters["replay.evicted"] = 1;
+    counters["replay.store_refused"] = 1;
+    await rum.flush();
+    expect(drops(captured).sort()).toEqual(["replay/frame_dropped=2", "replay/frame_dropped=3", "replay/outbox_evicted=1", "replay/store_refused=1"]);
+    counters["replay.frames_dropped"] = 1;
+    await rum.flush();
+    expect(drops(captured).filter((d) => d.startsWith("replay/frame_dropped")).sort()).toEqual(["replay/frame_dropped=1", "replay/frame_dropped=2", "replay/frame_dropped=3"]);
+  });
+
+  it("read on a timer while replay is on; never without a native module", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const replayDiagnostics = vi.fn(() => ({ "replay.events_dropped": 2 }));
+      g.expo = { modules: { OuoReplay: { ...nativeReplay, replayDiagnostics } } };
+      const { rum } = await start({ replay: { enabled: true } });
+      const before = replayDiagnostics.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(DROP_REPORT_INTERVAL_MS * 3 + 10);
+      expect(replayDiagnostics.mock.calls.length - before).toBeGreaterThanOrEqual(3);
+      await rum._uninstall();
+      const after = replayDiagnostics.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(DROP_REPORT_INTERVAL_MS * 3);
+      expect(replayDiagnostics.mock.calls.length).toBe(after);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -24,6 +24,17 @@ public struct ViewNode: Sendable {
     /// The walk stopped at its depth limit with subviews left unvisited.
     public var truncated: Bool
     public var children: [ViewNode]
+    /// A secure text field (`isSecureTextEntry`). Under `RedactionRules.strict` it is masked
+    /// whatever the options and the overrides say (PRV-7).
+    public var secure: Bool
+    /// View-level masking set by the host for this view (the React Native `mask(reactTag)` and
+    /// `unmask(reactTag)` or an accessibility identifier), as `ReplayMaskRegistry` resolved it.
+    public var maskOverride: MaskOverride?
+
+    public enum MaskOverride: String, Sendable {
+        case mask
+        case unmask
+    }
 
     public init(
         className: String,
@@ -35,8 +46,12 @@ public struct ViewNode: Sendable {
         animating: Bool = false,
         moving: Bool = false,
         truncated: Bool = false,
-        children: [ViewNode] = []
+        children: [ViewNode] = [],
+        secure: Bool = false,
+        maskOverride: MaskOverride? = nil
     ) {
+        self.secure = secure
+        self.maskOverride = maskOverride
         self.className = className
         self.superclassNames = superclassNames
         self.frameInWindow = frameInWindow
@@ -104,6 +119,11 @@ public struct RedactionRules: Sendable {
     public var maskWebViews: Bool
     /// Extra class names the host wants masked.
     public var extraClasses: Set<String>
+    /// The masking precedence of the client SDK spec (PRV-6, PRV-7), used by the OTLP replay path:
+    /// a secure text field is always masked, and a mask inside an unmasked subtree still masks
+    /// (mask wins). False (the default) keeps the behaviour the native SDK shipped with: `ouo-unmask`
+    /// opts its whole subtree out.
+    public var strict = false
 
     public init(maskText: Bool = true, maskInputs: Bool = true, maskImages: Bool = true, maskWebViews: Bool = true, extraClasses: Set<String> = []) {
         self.maskText = maskText
@@ -143,7 +163,7 @@ public struct RedactionPlanner: Sendable {
     public func rects(for root: ViewNode, window: CGRect) -> [CGRect]? {
         var out: [(rect: CGRect, byClass: Bool)] = []
         let masked = rules.maskedClasses
-        guard visit(root, window: window, masked: masked, moving: false, bar: .none, into: &out) else { return nil }
+        guard visit(root, window: window, masked: masked, moving: false, unmasked: false, bar: .none, into: &out) else { return nil }
         // `.ouoUnmask()` areas: the rectangles masked by class inside them are left out.
         let areas = Self.unmaskAreas(root)
         if !areas.isEmpty { out.removeAll { r in r.byClass && areas.contains { $0.insetBy(dx: -1, dy: -1).contains(r.rect) } } }
@@ -155,11 +175,15 @@ public struct RedactionPlanner: Sendable {
     private enum Bar { case none, bar, item }
 
     /// False when a masked rectangle is moving.
-    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, bar: Bar, into out: inout [(rect: CGRect, byClass: Bool)]) -> Bool {
+    private func visit(_ node: ViewNode, window: CGRect, masked: Set<String>, moving: Bool, unmasked: Bool, bar: Bar, into out: inout [(rect: CGRect, byClass: Bool)]) -> Bool {
         // Hidden or transparent views hide their whole subtree, unless still fading out.
         if node.hidden || (node.alpha <= 0.01 && !node.animating) { return true }
-        // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels).
-        if node.accessibilityIdentifier == RedactionRules.unmaskIdentifier { return true }
+        let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier || node.maskOverride == .mask
+        let unmaskHere = !forced && (node.accessibilityIdentifier == RedactionRules.unmaskIdentifier || node.maskOverride == .unmask)
+        // Opt-out covers the subtree too (a container marked ouo-unmask shows its labels). Under
+        // `strict` the subtree is still walked: a mask or a secure field inside it wins.
+        if unmaskHere, !rules.strict { return true }
+        let unmasked = unmasked || unmaskHere
         let moving = moving || node.moving
         let clipped = node.frameInWindow.intersection(window)
         // UIKit does not clip subviews to their parent's bounds by default, so a zero-sized or
@@ -167,22 +191,22 @@ public struct RedactionPlanner: Sendable {
         // navigation bars report an empty frame while their text child draws). Only a node with a
         // visible rectangle of its own can cover its subtree; otherwise keep walking.
         let visible = !(clipped.isNull || clipped.isEmpty)
-        let forced = node.accessibilityIdentifier == RedactionRules.maskIdentifier
         // A subtree the walk did not finish may hold anything: masked like a matched view.
         var bar = bar
         if bar == .none, Self.isKind(node, RedactionRules.barClasses) { bar = .bar }
         if bar == .bar, node.className.contains(RedactionRules.barItemHostMarker) { bar = .item }
         // Bar chrome drawn by SwiftUI is not content; a SwiftUI toolbar item's drawing is.
         let chrome = bar == .bar && RedactionRules.drawingClasses.contains(node.className)
-        let byClass = matches(node, masked) && !chrome
-        if visible, forced || node.truncated || byClass {
+        let byClass = !unmasked && matches(node, masked) && !chrome
+        let secure = rules.strict && node.secure
+        if visible, forced || node.truncated || byClass || secure {
             if moving { return false }
-            out.append((clipped, !forced && !node.truncated))
+            out.append((clipped, !forced && !node.truncated && !secure))
             // The rectangle covers the subtree: no need to look inside.
             return true
         }
         for child in node.children {
-            guard visit(child, window: window, masked: masked, moving: moving, bar: bar, into: &out) else { return false }
+            guard visit(child, window: window, masked: masked, moving: moving, unmasked: unmasked, bar: bar, into: &out) else { return false }
         }
         return true
     }
@@ -195,7 +219,7 @@ public struct RedactionPlanner: Sendable {
         Self.isKind(node, masked) || (rules.maskImages && RedactionRules.imageClassSuffixes.contains { node.className.hasSuffix($0) })
     }
 
-    private static func isKind(_ node: ViewNode, _ classes: Set<String>) -> Bool {
+    static func isKind(_ node: ViewNode, _ classes: Set<String>) -> Bool {
         classes.contains(node.className) || node.superclassNames.contains { classes.contains($0) }
     }
 

@@ -5,9 +5,11 @@
  * - the playground's react-native, AsyncStorage and ErrorUtils stand-ins (sdk/react-native/playground);
  * - `globalThis.expo.modules.OuoReplay`, a model of the Expo module (sdk/react-native/ios) as it
  *   behaves today, at the boundary the JS calls: replay start / rotate / pause / flush with frames
- *   paced and chunks cut, spooled and uploaded like the Swift `ReplayRecorder`, `CapturePacer`,
- *   `ChunkBuilder`, `ChunkSpool` and `ChunkUploader` (the chunk queue folder, held sessions), the
- *   OTLP gzip + POST (`postOtlp`), the OuoCrash report (with the session's start) read on the
+ *   paced and chunks cut, spooled and sent like the Swift `ReplayRecorder`, `CapturePacer`,
+ *   `ChunkBuilder`, `ChunkSpool`, `ReplayStream` and `ReplayDelivery` (ADR-0021: one
+ *   `ouo.replay.chunk` OTLP log record per protobuf request to `/v1/logs`, without
+ *   `Content-Encoding` as the body is gzip already; `ouo.replay.ended` when a stream ends;
+ *   the queue folder, held sessions), the OTLP gzip + POST (`postOtlp`), the OuoCrash report (with the session's start) read on the
  *   next launch, the run state (`run.json`) whose foreground kill the next launch reports as a
  *   `termination`, the app hang watchdog (`onHang` events), app start info and cumulative frame
  *   counters;
@@ -75,13 +77,13 @@ globalThis.fetch = async function standinFetch(input, init = {}) {
   if (!COLLECTOR.some((o) => url.startsWith(o))) return realFetch(input, init);
   const headers = new Headers(init.headers ?? {});
   const encoding = headers.get("content-encoding") ?? "identity";
-  const entry = { kind: "request", method: init.method ?? "GET", url, encoding };
+  const entry = { kind: "request", method: init.method ?? "GET", url, encoding, ...(init.ouoReplay ? { replay: true } : {}) };
   if (OTLP_PATH.test(url)) entry.body = bodyHash(init.body, encoding);
   if (OFFLINE) {
     record({ ...entry, status: "refused" });
     throw new TypeError("Network request failed");
   }
-  const injected = fault(entry.body);
+  const injected = entry.replay ? undefined : fault(entry.body);
   if (injected) {
     record({ ...entry, status: injected, injected: true });
     return new Response(JSON.stringify({ code: injected, message: "injected by the stand-in" }), { status: injected, headers: { "content-type": "application/json" } });
@@ -119,11 +121,18 @@ let recovered = false;
 let crashSession = { id: "", startedMs: 0 };
 const uploads = [];
 
+const hex32 = () => crypto.randomBytes(16).toString("hex");
+/** ReplayStream: one replay and one stream per session (32 lowercase hex ids), sequences from 0, kept on disk across launches. */
+function streamOf(sessionId) {
+  const all = readSeq();
+  const s = all[sessionId] ?? { replayId: hex32(), streamId: hex32(), next: 0, ended: false };
+  fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...all, [sessionId]: s }));
+  return s;
+}
 const nextSeq = (sessionId) => {
-  const seqs = readSeq();
-  const seq = seqs[sessionId] ?? 0;
-  fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...seqs, [sessionId]: seq + 1 }));
-  return seq;
+  const s = streamOf(sessionId);
+  fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...readSeq(), [sessionId]: { ...s, next: s.next + 1 } }));
+  return { replayId: s.replayId, streamId: s.streamId, seq: s.next };
 };
 
 /** ChunkBuilder.add with its spool: open the chunk at its first frame, cut at 1 MiB of images or 5 s. */
@@ -131,8 +140,9 @@ function addFrame(reason) {
   const ts = Date.now();
   if (!recorder.chunk) {
     const sessionId = recorder.sessionId;
-    recorder.chunk = { sessionId, seq: nextSeq(sessionId), startedAt: ts, mode: recorder.mode, frames: [] };
-    fs.writeFileSync(SPOOL_FILE, JSON.stringify({ header: { sessionId, seq: recorder.chunk.seq, startedAt: ts, mode: recorder.mode, masked: recorder.options.maskText } }) + "\n");
+    const { replayId, streamId, seq } = nextSeq(sessionId);
+    recorder.chunk = { sessionId, replayId, streamId, seq, startedAt: ts, frames: [] };
+    fs.writeFileSync(SPOOL_FILE, JSON.stringify({ header: { sessionId, replayId, streamId, seq, startedAt: ts, masked: recorder.options.maskText } }) + "\n");
   }
   const frame = { ts, jpeg: FRAME, reason };
   recorder.chunk.frames.push(frame);
@@ -157,72 +167,143 @@ function captureIfDue() {
   addFrame(p?.reason ?? "timer");
 }
 
-// ChunkUploader (W3): every chunk is written to the queue folder (or `held/` with `holdUploads`)
-// as its gzip body before it is sent, named `<queued ms>-<n>.<session>.<seq>.json.gz`, and removed
-// on 2xx or a final answer (any status but 429, 502, 503, 504); a refused upload stays for `drain`, the
-// next chunk or the next launch. Not modelled: the retry timer and `Retry-After` (a launch is
-// short) and the 10 MB bound.
+// ReplayDelivery (ADR-0021): every record is written to the queue folder (or `held/` with
+// `holdUploads`) as its OTLP request before it is sent, named `<queued ms>-<n>.<session>.<label>.pb`,
+// and removed on 2xx or a final answer (any status but 429, 502, 503, 504); a refused one stays
+// for the next record or the next launch. Not modelled: the retry timer, `Retry-After` and the
+// queue bound. The body is ouo-frames/3: newline-delimited JSON events, gzip; every frame is a
+// full image, so every chunk starts with a keyframe.
 const OUTBOX = path.join(DEVICE_DIR, "outbox");
 const HELD = path.join(OUTBOX, "held");
 let queued = 0;
 let draining = null;
 
-function post(endpoint, options, { sessionId, seq, startedAt, mode, frames, masked }) {
-  const body = {
-    kind: "frames",
-    schema_version: 2,
-    mode: mode ?? "session",
-    session_id: sessionId,
-    seq,
-    started_at: startedAt,
-    ended_at: frames[frames.length - 1].ts,
-    viewport: { width: 393, height: 852, scale: 0.5 },
-    platform: "ios",
-    frames,
-    touches: [],
-    masked,
-  };
+// A minimal OTLP protobuf writer (ExportLogsServiceRequest), as examples/ouo-mobile/scripts/fake-collector.test.mjs.
+const varint = (n) => {
+  let v = BigInt(n);
+  const out = [];
+  do {
+    const b = Number(v & 0x7fn);
+    v >>= 7n;
+    out.push(v ? b | 0x80 : b);
+  } while (v);
+  return Buffer.from(out);
+};
+const pbLen = (field, payload) => Buffer.concat([varint((field << 3) | 2), varint(payload.length), payload]);
+const pbStr = (field, s) => pbLen(field, Buffer.from(String(s), "utf8"));
+const pbFixed64 = (field, n) => {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(BigInt(n));
+  return Buffer.concat([varint((field << 3) | 1), b]);
+};
+function pbAny(v) {
+  if (typeof v === "string") return pbStr(1, v);
+  if (typeof v === "boolean") return Buffer.concat([varint(2 << 3), varint(v ? 1 : 0)]);
+  if (Buffer.isBuffer(v)) return pbLen(7, v);
+  if (Number.isInteger(v) && v >= 0) return Buffer.concat([varint(3 << 3), varint(v)]);
+  const b = Buffer.alloc(8);
+  b.writeDoubleLE(Number(v));
+  return Buffer.concat([varint((4 << 3) | 1), b]);
+}
+const pbKv = (field, key, value) => pbLen(field, Buffer.concat([pbStr(1, key), pbLen(2, pbAny(value))]));
+const scalar = (v) => ["string", "boolean", "number"].includes(typeof v);
+function logsRequest(options, { event, timeMs, body, attributes }) {
+  const nanos = BigInt(timeMs) * 1000000n;
+  const rec = Buffer.concat([
+    pbFixed64(1, nanos),
+    ...(body ? [pbLen(5, pbAny(body))] : []),
+    ...Object.entries(attributes).map(([k, v]) => pbKv(6, k, v)),
+    pbFixed64(11, BigInt(Date.now()) * 1000000n),
+    pbStr(12, event),
+  ]);
+  const resource = Object.entries(options.otlp?.resource ?? {}).filter(([, v]) => scalar(v)).map(([k, v]) => pbKv(1, k, v));
+  const scope = pbLen(1, Buffer.concat([pbStr(1, "ouo.replay"), pbStr(2, options.otlp?.scopeVersion ?? "0.0.0")]));
+  const scopeLogs = pbLen(2, Buffer.concat([scope, pbLen(2, rec), ...(options.otlp?.schemaUrl ? [pbStr(3, options.otlp.schemaUrl)] : [])]));
+  return pbLen(1, Buffer.concat([pbLen(1, Buffer.concat(resource)), scopeLogs]));
+}
+
+function enqueue(options, sessionId, label, request) {
   const folder = options.holdUploads ? HELD : OUTBOX;
   fs.mkdirSync(folder, { recursive: true });
-  const name = `${String(Date.now()).padStart(13, "0")}-${String(++queued).padStart(6, "0")}.${sessionId}.${seq}.json.gz`;
-  fs.writeFileSync(path.join(folder, name), zlib.gzipSync(JSON.stringify(body)));
+  const name = `${String(Date.now()).padStart(13, "0")}-${String(++queued).padStart(6, "0")}.${sessionId}.${label}.pb`;
+  fs.writeFileSync(path.join(folder, name), request);
+  return drainOutbox(options);
+}
+
+/** One `ouo.replay.chunk` record for the chunk. */
+function post(options, { sessionId, replayId, streamId, seq, startedAt, frames, masked }) {
+  const events = frames.map((f) => ({ t: f.ts, type: "frame", w: 393, h: 852, scale: 0.5, reason: f.reason, jpeg: f.jpeg }));
+  const body = zlib.gzipSync(Buffer.from(events.map((e) => JSON.stringify(e)).join("\n") + "\n"));
+  const attributes = {
+    "session.id": sessionId,
+    "ouo.replay.id": replayId,
+    "ouo.replay.stream.id": streamId,
+    "ouo.replay.sequence": seq,
+    "ouo.replay.segment.index": 0,
+    "ouo.replay.keyframe": true,
+    "ouo.replay.start_time": startedAt,
+    "ouo.replay.end_time": frames[frames.length - 1].ts,
+    "ouo.replay.format": "ouo-frames/3",
+    "ouo.replay.encoding": "gzip",
+    "ouo.replay.sha256": crypto.createHash("sha256").update(body).digest("hex"),
+    "ouo.replay.byte_size": body.length,
+    "ouo.replay.masked": Boolean(masked),
+    "ouo.replay.mode": "session",
+  };
   record({ kind: options.holdUploads ? "chunk.held" : "chunk.queued", session_id: sessionId, seq, frames: frames.length });
-  return drainOutbox(endpoint, options);
+  return enqueue(options, sessionId, String(seq), logsRequest(options, { event: "ouo.replay.chunk", timeMs: startedAt, body, attributes }));
+}
+
+/** ReplayStream.end: one `ouo.replay.ended` per stream, after its last chunk in the queue. */
+function endStream(options, sessionId, reason) {
+  const s = readSeq()[sessionId];
+  if (!options || !s || s.ended) return Promise.resolve();
+  fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...readSeq(), [sessionId]: { ...s, ended: true } }));
+  const attributes = {
+    "session.id": sessionId,
+    "ouo.replay.id": s.replayId,
+    "ouo.replay.stream.id": s.streamId,
+    "ouo.replay.end_state": "complete",
+    "ouo.replay.end_reason": reason,
+    ...(s.next > 0 ? { "ouo.replay.last_sequence": s.next - 1 } : {}),
+  };
+  record({ kind: "replay.ended", session_id: sessionId, reason });
+  return enqueue(options, sessionId, "end", logsRequest(options, { event: "ouo.replay.ended", timeMs: Date.now(), attributes }));
 }
 
 const chunkFiles = (folder) => {
   try {
-    return fs.readdirSync(folder).filter((f) => f.endsWith(".json.gz")).sort();
+    return fs.readdirSync(folder).filter((f) => f.endsWith(".pb")).sort();
   } catch {
     return [];
   }
 };
 
-/** ChunkUploader.drain: one at a time, oldest first, until the folder is empty or an upload fails (the file stays). */
-function drainOutbox(endpoint, options) {
+const logsUrl = (options) => options.otlp?.logsUrl ?? `${String(options.endpoint ?? "").replace(/\/$/, "")}/v1/logs`;
+
+/** ReplayDelivery.drain: one at a time, oldest first, until the folder is empty or a send fails (the file stays). */
+function drainOutbox(options) {
   if (draining) return draining;
   const run = (async () => {
     for (let name = chunkFiles(OUTBOX)[0]; name; name = chunkFiles(OUTBOX)[0]) {
-      const [, sessionId, seq] = name.split(".");
+      const [, sessionId, label] = name.split(".");
       const file = path.join(OUTBOX, name);
       let status;
       try {
-        const res = await globalThis.fetch(`${endpoint.replace(/\/$/, "")}/v1/replay/chunks`, {
+        const res = await globalThis.fetch(logsUrl(options), {
           method: "POST",
           headers: {
-            "content-type": "application/json",
-            "content-encoding": "gzip",
+            "content-type": "application/x-protobuf",
             authorization: "Basic " + Buffer.from(`${options.projectId}:${options.projectToken}`).toString("base64"),
-            "x-ouo-session-id": sessionId,
-            "x-ouo-seq": seq,
           },
           body: fs.readFileSync(file),
+          ouoReplay: true,
         });
         status = res.status;
       } catch (err) {
         status = String(err);
       }
-      record({ kind: "chunk", session_id: sessionId, seq: Number(seq), status });
+      record({ kind: "chunk", session_id: sessionId, seq: label === "end" ? "end" : Number(label), status });
       const final = typeof status === "number" && ![429, 502, 503, 504].includes(status);
       if (!final) return;
       fs.rmSync(file, { force: true });
@@ -235,35 +316,38 @@ function drainOutbox(endpoint, options) {
   return run;
 }
 
-/** Cuts the open chunk, clears the spool and uploads it (ChunkBuilder.flush, then ChunkUploader). */
+/** Cuts the open chunk, clears the spool and queues it (ChunkBuilder.flush, then ReplayDelivery). */
 function upload() {
   const chunk = recorder?.chunk;
   if (!chunk) return Promise.resolve();
   recorder.chunk = undefined;
   fs.rmSync(SPOOL_FILE, { force: true });
-  return post(recorder.endpoint, recorder.options, { ...chunk, masked: recorder.options.maskText });
+  return post(recorder.options, { ...chunk, masked: recorder.options.maskText });
 }
 
 /** ReplayRecorder.recoverSpool: the chunk a crash left open, once per process. */
 function recoverSpool(endpoint, options) {
+  options = { ...options, endpoint };
   if (recovered) return;
   recovered = true;
   let lines;
   try {
     lines = fs.readFileSync(SPOOL_FILE, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
   } catch {
-    drainOutbox(endpoint, options);
+    drainOutbox(options);
     return;
   }
   fs.rmSync(SPOOL_FILE, { force: true });
   const header = lines.find((l) => l.header)?.header;
   const frames = lines.filter((l) => l.frame).map((l) => l.frame);
   if (!header || frames.length === 0) {
-    drainOutbox(endpoint, options);
+    drainOutbox(options);
     return;
   }
   record({ kind: "replay.recovered", session_id: header.sessionId, seq: header.seq, frames: frames.length });
-  post(endpoint, options, { ...header, frames });
+  // The crashed run's stream ends with the chunk the crash left open (previousExit, RPL-20).
+  post(options, { ...header, frames });
+  endStream(options, header.sessionId, "crash");
 }
 
 /** ReplayRecorder.resumeCapture: a frame at once, the run-loop observer and the keep-alive timer. */
@@ -294,7 +378,7 @@ const native = {
     record({ kind: "replay.start", endpoint, options: { ...options, projectToken: undefined } });
     recoverSpool(endpoint, options);
     const mode = options.mode === "navigation" ? "navigation" : "session";
-    recorder = { endpoint, options, mode, interval: Math.max(0.1, options.frameInterval) * 1000, sessionId: options.sessionId, recording: false, pausedByHost: false };
+    recorder = { endpoint, options: { ...options, endpoint }, mode, interval: Math.max(0.1, options.frameInterval) * 1000, sessionId: options.sessionId, recording: false, pausedByHost: false };
     resumeCapture();
   },
   setSessionId(id) {
@@ -321,15 +405,17 @@ const native = {
       else fs.rmSync(path.join(HELD, name), { force: true });
     }
     record({ kind: "replay.release", session_id: sessionId, keep });
-    if (keep) drainOutbox(endpoint, options);
+    if (keep) drainOutbox({ ...options, endpoint });
   },
   sessionDidRotate(id) {
     // OuoReplayModule sets the id, then the recorder flushes the open chunk (it keeps the old id)
-    // and resets the seq; nothing is captured here.
+    // and ends the old session's stream (`session_end`); the new session gets a new replay and
+    // stream at its first frame. Nothing is captured here.
     record({ kind: "replay.rotate", session_id: id });
+    const old = recorder?.sessionId;
     if (recorder) recorder.sessionId = id;
     upload();
-    fs.writeFileSync(SEQ_FILE, JSON.stringify({ ...readSeq(), [id]: 0 }));
+    if (old && old !== id) endStream(recorder.options, old, "session_end");
   },
   screenDidChange() {
     if (recorder?.mode === "navigation") recorder.pending = { reason: "navigation", at: Date.now() + SETTLE_DELAY_MS };
@@ -348,12 +434,19 @@ const native = {
   isRecording: () => Boolean(recorder?.recording),
   flush: async () => {
     upload();
-    if (recorder) drainOutbox(recorder.endpoint, recorder.options);
+    if (recorder) drainOutbox(recorder.options);
     await Promise.all(uploads);
   },
   stop() {
     stopCapture();
     upload();
+    if (recorder) endStream(recorder.options, recorder.sessionId, "stop");
+    recorder = undefined;
+  },
+  endSession() {
+    stopCapture();
+    upload();
+    if (recorder) endStream(recorder.options, recorder.sessionId, "session_end");
     recorder = undefined;
   },
   // OTLP (W3): gzip and POST off the JS thread; status 0 when the request did not reach the server.

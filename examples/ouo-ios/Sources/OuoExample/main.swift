@@ -1,3 +1,4 @@
+import OuoReplay
 import OuoSDK
 import UIKit
 
@@ -5,7 +6,9 @@ import UIKit
 /// comes from the environment (`SIMCTL_CHILD_*` on the simulator): OUO_OTLP (collector OTLP/HTTP),
 /// OUO_REPLAY (its replay receiver, when not OUO_OTLP's port 4318 plus one),
 /// OUO_BACKEND (the demo backend), OUO_ACTION (the journey, Journey.swift), OUO_OFF=1 (no SDK: the
-/// benchmark's `none` cell), OUO_TAP_LABELS=0 (the labels kill switch), OUO_DEBUG=1.
+/// benchmark's `none` cell), OUO_TAP_LABELS=0 (the labels kill switch), OUO_DEBUG=1. The
+/// Sentry-derived video recorder runs on the OTLP path only (`replay.mode` `pixel/video`, React
+/// Native); this app records frames.
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         let env = ProcessInfo.processInfo.environment

@@ -47,9 +47,17 @@ const SEAMS: ReadonlyArray<readonly [seam: string, fault: string, coveredBy: str
   ["outbox and storage callbacks", "storage throws synchronously, rejects, returns garbage", "storage, send and outbox"],
   ["beforeSend", "the hook throws", "app callbacks"],
   ["onUnhandledRejection", "the app callback throws", "rejection forwarding"],
-  ["keepAtNextLaunch", "the app callback throws", "app callbacks"],
+  ["sanitizeUrl", "the app callback throws", "app callbacks"],
   ["debug logger", "console.log and console.warn throw", "logger"],
   ["native module: every method", "every method throws / rejects", "native module"],
+  ["native replay: start (OTLP options)", "throws, rejects, returns garbage", "native module"],
+  ["native replay: capture(trigger)", "throws on the first unhandled error and on replay.capture()", "native module"],
+  ["native replay: setViewId, screenDidChange", "throw on every navigation", "native module"],
+  ["native replay: mask, unmask", "throw; refs that are not views", "native module"],
+  ["native replay: sessionDidRotate", "throws on restartSession", "native module"],
+  ["native replay: endSession, flush", "throw / reject on shutdown", "native module"],
+  ["native replay: stop, discardPending", "throw / reject on stop, consent withdrawal and self-disable", "native module"],
+  ["native replay: replayDiagnostics", "throws", "native module"],
   ["native module: callbacks", "onHang delivers garbage", "native module"],
   ["native module: missing or half-present", "no module, only start()", "native module"],
   ["self-disable", "more internal errors than the threshold", "self-disable"],
@@ -600,7 +608,9 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
         record.attributes["leak"] = "should not be sent";
         throw new Error("injected: beforeSend");
       },
-      replay: { enabled: true, keepAtNextLaunch: () => Promise.reject(new Error("injected: keepAtNextLaunch")) },
+      sanitizeUrl: () => {
+        throw new Error("injected: sanitizeUrl");
+      },
     });
     const before = guard.errors;
     rum.recordEvent("kept", { a: 1 });
@@ -637,7 +647,7 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
   seamTest("native module", async () => {
     const methods = [
       "start", "pause", "resume", "isRecording", "flush", "sessionDidRotate", "setSessionId", "screenDidChange", "recoverPendingChunk", "stop",
-      "heldReplaySessions", "releaseHeldReplay", "capture", "mask", "unmask", "installCrashReporter", "setCrashSessionId", "takePendingCrash",
+      "capture", "setViewId", "mask", "unmask", "endSession", "discardPending", "replayDiagnostics", "installCrashReporter", "setCrashSessionId", "takePendingCrash",
       "getErrorContext", "getFrameStats", "getAppStartInfo", "postOtlp",
     ];
     let hang: ((payload: unknown) => void) | undefined;
@@ -653,10 +663,23 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
       g.expo = native ? { modules: { OuoReplay: native } } : { modules: {} };
       const captured = installFetchStub();
       let rum!: RUMInternal;
-      expect(() => (rum = initRUM({ ...baseOptions(), replay: { enabled: true, keepAtNextLaunch: () => true }, diagnostics: { selfDisableThreshold: 1_000_000 } }) as RUMInternal), name).not.toThrow();
+      expect(() => (rum = initRUM({ ...baseOptions(), replay: { enabled: true, onErrorSampleRate: 1 }, diagnostics: { selfDisableThreshold: 1_000_000 } }) as RUMInternal), name).not.toThrow();
       await rum.ready;
       await callEverything(rum, [undefined, "ok"]);
       rum.recordException(new Error("needs the native error context"));
+      // Every replay call: the first unhandled error (capture), navigation (setViewId), masks,
+      // a rotation, consent withdrawn (discardPending) and given again, then shutdown below.
+      g.ErrorUtils!.getGlobalHandler()(new Error("sends the buffer"), false);
+      rum.trackNavigation("/A");
+      rum.trackNavigation("/B");
+      for (const target of [7, { current: { __tag: 9 } }, { current: null }, {}, "x"]) {
+        rum.replay.mask(target);
+        rum.replay.unmask(target);
+      }
+      rum.replay.capture();
+      rum.restartSession();
+      rum.setConsent({ replay: false });
+      rum.setConsent({ replay: true });
       AppState.__emit("background");
       AppState.__emit("active");
       // A native callback that delivers garbage.
@@ -665,7 +688,7 @@ describe("fault injection: nothing the SDK does reaches the host", () => {
       await expect(fetch(`${BACKEND}/api`), name).resolves.toBeInstanceOf(Response);
       // Without a usable postOtlp the JS transport carries the telemetry; with a broken one nothing throws.
       if (!native || typeof native["postOtlp"] !== "function") expect(captured.byName("exception").length, name).toBeGreaterThan(0);
-      await rum._uninstall();
+      await expect(rum.shutdown(), name).resolves.toBeUndefined();
       hang = undefined;
       delete g.__ouoSessionProcessState;
     }

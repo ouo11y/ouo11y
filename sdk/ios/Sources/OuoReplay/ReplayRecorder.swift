@@ -14,7 +14,24 @@ import OuoReplayCore
 /// alone touches `differ` and `builder`. A chunk's first frame, the frame after a resume or a
 /// screen change, and a frame whose tiles changed over more than half its area are full images;
 /// other frames carry only their changed rectangles (ADR-0014).
-final class ReplayRecorder {
+/// What `OuoReplay` drives: the legacy frames recorder below or `OTLPReplayRecorder`.
+protocol ReplayRecording: AnyObject {
+    var kind: ReplayRecorderKind { get }
+    var mode: ReplayMode { get }
+    /// Read from any thread (the JavaScript thread, without a hop to the main thread).
+    var isRecording: Bool { get }
+    func start()
+    func pause()
+    func resume()
+    func stop()
+    func flush(completion: (() -> Void)?)
+    func sessionDidRotate(newId: String)
+    func screenDidChange()
+    func frameForFeedback()
+}
+
+final class ReplayRecorder: ReplayRecording {
+    let kind = ReplayRecorderKind.frames
     /// Instruments: "snapshot" intervals are the main-thread part of each capture ("walk" inside
     /// it), "compose" the capture-queue part (subsystem dev.ouo.replay, category capture).
     static let signposter = OSSignposter(subsystem: "dev.ouo.replay", category: "capture")
@@ -42,7 +59,13 @@ final class ReplayRecorder {
     private var wakeTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var attachedWindow: UIWindow?
-    private(set) var isRecording = false
+    /// Written on the main thread, read from any.
+    private let recordingLock = NSLock()
+    private var recording = false
+    private(set) var isRecording: Bool {
+        get { recordingLock.withLock { recording } }
+        set { recordingLock.withLock { recording = newValue } }
+    }
     /// Set by `pause()`; a background/foreground cycle must not resume a paused recorder.
     private var pausedByHost = false
 
@@ -210,6 +233,7 @@ final class ReplayRecorder {
         wakeTimer?.invalidate()
         wakeTimer = nil
         isRecording = false
+        ScrollMotion.stop()
     }
 
     private func tick() {
@@ -246,7 +270,10 @@ final class ReplayRecorder {
         let rects = decision == .wait ? nil : capturer.plan(walk.tree, bounds: window.bounds)
         guard case .capture(let reason) = decision, let rects else {
             sp.endInterval("snapshot", snapshotState)
-            pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+            let spent = ProcessInfo.processInfo.systemUptime - start
+            // A walk that took no frame (animation wait, masked view moving) still cost the main thread.
+            OuoReplay.captureStats.record(millis: spent * 1000)
+            pacer.spent(spent, now: start)
             if case .capture(let reason) = decision {
                 logger.log("frame \(reason.rawValue) dropped: a masked view was moving")
                 pacer.dropped(reason, now: start)
@@ -255,7 +282,9 @@ final class ReplayRecorder {
         }
         let snapshot = capturer.snapshot(window: window, tree: walk.tree, rects: rects)
         sp.endInterval("snapshot", snapshotState)
-        pacer.spent(ProcessInfo.processInfo.systemUptime - start, now: start)
+        let spent = ProcessInfo.processInfo.systemUptime - start
+        OuoReplay.captureStats.record(millis: spent * 1000)
+        pacer.spent(spent, now: start)
         guard let snapshot else {
             pacer.dropped(reason, now: start)
             return

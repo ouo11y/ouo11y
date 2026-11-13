@@ -28,7 +28,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "fake-collector": "node scripts/fake-collector.mjs",
+    "test:fake-collector": "node --test scripts/fake-collector.test.mjs"
   },
   "private": true
 }

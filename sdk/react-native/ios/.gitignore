@@ -1,6 +1,11 @@
 # Vendored copies of sdk/ios/Sources, written by scripts/sync-ios.mjs (npm run build).
 /OuoReplayCore/
 /OuoReplay/
+/OuoReplayObjC/
+/OuoReplaySentryCore/
+/OuoReplaySentryCoreObjC/
+/NOTICE
+/THIRD_PARTY_NOTICES
 /OuoCrashCore/
 /OuoCrash/
 /OuoVitalsCore/

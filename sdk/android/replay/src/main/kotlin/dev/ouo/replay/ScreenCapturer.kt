@@ -10,6 +10,7 @@ import dev.ouo.replay.core.Box
 import dev.ouo.replay.core.Frame
 import dev.ouo.replay.core.FrameReason
 import dev.ouo.replay.core.Patch
+import dev.ouo.replay.core.PixelFrames
 import dev.ouo.replay.core.TileDiffer
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
@@ -25,7 +26,11 @@ import kotlin.math.roundToInt
  * - [compose] (compose thread): paints the masks black, hashes the 64 px tiles against the last
  *   frame sent and encodes a full JPEG or one JPEG per changed rectangle (ADR-0014).
  */
-internal class ScreenCapturer(private val maxLongestSide: Int, private val jpegQuality: Int) {
+internal class ScreenCapturer(maxLongestSide: Int, jpegQuality: Int) {
+  // `Bitmap.compress` throws on a quality outside 0..100 (on the compose thread, which crashed the app).
+  private val jpegQuality = PixelFrames.jpegQuality(jpegQuality)
+  private val maxLongestSide = maxLongestSide.coerceIn(64, 4096)
+
   private var bitmap: Bitmap? = null
   private var pixels = ByteArray(0)
   private val black = Paint().apply { color = 0xFF000000.toInt() }
@@ -74,10 +79,7 @@ internal class ScreenCapturer(private val maxLongestSide: Int, private val jpegQ
 
   /** Masks, diffs and encodes [bmp]. [rects] are in window pixels; [scale] is frame per window pixel. */
   fun compose(bmp: Bitmap, rects: List<Box>, scale: Float, differ: TileDiffer, forceFull: Boolean, ts: Long, reason: FrameReason): Result {
-    if (rects.isNotEmpty()) {
-      val canvas = Canvas(bmp)
-      for (r in rects) canvas.drawRect(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale, black)
-    }
+    paintMasks(bmp, rects, scale)
     val size = bmp.rowBytes * bmp.height
     if (pixels.size != size) pixels = ByteArray(size)
     bmp.copyPixelsToBuffer(java.nio.ByteBuffer.wrap(pixels))
@@ -96,6 +98,16 @@ internal class ScreenCapturer(private val maxLongestSide: Int, private val jpegQ
     }
     differ.commit()
     return Result.Made(frame)
+  }
+
+  /**
+   * Paints [rects] (window pixels) black on [bmp] at [scale] frame pixels per window pixel. Every
+   * pixel recorder masks with this, so `pixel/frames` and `pixel/video` hide the same pixels.
+   */
+  fun paintMasks(bmp: Bitmap, rects: List<Box>, scale: Float) {
+    if (rects.isEmpty()) return
+    val canvas = Canvas(bmp)
+    for (r in rects) canvas.drawRect(r.left * scale, r.top * scale, r.right * scale, r.bottom * scale, black)
   }
 
   private fun jpeg(bmp: Bitmap): ByteArray? {

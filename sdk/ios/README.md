@@ -211,6 +211,18 @@ opts in to visibility (Sentry's mobile replay ships the same default). To opt ou
 - `maskInputs: false` shows typed text. Only set it if you really mean it.
 - `maskClasses: ["MyChartView"]` (`RedactionRules.extraClasses`) masks additional class names.
 
+### Video segments: the Sentry-derived recorder
+
+`replay.mode: "pixel/video"` on the OTLP path (React Native, `ReplayOTLPOptions.recorder =
+.pixelVideo`) records with sentry-cocoa 9.33.0's recorder core (MIT, copied into
+`Sources/OuoReplaySentryCore`, see `NOTICE`, `THIRD_PARTY_NOTICES` and
+`scripts/sentry-core-sync.sh`): 1 frame/s, 5 s H.264 segments, one `ouo-video/1` chunk per
+segment (docs/specs/mobile-replay.md). Its masking is the frames recorder's plan, not Sentry's:
+the same classes, overrides and secure-field rule, no look during a view controller transition,
+and no frame while a masked view moves. The legacy upload path records frames only: the
+`kind: "video"` spike recorder (`OuoReplayConfig.recorder = .sentryVideo`) was removed when
+`pixel/video` moved to OTLP (ADR-0021 decision 5).
+
 Per-view overrides through `accessibilityIdentifier` (React Native `testID`), honoured whatever
 the options above say:
 

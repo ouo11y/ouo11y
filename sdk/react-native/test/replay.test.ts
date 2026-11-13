@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLogger } from "../src/logger";
-import { _setExpoModulesCore, createReplayController, loadNativeReplayModule, screenExcluded, SHOW_DELAY_MS, type NativeReplayModule } from "../src/replay";
+import { guard } from "../src/guard";
+import { _setExpoModulesCore, createReplayController, loadNativeReplayModule, nativeTag, NATIVE_REPLAY_MODES, newViewId, REPLAY_MODES, resolveReplayMode, screenExcluded, SHOW_DELAY_MS, type NativeReplayModule } from "../src/replay";
+import type { ReplayMode } from "../src/types";
 import { MemoryAsyncStorage } from "../src/session/storage";
 import { initRUM, type RUMInternal } from "../src/index";
+import { SDK_VERSION } from "../src/version";
 import { getRUM } from "../src/instance";
 import { AppState } from "./mocks/react-native";
 import * as expoModulesCoreMock from "./mocks/expo-modules-core";
@@ -12,7 +15,6 @@ const { nativeReplay, resetNative, setNativeAvailable } = expoModulesCoreMock;
 _setExpoModulesCore(() => expoModulesCoreMock);
 
 const ENDPOINT = "http://otel.test:4318";
-const REPLAY_ENDPOINT = "http://otel.test:4319";
 const PROJECT_ID = "demo";
 const TOKEN = "pt_test_token_0000000000000000";
 
@@ -36,9 +38,21 @@ function fakeNative() {
     sessionDidRotate: vi.fn((_id: string) => undefined),
     setSessionId: vi.fn((_id: string) => undefined),
     screenDidChange: vi.fn(),
-    recoverPendingChunk: vi.fn((_endpoint: string, _options: unknown) => undefined),
-    stop: vi.fn(),
-  } satisfies NativeReplayModule & { recording: boolean };
+    stop: vi.fn(() => {
+      state.recording = false;
+    }),
+    endSession: vi.fn(() => {
+      state.recording = false;
+    }),
+    capture: vi.fn((_trigger: string) => undefined),
+    setViewId: vi.fn((_id: string) => undefined),
+    mask: vi.fn((_tag: number) => undefined),
+    unmask: vi.fn((_tag: number) => undefined),
+    discardPending: vi.fn(() => Promise.resolve()),
+    replayDiagnostics: vi.fn(() => ({})),
+    // Legacy only: the OTLP path must never call it.
+    recoverPendingChunk: vi.fn(),
+  } satisfies NativeReplayModule & { recording: boolean; recoverPendingChunk: unknown };
   return n;
 }
 
@@ -55,15 +69,18 @@ describe("replay controller", () => {
       sessionId: "sess-1",
       projectId: PROJECT_ID,
       projectToken: TOKEN,
-      mode: "auto",
+      mode: "pixel/frames",
+      cadence: "auto",
       frameInterval: 1,
       maskText: true,
       maskInputs: true,
       maskImages: true,
       maskWebViews: true,
       debug: false,
-      holdUploads: false,
+      // The `otlp` key selects the OTLP path in the native module (ADR-0021 decision 5).
+      otlp: { logsUrl: "http://localhost:8080/v1/logs", schemaUrl: "https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev" },
     });
+    expect(native.recoverPendingChunk).not.toHaveBeenCalled();
     expect(c.active).toBe(true);
     expect(c.isRecording()).toBe(true);
     // A second start is ignored.
@@ -77,26 +94,13 @@ describe("replay controller", () => {
       endpoint: "http://localhost:8080",
       projectId: PROJECT_ID,
       projectToken: TOKEN,
-      options: { enabled: true, mode: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false },
+      options: { enabled: true, cadence: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false },
       native,
       logger: createLogger(true),
     });
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     c.start("s");
-    expect(native.start.mock.calls[0]![1]).toMatchObject({ mode: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
-  });
-
-  // The spool of a crashed session must go out even when the next session is not recorded.
-  it("recovers the previous run's open chunk before any sampling decision", () => {
-    const native = fakeNative();
-    const c = createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, sampleRate: 0 }, native, logger });
-    expect(native.recoverPendingChunk).toHaveBeenCalledTimes(1);
-    expect(native.recoverPendingChunk).toHaveBeenCalledWith("http://localhost:8080", expect.objectContaining({ projectId: PROJECT_ID, projectToken: TOKEN }));
-    c.start("not-recorded");
-    expect(native.start).not.toHaveBeenCalled();
-    const off = fakeNative();
-    createReplayController({ endpoint: "http://localhost:8080", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: false }, native: off, logger });
-    expect(off.recoverPendingChunk).not.toHaveBeenCalled();
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ mode: "pixel/frames", cadence: "navigation", frameInterval: 0.5, maskText: false, maskImages: false, maskWebViews: false, debug: true });
   });
 
   it("screen changes reach the native recorder while it records; older native builds without the call are fine", () => {
@@ -211,7 +215,7 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
   const setup = (excludeScreens?: Array<string | RegExp>) => {
     const native = fakeNative();
     const onHidden = vi.fn();
-    const c = createReplayController({ endpoint: REPLAY_ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, ...(excludeScreens ? { excludeScreens } : {}) }, native, onHidden, logger });
+    const c = createReplayController({ endpoint: ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, ...(excludeScreens ? { excludeScreens } : {}) }, native, onHidden, logger });
     c.start("sess-1");
     return { native, onHidden, c };
   };
@@ -295,7 +299,7 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
   it("never starts the native recorder on a hidden screen: it starts once shown, for the current session", () => {
     const native = fakeNative();
     const onHidden = vi.fn();
-    const c = createReplayController({ endpoint: REPLAY_ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, onHidden, logger });
+    const c = createReplayController({ endpoint: ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, onHidden, logger });
     c.hideScreen();
     expect(onHidden).not.toHaveBeenCalled();
     c.start("sess-1");
@@ -304,7 +308,6 @@ describe("never-record screens (excludeScreens, hideScreen)", () => {
     c.sessionDidRotate("sess-2");
     expect(native.start).not.toHaveBeenCalled();
     expect(onHidden).toHaveBeenCalledTimes(2);
-    c.onError();
     c.showScreen();
     expect(native.start).not.toHaveBeenCalled();
     vi.advanceTimersByTime(SHOW_DELAY_MS);
@@ -363,15 +366,20 @@ describe("initRUM({ replay })", () => {
     ...extra,
   });
 
-  it("starts the native recorder with the derived replay endpoint (4318 -> 4319), the credential and the session id", async () => {
-    const rum = initRUM(options({ replay: { enabled: true } })) as RUMInternal;
+  it("starts the native recorder on the OTLP path: the logs URL, the telemetry resource, the credential and the session id", async () => {
+    const rum = initRUM(options({ replay: { enabled: true }, resource: { tenant: "acme" } })) as RUMInternal;
     expect(nativeReplay.setSessionId).toHaveBeenCalledWith(rum.session.id());
     expect(nativeReplay.start).toHaveBeenCalledTimes(1);
-    expect(nativeReplay.start).toHaveBeenCalledWith(REPLAY_ENDPOINT, expect.objectContaining({ sessionId: rum.session.id(), projectId: PROJECT_ID, projectToken: TOKEN, frameInterval: 1 }));
-    // Never the revision-1 header or a prebuilt header value: native builds the Basic credential itself.
-    expect(Object.keys(nativeReplay.start.mock.calls[0]![1] as object).sort()).toEqual(
-      ["debug", "frameInterval", "holdUploads", "maskImages", "maskInputs", "maskText", "maskWebViews", "mode", "projectId", "projectToken", "sessionId"],
-    );
+    const [endpoint, started] = nativeReplay.start.mock.calls[0]! as [string, Record<string, unknown> & { otlp: { resource: Record<string, unknown> } }];
+    expect(endpoint).toBe(ENDPOINT);
+    expect(started).toMatchObject({ sessionId: rum.session.id(), projectId: PROJECT_ID, projectToken: TOKEN, frameInterval: 1, mode: "pixel/frames", cadence: "auto" });
+    // Never a prebuilt header value (native builds the Basic credential itself), and no buffer: the whole session is recorded.
+    expect(Object.keys(started).sort()).toEqual(["cadence", "debug", "frameInterval", "maskImages", "maskInputs", "maskText", "maskWebViews", "mode", "otlp", "projectId", "projectToken", "sessionId"]);
+    expect(started.otlp).toMatchObject({ logsUrl: `${ENDPOINT}/v1/logs`, schemaUrl: "https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev", scopeVersion: SDK_VERSION });
+    expect(started.otlp).not.toHaveProperty("previousExit");
+    // The resource telemetry carries, primitives only.
+    expect(started.otlp.resource).toMatchObject({ "service.name": "mobile-store", "service.version": "2.3.0", "deployment.environment.name": "test", "ouo.platform": "mobile", "ouo.sdk.version": SDK_VERSION, tenant: "acme" });
+    expect(Object.values(started.otlp.resource).every((v) => ["string", "number", "boolean"].includes(typeof v))).toBe(true);
     await rum.ready;
     // The cold-start resolution reports the initial session through onRotate: not a rotation.
     expect(nativeReplay.sessionDidRotate).not.toHaveBeenCalled();
@@ -386,14 +394,12 @@ describe("initRUM({ replay })", () => {
     expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the endpoint itself when it is not on port 4318, and an explicit replayEndpoint when given", async () => {
-    const proxied = initRUM(options({ replay: { enabled: true }, endpoint: "https://otel.example.com/" })) as RUMInternal;
+  it("replayEndpoint is gone: it is ignored, and the chunks' URL (the logs URL) is never traced", async () => {
+    const rum = initRUM(options({ replay: { enabled: true }, endpoint: "https://otel.example.com/", replayEndpoint: "http://replay.test:9999/" })) as RUMInternal;
     expect(nativeReplay.start.mock.calls[0]![0]).toBe("https://otel.example.com");
-    await proxied._uninstall();
-    resetNative();
-    delete g.__ouoSessionProcessState;
-    initRUM(options({ replay: { enabled: true }, endpoint: "http://otel.test:4318/", replayEndpoint: "http://replay.test:9999/" }));
-    expect(nativeReplay.start.mock.calls[0]![0]).toBe("http://replay.test:9999");
+    expect((nativeReplay.start.mock.calls[0]![1] as { otlp: { logsUrl: string } }).otlp.logsUrl).toBe("https://otel.example.com/v1/logs");
+    await rum.ready;
+    expect(rum.getSessionId()).toBeDefined();
   });
 
   it("tells the native recorder about every session rotation", async () => {
@@ -454,120 +460,341 @@ describe("initRUM({ replay })", () => {
   });
 });
 
-describe("replay.keepAtNextLaunch (next-launch keep/drop)", () => {
+
+describe("replay.mode (ADR-0021 decision 5)", () => {
+  const base = { endpoint: ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN };
+
+  it("resolves the option: default, valid, unsupported, invalid, and the old cadence values", () => {
+    expect(resolveReplayMode(undefined)).toEqual({ mode: "pixel/frames", cadence: "auto" });
+    expect(resolveReplayMode({ mode: "pixel/frames", cadence: "navigation" })).toEqual({ mode: "pixel/frames", cadence: "navigation" });
+    // Valid modes this build cannot record: off, one warning.
+    const android = new Set<ReplayMode>(["pixel/frames"]);
+    for (const [mode, supported] of [["pixel/video", android], ["structure/wireframe", NATIVE_REPLAY_MODES]] as const) {
+      const r = resolveReplayMode({ mode }, supported);
+      expect(r.mode).toBeUndefined();
+      expect(r.warning).toMatch(/not available in this build/);
+    }
+    // One line makes a mode available: the supported set. pixel/video records on iOS and Android.
+    expect(resolveReplayMode({ mode: "pixel/video" }, new Set<ReplayMode>(["pixel/frames", "pixel/video"]))).toEqual({ mode: "pixel/video", cadence: "auto" });
+    expect(resolveReplayMode({ mode: "pixel/video" })).toEqual({ mode: "pixel/video", cadence: "auto" });
+    expect([...NATIVE_REPLAY_MODES]).toEqual(["pixel/frames", "pixel/video"]);
+    expect(REPLAY_MODES).toEqual(["pixel/frames", "pixel/video", "structure/wireframe"]);
+    // Not modes: shorthand, the web-only mode, junk.
+    for (const mode of ["pixel", "structure", "structure/dom", "frames", "", 5, {}, true]) {
+      const r = resolveReplayMode({ mode: mode as never });
+      expect(r.mode, String(mode)).toBeUndefined();
+      expect(r.warning, String(mode)).toMatch(/is not a replay mode/);
+    }
+    // What replay.mode meant before: read as the cadence, with a deprecation warning, not as invalid.
+    for (const cadence of ["auto", "session", "navigation"] as const) {
+      const r = resolveReplayMode({ mode: cadence });
+      expect(r).toMatchObject({ mode: "pixel/frames", cadence });
+      expect(r.warning).toMatch(/deprecated.*replay\.cadence/);
+    }
+    expect(resolveReplayMode({ mode: "session", cadence: "navigation" })).toMatchObject({ mode: "pixel/frames", cadence: "navigation" });
+    expect(resolveReplayMode({ cadence: "junk" as never }).cadence).toBe("auto");
+  });
+
+  it("pixel/video is supported on Android too", async () => {
+    // A fresh module graph whose react-native stand-in says Android.
+    vi.resetModules();
+    try {
+      const rn = await import("./mocks/react-native");
+      rn.Platform.OS = "android";
+      const onAndroid = await import("../src/replay");
+      expect([...onAndroid.NATIVE_REPLAY_MODES]).toEqual(["pixel/frames", "pixel/video"]);
+      expect(onAndroid.resolveReplayMode({ mode: "pixel/video" }).mode).toBe("pixel/video");
+    } finally {
+      vi.resetModules();
+    }
+  });
+
+  it("an unusable mode leaves replay off with one warning and never throws; a deprecated one records", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    for (const mode of ["structure/wireframe", "pixel", "structure/dom", 42]) {
+      warn.mockClear();
+      const native = fakeNative();
+      let c!: ReturnType<typeof createReplayController>;
+      expect(() => (c = createReplayController({ ...base, options: { enabled: true, mode: mode as never }, native, logger: createLogger(true) }))).not.toThrow();
+      c.start("s");
+      c.sessionDidRotate("t");
+      c.capture("manual");
+      c.mask(5);
+      c.screenDidChange();
+      c.setAllowed(false);
+      c.setAllowed(true);
+      c.stop();
+      expect(c.active).toBe(false);
+      expect(c.mode).toBeUndefined();
+      expect(Object.values(native).filter((f) => typeof f === "function" && (f as { mock?: { calls: unknown[] } }).mock?.calls.length).length).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+    warn.mockClear();
+    const native = fakeNative();
+    const c = createReplayController({ ...base, options: { enabled: true, mode: "navigation" }, native, logger: createLogger(true) });
+    c.start("s");
+    expect(native.start.mock.calls[0]![1]).toMatchObject({ mode: "pixel/frames", cadence: "navigation" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![1])).toContain("deprecated");
+    // Without debug nothing is printed at all.
+    warn.mockClear();
+    createReplayController({ ...base, options: { enabled: true, mode: "pixel" as never }, native: fakeNative(), logger: createLogger(false) });
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("replay over OTLP: the native calls", () => {
   const logger = createLogger(false);
-  const held = [
-    { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstAt: 1000, lastAt: 11_000 },
-    { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstAt: 20_000, lastAt: 20_000 },
-    { sessionId: "current", chunks: 1, bytes: 5_000, firstAt: 30_000, lastAt: 30_000 },
-  ];
-  const nativeWithHeld = () => {
-    const n = { ...fakeNative(), heldReplaySessions: vi.fn(async () => held), releaseHeldReplay: vi.fn() };
-    return n;
-  };
+  const base = { endpoint: ENDPOINT, projectId: PROJECT_ID, projectToken: TOKEN, logger };
 
-  it("asks the hook about every finished session and sends or deletes its chunks", async () => {
-    const storage = new MemoryAsyncStorage();
-    // The previous run counted two errors in prev-quiet.
-    await storage.setItem("ouo.replay.errors", JSON.stringify({ "prev-quiet": 2 }));
-    const native = nativeWithHeld();
-    const seen: unknown[] = [];
-    const c = createReplayController({
-      endpoint: "http://localhost:4319",
-      projectId: PROJECT_ID,
-      projectToken: TOKEN,
-      options: { enabled: true, keepAtNextLaunch: (s) => (seen.push(s), s.crashed || s.errors > 0 ? true : false) },
-      native,
-      storage,
-      logger,
+  it("passes the resource, the scope version and how the previous run ended", () => {
+    const native = fakeNative();
+    const c = createReplayController({ ...base, options: { enabled: true }, native, resource: { "service.name": "app", n: 1, ok: true }, scopeVersion: "9.9.9", previousExit: "background_kill" });
+    c.start("s");
+    expect((native.start.mock.calls[0]![1] as { otlp: unknown }).otlp).toEqual({
+      logsUrl: `${ENDPOINT}/v1/logs`,
+      resource: { "service.name": "app", n: 1, ok: true },
+      schemaUrl: "https://opentelemetry.io/schemas/client-side-dev/0.1.0-dev",
+      scopeVersion: "9.9.9",
+      previousExit: "background_kill",
     });
-    c.start("current");
-    expect(native.start.mock.calls[0]![1]).toMatchObject({ holdUploads: true });
-    await c.decideHeld("current", "prev-crashed");
-    expect(seen).toEqual([
-      { sessionId: "prev-crashed", chunks: 3, bytes: 90_000, firstChunkAt: 1000, lastChunkAt: 11_000, crashed: true, errors: 0, feedback: 0 },
-      { sessionId: "prev-quiet", chunks: 1, bytes: 20_000, firstChunkAt: 20_000, lastChunkAt: 20_000, crashed: false, errors: 2, feedback: 0 },
-    ]);
-    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
-      ["prev-crashed", true],
-      ["prev-quiet", true],
-    ]);
   });
 
-  it("counts this session's errors for the next launch and forgets decided sessions", async () => {
-    const storage = new MemoryAsyncStorage();
-    await storage.setItem("ouo.replay.errors", JSON.stringify({ "prev-quiet": 2 }));
-    const native = nativeWithHeld();
-    const c = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true, keepAtNextLaunch: () => false }, native, storage, logger });
-    c.start("current");
-    c.onError();
-    c.onError();
-    await c.decideHeld("current", undefined);
-    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
-      ["prev-crashed", false],
-      ["prev-quiet", false],
-    ]);
-    expect(JSON.parse(storage.peek("ouo.replay.errors")!)).toEqual({ current: 2 });
+  it("every screen change gives the chunks a fresh 32-hex view id", () => {
+    const native = fakeNative();
+    const c = createReplayController({ ...base, options: { enabled: true }, native });
+    c.screenDidChange();
+    expect(native.setViewId).not.toHaveBeenCalled();
+    c.start("s");
+    c.screenDidChange();
+    c.screenDidChange();
+    const ids = native.setViewId.mock.calls.map((call) => call[0]);
+    expect(ids).toHaveLength(2);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{32}$/);
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(newViewId()).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it("counts this session's feedback for the next launch, so the hook can keep the sessions users reported on (C10)", async () => {
-    const storage = new MemoryAsyncStorage();
-    await storage.setItem("ouo.replay.feedback", JSON.stringify({ "prev-quiet": 1 }));
-    const native = nativeWithHeld();
-    const seen: Array<{ sessionId: string; feedback: number }> = [];
-    const c = createReplayController({
-      endpoint: "http://localhost:4319",
-      projectId: PROJECT_ID,
-      projectToken: TOKEN,
-      options: { enabled: true, keepAtNextLaunch: (s) => (seen.push(s), s.feedback > 0) },
-      native,
-      storage,
-      logger,
-    });
-    c.start("current");
-    c.onFeedback();
-    await c.decideHeld("current", undefined);
-    expect(seen.map((s) => [s.sessionId, s.feedback])).toEqual([
-      ["prev-crashed", 0],
-      ["prev-quiet", 1],
-    ]);
-    expect(native.releaseHeldReplay.mock.calls.map((call) => [call[2], call[3]])).toEqual([
-      ["prev-crashed", false],
-      ["prev-quiet", true],
-    ]);
-    expect(JSON.parse(storage.peek("ouo.replay.feedback")!)).toEqual({ current: 1 });
-    // Without the hook nothing is counted (nothing is held).
-    const s2 = new MemoryAsyncStorage();
-    const c2 = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native: nativeWithHeld(), storage: s2, logger });
-    c2.start("current");
-    c2.onFeedback();
-    await c2.decideHeld("current", undefined);
-    expect(s2.peek("ouo.replay.feedback")).toBeNull();
+  it("mask and unmask take a tag, a ref or an instance, and ignore what is not a mounted view", () => {
+    const find = (ref: unknown): number | null => (ref as { __tag?: number }).__tag ?? null;
+    expect(nativeTag(12, find)).toBe(12);
+    expect(nativeTag({ current: { __tag: 7 } }, find)).toBe(7);
+    expect(nativeTag({ __tag: 8 }, find)).toBe(8);
+    expect(nativeTag({ current: 9 }, find)).toBe(9);
+    for (const junk of [undefined, null, 0, -1, 1.5, NaN, "12", { current: null }, { current: {} }, {}, 2 ** 31]) expect(nativeTag(junk, find), String(junk)).toBeUndefined();
+    expect(nativeTag({ current: { __tag: 7 } }, undefined)).toBeUndefined();
+    expect(nativeTag({}, () => { throw new Error("x"); })).toBeUndefined();
+
+    const native = fakeNative();
+    const c = createReplayController({ ...base, options: { enabled: true }, native, findNodeHandle: find });
+    // Before the recorder starts too: a mask set at mount must hold for the first frame.
+    c.mask({ current: { __tag: 3 } });
+    c.unmask(4);
+    c.mask("nope");
+    c.unmask({ current: null });
+    expect(native.mask.mock.calls).toEqual([[3]]);
+    expect(native.unmask.mock.calls).toEqual([[4]]);
   });
 
-  it("without the hook nothing is held and anything held earlier is sent; a throwing hook keeps", async () => {
-    const native = nativeWithHeld();
-    const c = createReplayController({ endpoint: "http://localhost:4319", projectId: PROJECT_ID, projectToken: TOKEN, options: { enabled: true }, native, logger });
-    c.start("current");
-    expect(native.start.mock.calls[0]![1]).toMatchObject({ holdUploads: false });
-    await c.decideHeld("current", undefined);
-    expect(native.releaseHeldReplay.mock.calls.every((call) => call[3] === true)).toBe(true);
+  it("stop ends the stream with reason stop, end (shutdown) with session_end; an older build without endSession still stops", () => {
+    const native = fakeNative();
+    const c = createReplayController({ ...base, options: { enabled: true }, native });
+    c.start("s");
+    c.end();
+    expect(native.endSession).toHaveBeenCalledTimes(1);
+    expect(native.stop).not.toHaveBeenCalled();
+    expect(c.active).toBe(false);
+    c.start("s");
+    c.stop();
+    expect(native.stop).toHaveBeenCalledTimes(1);
+    const { endSession: _gone, ...older } = fakeNative();
+    const c2 = createReplayController({ ...base, options: { enabled: true }, native: older });
+    c2.start("s");
+    c2.end();
+    expect(older.stop).toHaveBeenCalledTimes(1);
+  });
 
-    const n2 = nativeWithHeld();
-    const c2 = createReplayController({
-      endpoint: "http://localhost:4319",
-      projectId: PROJECT_ID,
-      projectToken: TOKEN,
-      options: {
-        enabled: true,
-        keepAtNextLaunch: () => {
-          throw new Error("hook bug");
-        },
-      },
-      native: n2,
-      logger,
+  it("consent: not started until allowed; withdrawal discards in one call, with no stop (no end record, PRV-4)", async () => {
+    const native = fakeNative();
+    const order: string[] = [];
+    native.stop.mockImplementation(() => void order.push("stop"));
+    native.discardPending.mockImplementation(() => {
+      order.push("discardPending");
+      return Promise.reject(new Error("native failure"));
     });
-    await c2.decideHeld("current", undefined);
-    expect(n2.releaseHeldReplay.mock.calls.map((call) => call[3])).toEqual([true, true]);
+    const c = createReplayController({ ...base, options: { enabled: true }, native, allowed: false });
+    c.start("s");
+    expect(native.start).not.toHaveBeenCalled();
+    c.setAllowed(true);
+    expect(native.start).toHaveBeenCalledTimes(1);
+    c.setAllowed(false);
+    // `stop` would queue `ouo.replay.ended`: the one native call stops and deletes.
+    expect(order).toEqual(["discardPending"]);
+    expect(c.active).toBe(false);
+    // Given again: a new recording for the current session.
+    c.setAllowed(true);
+    expect(native.start).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    // Withdrawn before anything was recorded: still deletes what an earlier run left.
+    const native2 = fakeNative();
+    const c2 = createReplayController({ ...base, options: { enabled: true }, native: native2 });
+    c2.setAllowed(false);
+    expect(native2.stop).not.toHaveBeenCalled();
+    expect(native2.discardPending).toHaveBeenCalledTimes(1);
+    // A build without discardPending still stops.
+    const { discardPending: _gone, ...older } = fakeNative();
+    const c3 = createReplayController({ ...base, options: { enabled: true }, native: older });
+    c3.start("s");
+    c3.setAllowed(false);
+    expect(older.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("PRV-4: withdrawing consent while recording calls only discardPending", () => {
+    const calls: string[] = [];
+    const native = fakeNative();
+    for (const k of ["stop", "endSession", "pause"] as const) native[k].mockImplementation(() => void calls.push(k));
+    native.discardPending.mockImplementation(() => {
+      calls.push("discardPending");
+      return Promise.resolve();
+    });
+    const c = createReplayController({ ...base, endpoint: "http://otel.test:4318", projectId: "p", projectToken: "t", options: { enabled: true }, native });
+    c.start("0123456789abcdef0123456789abcdef");
+    c.setAllowed(false);
+    expect(calls).toEqual(["discardPending"]);
+  });
+});
+
+describe("initRUM: replay follows the session, errors, consent and shutdown", () => {
+  const g = globalThis as { __ouoSessionProcessState?: unknown; ErrorUtils?: { getGlobalHandler: () => (e: unknown, f?: boolean) => void; setGlobalHandler: (h: (e: unknown, f?: boolean) => void) => void }; expo?: unknown };
+  let originalFetch: typeof fetch;
+  const extra = { capture: vi.fn(), setViewId: vi.fn(), mask: vi.fn(), unmask: vi.fn(), endSession: vi.fn(), discardPending: vi.fn(() => Promise.resolve()), takePendingCrash: vi.fn((): string | null => null), installCrashReporter: vi.fn(() => true) };
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("{}", { status: 200 })) as typeof fetch;
+    delete g.__ouoSessionProcessState;
+    resetNative();
+    for (const fn of Object.values(extra)) fn.mockClear();
+    extra.takePendingCrash.mockImplementation(() => null);
+    g.expo = { modules: { OuoReplay: { ...nativeReplay, ...extra } } };
+    let handler = (_e: unknown, _f?: boolean): void => undefined;
+    g.ErrorUtils = { getGlobalHandler: () => handler, setGlobalHandler: (h) => (handler = h) };
+  });
+  afterEach(async () => {
+    await (getRUM() as RUMInternal | undefined)?._uninstall();
+    globalThis.fetch = originalFetch;
+    delete g.__ouoSessionProcessState;
+    delete g.expo;
+    delete g.ErrorUtils;
+  });
+
+  const options = (replay: Record<string, unknown>, more: Record<string, unknown> = {}) => ({
+    endpoint: ENDPOINT,
+    projectId: PROJECT_ID,
+    projectToken: TOKEN,
+    service: { name: "mobile-store", version: "2.3.0", environment: "test" },
+    storage: new MemoryAsyncStorage(),
+    replay: { enabled: true, ...replay },
+    ...more,
+  });
+  const started = (n = 0): Record<string, unknown> & { otlp: Record<string, unknown> } => nativeReplay.start.mock.calls[n]![1] as never;
+
+  it("buffer on error: only a bypass-set record or replay.capture() sends the buffer, once, with its trigger", async () => {
+    const rum = initRUM(options({ sampleRate: 0, onErrorSampleRate: 1 })) as RUMInternal;
+    await rum.ready;
+    expect(started().buffer).toEqual({ seconds: 60 });
+    rum.recordException(new Error("handled: not in the bypass set"));
+    console.error("a console error: handled too");
+    expect(extra.capture).not.toHaveBeenCalled();
+    g.ErrorUtils!.getGlobalHandler()(new Error("unhandled"), false);
+    expect(extra.capture.mock.calls).toEqual([["error"]]);
+    g.ErrorUtils!.getGlobalHandler()(new Error("another"), false);
+    rum.replay.capture();
+    expect(extra.capture).toHaveBeenCalledTimes(1);
+
+    // The next session has its own buffer: a manual capture, then a fatal error changes nothing.
+    rum.restartSession();
+    expect(extra.endSession).toHaveBeenCalledTimes(1);
+    expect(started(1)).toMatchObject({ sessionId: rum.getSessionId(), buffer: { seconds: 60 } });
+    rum.replay.capture();
+    expect(extra.capture.mock.calls[1]).toEqual(["manual"]);
+    rum.restartSession();
+    g.ErrorUtils!.getGlobalHandler()(new Error("fatal"), true);
+    expect(extra.capture.mock.calls[2]).toEqual(["crash"]);
+  });
+
+  it("previousExit: a native crash report of the previous run is `crash`, a foreground termination `background_kill`", async () => {
+    extra.takePendingCrash.mockImplementation(() => JSON.stringify({ mechanism: "signal", timestamp_ms: Date.now() - 1000, session_id: "old", signal: { number: 11, name: "SIGSEGV" }, frames: [], images: [] }));
+    const first = initRUM(options({})) as RUMInternal;
+    expect(started().otlp["previousExit"]).toBe("crash");
+    await first._uninstall();
+    delete g.__ouoSessionProcessState;
+    resetNative();
+    extra.takePendingCrash.mockImplementation(() => JSON.stringify({ mechanism: "termination", timestamp_ms: Date.now() - 1000, session_id: "old", termination: { cause: "memory" }, frames: [], images: [] }));
+    const second = initRUM(options({})) as RUMInternal;
+    expect(started().otlp["previousExit"]).toBe("background_kill");
+    await second.ready;
+  });
+
+  it("navigation sets a view id; mask and unmask resolve refs with findNodeHandle", async () => {
+    const rum = initRUM(options({})) as RUMInternal;
+    await rum.ready;
+    rum.trackNavigation("/Home");
+    rum.trackNavigation("/Cart");
+    expect(extra.setViewId).toHaveBeenCalledTimes(2);
+    expect(extra.setViewId.mock.calls[0]![0]).toMatch(/^[0-9a-f]{32}$/);
+    rum.replay.mask({ current: { __tag: 21 } });
+    rum.replay.unmask(22);
+    rum.replay.mask({ current: null });
+    expect(extra.mask.mock.calls).toEqual([[21]]);
+    expect(extra.unmask.mock.calls).toEqual([[22]]);
+  });
+
+  it("an unsampled session and a session without replay consent record nothing; withdrawal discards without a stop", async () => {
+    const unsampled = initRUM(options({}, { session: { sampleRate: 0 } })) as RUMInternal;
+    await unsampled.ready;
+    expect(nativeReplay.start).not.toHaveBeenCalled();
+    await unsampled._uninstall();
+    delete g.__ouoSessionProcessState;
+
+    const rum = initRUM(options({}, { consent: { required: true } })) as RUMInternal;
+    await rum.ready;
+    rum.setConsent({ telemetry: true });
+    expect(nativeReplay.start).not.toHaveBeenCalled();
+    rum.setConsent({ replay: true });
+    expect(nativeReplay.start).toHaveBeenCalledTimes(1);
+    rum.setConsent({ replay: false });
+    // The one call stops and deletes; a `stop` would queue `ouo.replay.ended` (PRV-4).
+    expect(nativeReplay.stop).not.toHaveBeenCalled();
+    expect(extra.discardPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("shutdown ends the stream with the session, then flushes; self-disable stops it", async () => {
+    const order: string[] = [];
+    extra.endSession.mockImplementation(() => void order.push("endSession"));
+    nativeReplay.flush.mockImplementation(() => {
+      order.push("flush");
+      return Promise.resolve();
+    });
+    const rum = initRUM(options({})) as RUMInternal;
+    await rum.ready;
+    order.length = 0;
+    await rum.shutdown();
+    expect(order).toEqual(["endSession", "flush"]);
+    expect(nativeReplay.stop).not.toHaveBeenCalled();
+
+    delete g.__ouoSessionProcessState;
+    resetNative();
+    const second = initRUM(options({}, { diagnostics: { selfDisableThreshold: 1 } })) as RUMInternal;
+    await second.ready;
+    expect(nativeReplay.start).toHaveBeenCalledTimes(1);
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      throw new Error("injected");
+    });
+    second.recordEvent("fails");
+    vi.restoreAllMocks();
+    expect(guard.disabled).toBe(true);
+    expect(nativeReplay.stop).toHaveBeenCalledTimes(1);
   });
 });
