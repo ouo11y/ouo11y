@@ -17,4 +17,6 @@ export enum ROUTES {
   Overview = 'overview',
   Sessions = 'sessions',
   Funnels = 'funnels',
+  /** Session explorer on the BFF (ADR-0023). */
+  Explore = 'explore',
 }

@@ -135,10 +135,12 @@ type Event struct {
 
 // SessionDetail is the answer of GetSession. Replays is nil without Replay clearance.
 type SessionDetail struct {
-	Session  Session         `json:"session"`
-	Events   []Event         `json:"events"`
-	Replays  []ReplaySummary `json:"replays"`
-	Redacted []string        `json:"redacted"`
+	Session Session         `json:"session"`
+	Events  []Event         `json:"events"`
+	Replays []ReplaySummary `json:"replays"`
+	// ReplaysError is set when Muninn could not be read; the timeline is still answered.
+	ReplaysError string   `json:"replays_error,omitempty"`
+	Redacted     []string `json:"redacted"`
 }
 
 // SessionQuery filters ListSessions.
@@ -287,10 +289,11 @@ func (c *Client) GetSession(ctx context.Context, cl Clearance, project, session 
 	if cl.Can().Replay {
 		replays, err := c.Muninn.listReplays(ctx, project, session)
 		if err != nil {
-			return nil, err
+			out.ReplaysError = err.Error()
+		} else {
+			out.Replays = replays
+			agg.HasReplay = len(replays) > 0
 		}
-		out.Replays = replays
-		agg.HasReplay = len(replays) > 0
 	}
 	out.Session = cl.session(agg)
 	return out, nil

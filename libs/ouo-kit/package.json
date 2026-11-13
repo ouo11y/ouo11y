@@ -1,0 +1,29 @@
+{
+  "name": "@ouo11y/kit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Frontend building blocks for ouo11y: the BFF's types and the replay player that picks a renderer by format id (ADR-0023). No Grafana dependency.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": ["*.css"],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "dependencies": {
+    "rrweb-player": "2.1.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "5.9.2",
+    "vitest": "^5.0.3"
+  }
+}

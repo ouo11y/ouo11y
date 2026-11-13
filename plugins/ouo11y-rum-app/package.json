@@ -6,7 +6,8 @@
   "license": "Apache-2.0",
   "author": "ouo",
   "scripts": {
-    "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
+    "build": "webpack -c ./.config/webpack/webpack.config.ts --env production && node scripts/build-backend.mjs",
+    "build:backend": "node scripts/build-backend.mjs",
     "dev": "webpack -w -c ./.config/webpack/webpack.config.ts --env development",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch --onlyChanged",
@@ -19,6 +20,7 @@
   },
   "dependencies": {
     "@emotion/css": "11.10.6",
+    "@ouo11y/kit": "*",
     "@grafana/data": "13.2.2",
     "@grafana/runtime": "13.2.2",
     "@grafana/ui": "13.2.2",

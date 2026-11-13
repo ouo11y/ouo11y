@@ -6,7 +6,8 @@
   "workspaces": [
     "sdk/*",
     "examples/ouo-web",
-    "plugins/*"
+    "plugins/*",
+    "libs/ouo-kit"
   ],
   "engines": {
     "node": ">=24"
