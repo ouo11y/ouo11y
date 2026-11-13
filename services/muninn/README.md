@@ -41,4 +41,4 @@ go vet ./... && go test ./...
 
 The store tests also run against MinIO when `OUO_TEST_S3_ENDPOINT`, `OUO_TEST_S3_BUCKET`, `OUO_TEST_S3_ACCESS_KEY` and `OUO_TEST_S3_SECRET_KEY` are set. The end-to-end check with a real browser and the Collector is [tests/e2e/muninn/run.mjs](../../tests/e2e/muninn/run.mjs).
 
-Reading chunks over HTTP: send `Accept-Encoding: gzip`. A Go client or proxy whose transport adds that header itself also gunzips the body and drops `Content-Encoding`, and then the SHA-256 no longer matches ([kb](../../project/kb/muninn/build/gzip-on-the-read-path.md)).
+Reading chunks over HTTP: send `Accept-Encoding: gzip`. A Go client or proxy whose transport adds that header itself also gunzips the body and drops `Content-Encoding`, and then the SHA-256 no longer matches ([kb](../../project/kb/muninn/implementation/gzip-on-the-read-path.md)).

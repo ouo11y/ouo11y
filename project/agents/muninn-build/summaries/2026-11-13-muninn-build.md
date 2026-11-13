@@ -91,7 +91,7 @@ None of these diverges from a MUST; each is a choice the spec leaves open, liste
 ## What is left
 
 - **Founder**: confirm Q1 to Q15 and merge PR #180 first or together; this PR's docs name its files without links until then. When #180 merges, `project/kb/muninn/index.md` gets its `collector-path/` row back (both PRs add the file; a two-line conflict).
-- Not tested (see `project/kb/muninn/build/collector-path-verified.md`): Collector kill -9 right after a 2xx; full queue answering 503; queue throughput on a real disk; memory with 1 MiB chunks; spec 12's conformance suite as a separate harness (the Go tests and the e2e cover most of its rows).
+- Not tested (see `project/kb/muninn/implementation/collector-path-verified.md`): Collector kill -9 right after a 2xx; full queue answering 503; queue throughput on a real disk; memory with 1 MiB chunks; spec 12's conformance suite as a separate harness (the Go tests and the e2e cover most of its rows).
 - **Release**: no `muninn-v*` tag pattern in `release-images.yml` or release-please component yet, and no license file (rum-api is AGPL, the rest Apache 2.0): the founder picks Muninn's before its first image is published.
 - **Helm** (out of scope here): a Muninn Deployment and ClusterIP Service on port 3400 with an S3 secret (bucket, keys) and the ingest and read tokens; the collector as a StatefulSet with a PersistentVolumeClaim at `/var/lib/otelcol/replay-queue` (Q12) running `config.muninn.yaml`; `MUNINN_ENDPOINT`, `MUNINN_INGEST_TOKEN`, `MUNINN_TENANT` in its environment; alert on the Collector's failed-send counter for `otlp_http/muninn`.
 - The MVP path (`config.yaml`, `ouoreplay*`, rum-api's replay code) stays until the founder removes it. Without `--muninn`, nothing changes for any env.
