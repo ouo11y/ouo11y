@@ -1,0 +1,7 @@
+# Fetching ouo-go
+
+Learned 2026-11-14 and 2026-11-15 (agent [plugin-bff](../../../agents/plugin-bff/index.md)), verifying `go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0` from a throwaway module outside the repository. The how-to is in the [ouo-go README](../../../../libs/ouo-go/README.md#install).
+
+- Since `ouo11y/ouo11y` went public (2026-11-15), the module needs no setup: `GOPROXY=https://proxy.golang.org` alone (no `direct` fallback), a fresh module cache, git prompts disabled and the system git config (Xcode's keychain helper) switched off still fetched v0.1.0 with its checksum checked against the public sum database, and a program importing it built and ran.
+- A module in a subdirectory is tagged `libs/ouo-go/vX.Y.Z`, but `go get` takes the module path and `@vX.Y.Z`; Go maps one to the other.
+- While the repository was private (until 2026-11-15), `go get` without `GOPRIVATE=github.com/ouo11y/*` failed after more than two minutes with `could not read Username for 'https://github.com': terminal prompts disabled`, and on this Mac it worked with `GOPRIVATE` only because Xcode's git ships `credential.helper=osxkeychain` (`/Applications/Xcode.app/Contents/Developer/usr/share/git-core/gitconfig`). If a module of ours is ever private again, that is the setup a client needs, plus a read token given to git only in the CI step that runs `go` (`GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, `GIT_CONFIG_VALUE_0`), never with `git config --global` on a persistent self-hosted runner.

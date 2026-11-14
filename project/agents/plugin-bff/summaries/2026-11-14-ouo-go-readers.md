@@ -12,8 +12,8 @@ Branch `claude/ouo-go-readers-54e454`, cut from `origin/main` at `94eaf46d`. Dec
   - `loki.go`: `QueryVector` now shares an internal `queryVector` that also returns values; `Loki.FunnelEventLimit`.
 - **Tests** (`readers_test.go`, 18 tests, table tests against fake Loki and Tempo): rum-api's funnel, classify, health, ratings, vitals and Tempo tests ported; rum-api's Loki fixtures copied to `testdata/`; new: both wires, the LogQL and TraceQL sent, paging, validation before any request (12 cases), store errors kept out of `Public()` for all six readers, best-effort Tempo searches.
 - **Docs**: `docs/funnels.md` moved to [libs/ouo-go/funnels.md](../../../../libs/ouo-go/funnels.md) (rewritten for the readers, with a "Compared with rum-api" table); links in `docs/index.md`, the checklist, the plugin README and the tiny-shop guide repointed. `docs/specs/funnels.md` kept and updated (both wires, users, 30-day range, no cache, new LogQL, API). `libs/ouo-go/README.md`: the new readers, the validation rules, and **Install from a client repository** (`GOPRIVATE`, local git credentials, a token in GitHub Actions, Docker build secret).
-- **ADR-0025** amended: the decision row lists the new readers; "the existing plugin stays as on `main`" became "the MVP plugin is deleted with `services/rum-api` once ADR-0026 and these readers are released"; `ouo-go` is released by tag and installed with `GOPRIVATE`; an Amendments section. Status left for the founder.
-- **kb** `project/kb/plugin/ouo-go/`: `two-rum-wires-in-loki.md`, `private-go-module.md`.
+- **ADR-0025** amended: the decision row lists the new readers; "the existing plugin stays as on `main`" became "the MVP plugin is deleted with `services/rum-api` once ADR-0026 and these readers are released"; `ouo-go` is released by tag and installed with a plain `go get` (public since 2026-11-15); an Amendments section. Status left for the founder.
+- **kb** `project/kb/plugin/ouo-go/`: `two-rum-wires-in-loki.md`, `fetching-ouo-go.md`.
 
 ## rum-api bugs found, fixed in the port with a test
 
@@ -28,7 +28,7 @@ Deliberate differences: 30-day ranges (every `ouo-go` read; rum-api 31), no 10 s
 
 - `cd libs/ouo-go && go vet ./... && go test -count=1 ./...`: ok (ouo-go, oidc, redact).
 - `lychee --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'`: 0 errors.
-- **`go get` from a client module** (throwaway module in the scratchpad, fresh `GOMODCACHE`): without `GOPRIVATE` it fails after more than two minutes with `could not read Username for 'https://github.com': terminal prompts disabled`; with `GOPRIVATE='github.com/ouo11y/*'` it adds `github.com/ouo11y/ouo11y/libs/ouo-go v0.1.0` and a `main.go` importing `ouogo` builds and runs. The GitHub Actions recipe in the README is not run in CI (no client repository yet).
+- **`go get` from a client module** (throwaway module in the scratchpad, fresh `GOMODCACHE`): while the repository was private (2026-11-14), it failed without `GOPRIVATE` (`could not read Username for 'https://github.com': terminal prompts disabled`) and worked with it. Since it went public (2026-11-15): `GOPROXY=https://proxy.golang.org` only, no `GOPRIVATE`, git prompts and the system git config off, it adds `github.com/ouo11y/ouo11y/libs/ouo-go v0.1.0` (sum database checked) and a `main.go` importing `ouogo` builds and runs.
 - **Live comparison with rum-api** on env `ouo-go-readers` (`deploy/envs/ouo-env up ouo-go-readers`, this branch's images). Data: three `examples/ouo-web/scripts/run.sh --env ouo-go-readers` journeys (web SDK 0.4.1; sessions `d2c70311…`, `f1b23d3e…`, `6267100d…`) and two mobile-wire sessions posted as OTLP JSON to the env's collector (`aaaa0000…0001`: app start, two screens, jank, stall, `navigation` + `url.path`, `add_to_cart` with `ouo.event.custom`, `http.request.failed`; `bbbb0000…0002`: fatal exception and `session.end` reason `crash`). A Go program called each reader and the matching rum-api route (read token `rt_dev_…`) over the same last hour:
   - Health (`Loki.Health` vs `GET /v1/stats/health`): **equal**. web-store 1.4.2: 3 sessions, 3 errored (the journey's render error); mobile-store 9.9.9: 2 sessions, 1 errored, 1 crashed; totals 5 / 80 % errored / 20 % crashed.
   - Vitals (`Loki.SessionVitals` vs `GET /v1/sessions/{id}/vitals`), all 5 sessions: **equal** (summary and every record; the mobile session: cold app start 3060.7 ms needs-improvement, 2 screens, TTID p50 1863.2 max 3316.2, frames 120/4/1, stalls 2/340/220).
@@ -53,6 +53,10 @@ Deliberate differences: 30-day ranges (every `ouo-go` read; rum-api 31), no 10 s
 
 - **Fixed** `Loki.Health` read every `ouo.replay.chunk` record (most of a replayed session's records) into the 100,000 limit: it now excludes them with the same `replaySelector` as `ListSessions` (`Filters.selector` takes extra matchers); `TestHealthReader` asserts the LogQL. Re-run live: Health still equal to rum-api (5 sessions), and Loki accepts the double `event_name` matcher.
 - **Fixed** `Tempo` gets `Token` (bearer) and trims a trailing `/` on `URL`, so `erase` on the ADR-0026 branch can reuse `ouogo.Tempo`; tested.
-- **Fixed** README Actions example: the token goes to git through step-scoped `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_0` / `GIT_CONFIG_VALUE_0` instead of `git config --global` (persistent self-hosted runners keep the home directory); the client repository is no longer named. kb `private-go-module.md` updated.
+- **Fixed** README Actions example: the token goes to git through step-scoped `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_0` / `GIT_CONFIG_VALUE_0` instead of `git config --global` (persistent self-hosted runners keep the home directory); the client repository is no longer named. kb `fetching-ouo-go.md` updated.
 - **Fixed** README and the `SessionTraces` doc: Tempo is searched by session id alone, so a caller that scopes by project checks the session's project first.
 - **Fixed** README and `funnels.md`: the `Platform` filter misses web SDK 0.4 sessions (no `ouo_platform` label).
+
+## 2026-11-15: repository public
+
+`ouo11y/ouo11y` went public. The README's install section is now a plain `go get` (the `GOPRIVATE`, git-credential and Actions-token steps are gone), ADR-0025 and the kb entry (renamed `fetching-ouo-go.md`) say so, and the fetch was re-verified through `proxy.golang.org` with no credentials.

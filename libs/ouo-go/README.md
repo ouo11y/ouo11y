@@ -55,34 +55,13 @@ Optional sub-packages, which decide nothing for you:
 | `redact` | `Identity` (`enduser.*`, `user.id`, `user.email`, `user.name`, `user.full_name`, `user.hash`, `user.roles`, `client.address`, in both the `.` and Loki's `_` spelling), matchers `Keys`, `Prefixes`, `Any`, and filters `Drop`, `Keep` (an allow list), `Session` and `Sessions` (clear `User`), `Events`, `Manifest`: with `Identity` they cover everything the readers return. It does not look inside values |
 | `oidc` | `Verifier.Verify` checks an OpenID Connect ID token (signature against the provider's JWKS, asymmetric algorithms only, issuer, audience, expiry) and returns its claims; `Groups` returns the groups claim. Keys are cached, refetched for an unknown key id at most once a minute (also when the provider is down) and dropped after an hour. It does not bind a token to the caller: see [the kb](../../project/kb/plugin/idp-tokens/idp-tokens-in-a-plugin-backend.md), which also says how a Grafana plugin backend receives the token at all |
 
-## Install from a client repository
+## Install
 
-`ouo11y/ouo11y` is private, so the public Go module proxy and checksum database cannot fetch `github.com/ouo11y/ouo11y/libs/ouo-go`: without the setting below `go get` ends with `could not read Username for 'https://github.com'`. Releases are tags `libs/ouo-go/vX.Y.Z`; ask for the version, not the tag:
+`ouo11y/ouo11y` is public, so the Go module proxy serves `ouo-go` like any other module: no `GOPRIVATE`, no git credentials, no token in CI. Releases are tags `libs/ouo-go/vX.Y.Z`; ask for the version, not the tag:
 
 ```bash
-go env -w GOPRIVATE='github.com/ouo11y/*'    # fetch straight from GitHub, skip the public checksum database
 go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0
 ```
-
-**Locally**, git needs credentials for `https://github.com` with read access to `ouo11y/ouo11y`. With the GitHub CLI: `gh auth login`, then `gh auth setup-git`. Without it, a fine-grained token with *Contents: read* on `ouo11y/ouo11y` in your git credential helper, or `git config --global url."https://x-access-token:<token>@github.com/ouo11y/".insteadOf "https://github.com/ouo11y/"`.
-
-**In GitHub Actions**, the job's own `GITHUB_TOKEN` reads only its own repository. Store a fine-grained token (or a GitHub App installation token) with *Contents: read* on `ouo11y/ouo11y` as a secret, here `OUO11Y_READ_TOKEN`, and give it to git in the environment of the steps that run `go`, not with `git config --global`: a global setting stays in the home directory of a persistent self-hosted runner, token included, for every later job.
-
-```yaml
-env:
-  GOPRIVATE: github.com/ouo11y/*
-steps:
-  - uses: actions/checkout@v5
-  - uses: actions/setup-go@v6
-    with: { go-version-file: go.mod }
-  - run: go build ./... && go test ./...
-    env:
-      GIT_CONFIG_COUNT: "1"
-      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.OUO11Y_READ_TOKEN }}@github.com/ouo11y/.insteadOf
-      GIT_CONFIG_VALUE_0: https://github.com/ouo11y/
-```
-
-A Docker build needs the same: pass the token as a build secret (`RUN --mount=type=secret,id=gh ...`), never as a build argument or a layer. Once `ouo11y/ouo11y` is public, `GOPRIVATE` and the token can go.
 
 ## Build
 
