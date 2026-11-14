@@ -485,7 +485,7 @@ func TestHealthReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(store.all(), `{service_name=~".+", event_name=~".+", ouo_platform="web"}`) {
+	if !strings.Contains(store.all(), `{service_name=~".+", event_name!~"ouo[.]replay[.]chunk", event_name=~".+", ouo_platform="web"}`) {
 		t.Errorf("query: %s", store.all())
 	}
 	got := map[string]HealthBucket{}
@@ -674,9 +674,9 @@ const tempoSample = `{"traces":[
 ]}`
 
 func TestTempoSessionTraces(t *testing.T) {
-	var gotOrg string
+	var gotOrg, gotAuth string
 	store, u := serve(t, func(w http.ResponseWriter, r *http.Request) {
-		gotOrg = r.Header.Get("X-Scope-OrgID")
+		gotOrg, gotAuth = r.Header.Get("X-Scope-OrgID"), r.Header.Get("Authorization")
 		q := r.URL.Query()
 		if q.Get("start") != "1791263000" || q.Get("end") != "1791264000" || q.Get("spss") != "1" || q.Get("limit") != "1000" {
 			t.Errorf("params: %s", r.URL.RawQuery)
@@ -690,13 +690,13 @@ func TestTempoSessionTraces(t *testing.T) {
 			_, _ = w.Write([]byte(tempoSample))
 		}
 	})
-	tp := &Tempo{URL: u, OrgID: "acme"}
+	tp := &Tempo{URL: u + "/", OrgID: "acme", Token: "tt_test"}
 	traces, err := tp.SessionTraces(context.Background(), sess, TimeRange{From: time.Unix(1791263000, 0), To: time.Unix(1791264000, 0)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotOrg != "acme" {
-		t.Errorf("org %q", gotOrg)
+	if gotOrg != "acme" || gotAuth != "Bearer tt_test" {
+		t.Errorf("org %q auth %q", gotOrg, gotAuth)
 	}
 	if len(traces) != 3 || traces[0].TraceID != "aaa" || traces[1].TraceID != "bbb" || traces[2].TraceID != "ccc" {
 		t.Fatalf("traces: %+v", traces)

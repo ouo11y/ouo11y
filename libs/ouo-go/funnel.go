@@ -228,14 +228,15 @@ func (f Filters) check() error {
 	return nil
 }
 
-// selector is the stream selector for an event_name matcher plus the release filter.
-// The values were checked by check.
-func (f Filters) selector(eventName string) string {
+// selector is the stream selector for an event_name matcher, any extra matchers, plus the
+// release filter. The values were checked by check.
+func (f Filters) selector(eventName string, extra ...string) string {
 	sel := []string{`service_name=~".+"`}
 	if f.Service != "" {
 		sel[0] = `service_name=` + strconv.Quote(f.Service)
 	}
 	sel = append(sel, "event_name"+eventName)
+	sel = append(sel, extra...)
 	for label, v := range map[string]string{"deployment_environment_name": f.Environment, "ouo_platform": f.Platform, "ouo_project_id": f.Project} {
 		if v != "" {
 			sel = append(sel, label+"="+strconv.Quote(v))

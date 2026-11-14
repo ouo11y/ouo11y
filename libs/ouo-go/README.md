@@ -10,7 +10,7 @@ import (
 
 loki := &ouogo.Loki{URL: "http://loki:3100"}
 muninn := &ouogo.Muninn{URL: "http://muninn:3400", Tenant: "anonymous", ReadToken: token}
-tempo := &ouogo.Tempo{URL: "http://tempo:3200"}
+tempo := &ouogo.Tempo{URL: "http://tempo:3200"} // Token: a bearer, when Tempo needs one
 
 list, err := loki.ListSessions(ctx, ouogo.SessionQuery{Project: "shop"})
 s, err := loki.SessionEvents(ctx, "shop", sessionID, ouogo.TimeRange{})
@@ -36,9 +36,9 @@ redact.Manifest(m, redact.Identity)
 | `Loki.ListSessions` | Sessions with records in the range (default the last 24 hours, at most 30 days), newest first, with counts, a replay hint and the user (`enduser.id`, else the Sentry bridge's `user.id`); `Truncated` when the read hit `ListLimit` (5000 records) or the query's `Limit` |
 | `Loki.SessionEvents` | One session's summary and its events, oldest first: name, severity, view, trace and span ids as fields, every other label as an attribute (`.` written `_`), and the body; `Truncated` at `EventLimit` (5000); `ErrNotFound` when Loki has no record of it |
 | `Loki.Funnel`, `Loki.FunnelDropped`, `Loki.FunnelSteps` | How many sessions reached each of 2 to 10 ordered steps (a page path or a custom event), the sessions that stopped at a step, and the paths and event names seen, for a step picker: [funnels.md](funnels.md), [spec](../../docs/specs/funnels.md) |
-| `Loki.Health` | Session health % (ADR-0004): each session that started in the range is crashed (fatal exception, or `session.end` with reason `crash`), errored (any other exception, `http.request.failed`) or healthy; counts and percentages per platform, service and version, and in total. Records are read from 4 hours (`Lookback`) before the range so a session that started just before it is left out whole; `Truncated` at 100,000 records |
+| `Loki.Health` | Session health % (ADR-0004): each session that started in the range is crashed (fatal exception, or `session.end` with reason `crash`), errored (any other exception, `http.request.failed`) or healthy; counts and percentages per platform, service and version, and in total. Records are read from 4 hours (`Lookback`) before the range so a session that started just before it is left out whole; replay chunk references are not read; `Truncated` at 100,000 records. The `Platform` filter matches the `ouo_platform` label, which web SDK 0.4 sessions do not carry: filtered by platform, they are left out |
 | `Loki.SessionVitals` | A session's mobile vitals ([spec](../../docs/specs/mobile-vitals.md)): each `ouo.app.start`, `ouo.screen.display`, `app.jank` and `ouo.stall` record with its values and rating, and the summary (app start, screens, TTID p50 and max, frames, stalls). A session without vitals answers an empty list |
-| `Tempo.SessionTraces` | The traces with a span of the session (`span.session.id`), newest first: root name and service, start, duration, span count, error, and the root's `url.path` for generic `HTTP GET` roots. `TraceWindow(session)` is the range to search: the session's records widened by 2 minutes |
+| `Tempo.SessionTraces` | The traces with a span of the session (`span.session.id`), newest first: root name and service, start, duration, span count, error, and the root's `url.path` for generic `HTTP GET` roots. `TraceWindow(session)` is the range to search: the session's records widened by 2 minutes. Tempo is searched by session id alone, in every project: a caller that scopes by project checks the session's project first (`Loki.SessionEvents`). `Token` is sent as a bearer when Tempo sits behind an authenticating proxy |
 | `Loki.QueryRange`, `Loki.QueryVector` | Raw LogQL reads, for queries of your own (a range limit of 0 means 5000); build them from validated values only |
 | `Muninn.ListReplays` | A session's replays (spec 7.1) |
 | `Muninn.Manifest` | A replay's manifest (spec 7.2) without Muninn's chunk paths. Chunk `Attributes` are every stored attribute (MUN-6) and may carry identity |
@@ -66,7 +66,7 @@ go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0
 
 **Locally**, git needs credentials for `https://github.com` with read access to `ouo11y/ouo11y`. With the GitHub CLI: `gh auth login`, then `gh auth setup-git`. Without it, a fine-grained token with *Contents: read* on `ouo11y/ouo11y` in your git credential helper, or `git config --global url."https://x-access-token:<token>@github.com/ouo11y/".insteadOf "https://github.com/ouo11y/"`.
 
-**In GitHub Actions** (for example in `ouo11y/clients`), the job's own `GITHUB_TOKEN` reads only its own repository. Store a fine-grained token (or a GitHub App installation token) with *Contents: read* on `ouo11y/ouo11y` as a secret, here `OUO11Y_READ_TOKEN`, and point git at it before anything runs `go`:
+**In GitHub Actions**, the job's own `GITHUB_TOKEN` reads only its own repository. Store a fine-grained token (or a GitHub App installation token) with *Contents: read* on `ouo11y/ouo11y` as a secret, here `OUO11Y_READ_TOKEN`, and give it to git in the environment of the steps that run `go`, not with `git config --global`: a global setting stays in the home directory of a persistent self-hosted runner, token included, for every later job.
 
 ```yaml
 env:
@@ -75,8 +75,11 @@ steps:
   - uses: actions/checkout@v5
   - uses: actions/setup-go@v6
     with: { go-version-file: go.mod }
-  - run: git config --global url."https://x-access-token:${{ secrets.OUO11Y_READ_TOKEN }}@github.com/ouo11y/".insteadOf "https://github.com/ouo11y/"
   - run: go build ./... && go test ./...
+    env:
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.OUO11Y_READ_TOKEN }}@github.com/ouo11y/.insteadOf
+      GIT_CONFIG_VALUE_0: https://github.com/ouo11y/
 ```
 
 A Docker build needs the same: pass the token as a build secret (`RUN --mount=type=secret,id=gh ...`), never as a build argument or a layer. Once `ouo11y/ouo11y` is public, `GOPRIVATE` and the token can go.

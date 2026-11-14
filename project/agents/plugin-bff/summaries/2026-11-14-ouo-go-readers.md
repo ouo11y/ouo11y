@@ -48,3 +48,11 @@ Deliberate differences: 30-day ranges (every `ouo-go` read; rum-api 31), no 10 s
 - No dependency added.
 - Env `ouo-go-readers` is **still running** for the reviewer: http://grafana.ouo-go-readers.ouo.localhost (admin / testing567), Loki http://loki.ouo-go-readers.ouo.localhost, rum-api http://rum-api.ouo-go-readers.ouo.localhost. Tear it down with `deploy/envs/ouo-env down ouo-go-readers` once the review is done (`ouo-env gc` also takes it once the PR closes).
 - Not done: the reviewer session (ADR-0013) could not be started from this session (the app only starts sessions on the user's own words); it is proposed as a card. No `Review:` / `Author:` comments on the PR yet.
+
+## Review round 1 (session review-196, `Review: changes needed`)
+
+- **Fixed** `Loki.Health` read every `ouo.replay.chunk` record (most of a replayed session's records) into the 100,000 limit: it now excludes them with the same `replaySelector` as `ListSessions` (`Filters.selector` takes extra matchers); `TestHealthReader` asserts the LogQL. Re-run live: Health still equal to rum-api (5 sessions), and Loki accepts the double `event_name` matcher.
+- **Fixed** `Tempo` gets `Token` (bearer) and trims a trailing `/` on `URL`, so `erase` on the ADR-0026 branch can reuse `ouogo.Tempo`; tested.
+- **Fixed** README Actions example: the token goes to git through step-scoped `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_0` / `GIT_CONFIG_VALUE_0` instead of `git config --global` (persistent self-hosted runners keep the home directory); the client repository is no longer named. kb `private-go-module.md` updated.
+- **Fixed** README and the `SessionTraces` doc: Tempo is searched by session id alone, so a caller that scopes by project checks the session's project first.
+- **Fixed** README and `funnels.md`: the `Platform` filter misses web SDK 0.4 sessions (no `ouo_platform` label).

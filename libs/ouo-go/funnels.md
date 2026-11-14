@@ -64,6 +64,7 @@ each at most), for a step builder's autocomplete; `ParseFunnelStep`, `ParseFunne
 - A session whose step 1 happened before the start of the time range does not enter. Widen the
   range rather than shifting it.
 - **`Within`** (optional) requires every step within that time of step 1.
+- **Filters** (`Filters`: project, service, environment, release, platform) are exact matches. `Platform` matches the `ouo_platform` label, which web SDK 0.4 sessions do not carry: a funnel filtered by platform leaves them out, so leave `Platform` empty to count the web, or filter by `Service`.
 - Sampling scales every step down equally: percentages stay right, counts do not.
 
 ## Limits

@@ -143,7 +143,9 @@ type HealthQuery struct {
 }
 
 // Health classifies every session that started in the range and returns the percentages
-// per platform, service and version, and in total.
+// per platform, service and version, and in total. Replay chunk references
+// (ouo.replay.chunk, most of a replayed session's records) are not read: they never change
+// a class, and they would fill FunnelEventLimit.
 func (l *Loki) Health(ctx context.Context, q HealthQuery) (*HealthStats, error) {
 	if err := q.Filters.check(); err != nil {
 		return nil, err
@@ -156,7 +158,7 @@ func (l *Loki) Health(ctx context.Context, q HealthQuery) (*HealthStats, error) 
 	if lookback <= 0 {
 		lookback = 4 * time.Hour
 	}
-	lines, trunc, err := l.queryAll(ctx, q.Filters.selector(`=~".+"`), from.Add(-lookback), to)
+	lines, trunc, err := l.queryAll(ctx, q.Filters.selector(`=~".+"`, replaySelector), from.Add(-lookback), to)
 	if err != nil {
 		return nil, err
 	}

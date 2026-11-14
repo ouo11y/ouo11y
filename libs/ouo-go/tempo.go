@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,8 @@ type Tempo struct {
 	HTTP *http.Client // nil: a client with a 30 second timeout
 	// OrgID is sent as X-Scope-OrgID when set (Tempo with multitenancy).
 	OrgID string
+	// Token is sent as a bearer token when set (Tempo behind an authenticating proxy).
+	Token string
 	// Limit is the traces one search returns (default 1000).
 	Limit int
 	// Now is the clock for default time ranges; time.Now when nil.
@@ -86,12 +89,15 @@ func (t *Tempo) search(ctx context.Context, traceql string, from, to time.Time) 
 		"limit": {strconv.Itoa(orDefault(t.Limit, 1000))},
 		"spss":  {"1"}, // spans per span set: only trace-level fields are read
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, t.URL+"/api/search?"+q.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(t.URL, "/")+"/api/search?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
 	if t.OrgID != "" {
 		req.Header.Set("X-Scope-OrgID", t.OrgID)
+	}
+	if t.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+t.Token)
 	}
 	resp, err := httpClient(t.HTTP).Do(req)
 	if err != nil {
@@ -136,7 +142,8 @@ func tracesOf(sr *tempoSearch) []Trace {
 // first, never nil. TraceWindow(session) is the range rum-api searched. HasError also
 // comes from a second search with `&& status = error`, and RootURLPath from a third for
 // generic HTTP root names; both are best effort: when they fail, the traces are still
-// answered without them.
+// answered without them. The search is by session id alone, across projects: a caller that
+// scopes by project checks the session's project first (Loki.SessionEvents).
 func (t *Tempo) SessionTraces(ctx context.Context, session string, r TimeRange) ([]Trace, error) {
 	if err := checkID("session", session); err != nil {
 		return nil, err
