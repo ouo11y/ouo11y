@@ -4,7 +4,7 @@
 
 Please report vulnerabilities privately, never in a public issue, pull request or discussion.
 
-- Email: **`SECURITY_CONTACT_TBD`** (placeholder until the founder sets the disclosure address)
+- Email: **security@ouo11y.com**
 - Or GitHub > Security > "Report a vulnerability" (private vulnerability reporting).
 
 Include the affected component and version (see the table below), how to reproduce it, and

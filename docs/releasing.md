@@ -265,7 +265,7 @@ and variables.
 | `GRAFANA_ROOT_URLS` variable | `release-plugin.yml` signing | Comma separated Grafana root URLs allowed to load the private signature, e.g. `https://grafana.pilot.example.com`. Required when the token is set. |
 | Organization settings > Packages: allow members / Actions to create packages | first image or chart push | Already done for the 0.3.0 images; the first `chart-v*` push creates `charts/ouo` the same way. |
 | Renovate GitHub App | `.github/renovate.json5` | Install "Renovate" (Mend) from the GitHub Marketplace on the `ouo11y` org, repository `ouo11y/ouo11y` only. The config already exists, so there is no onboarding PR; expect the "Dependency Dashboard" issue and, on the first Monday, the digest-pinning PRs. |
-| Security contact | `.github/SECURITY.md` | Replace `SECURITY_CONTACT_TBD` with the disclosure address. |
+| Security contact | `.github/SECURITY.md` | security@ouo11y.com (founder, 2026-11-15). |
 
 Provenance and attestations: npm `--provenance` (npmjs.org only, at the public release),
 `actions/attest-build-provenance` for the plugin zip and the chart need a **public** repository on the free plan; the
