@@ -16,6 +16,24 @@ Every user-visible change bumps `version` in `package.json` (it becomes `plugin.
   older version), remove the slash or re-save the configuration page; otherwise funnel queries
   and replay deletion get a 307 from rum-api. The Helm chart trims it for you.
 
+## [0.11.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.10.0...plugin-v0.11.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens
+
+### Added
+
+* **browser:** mask all replay text by default, ouo-unmask, never-record routes and screens ([3af96e4](https://github.com/ouo11y/ouo11y/commit/3af96e42e1ed199c31989d907b57bfaf0ca6ca96))
+* **ios:** a feedback frame follows the feedback, the plugin says screenshot ([93bc1bd](https://github.com/ouo11y/ouo11y/commit/93bc1bd0664ecc81b6759e83b15efb7504dc4a41))
+
+
+### Fixed
+
+* **plugin:** Funnels page test no longer times out on a busy runner ([e48235b](https://github.com/ouo11y/ouo11y/commit/e48235b6c9c692d5e592533c2002300928f660cf))
+* **plugin:** Viewers can no longer delete replays through the plugin proxy (N30) ([617a35d](https://github.com/ouo11y/ouo11y/commit/617a35dcf505f3188166e22c2e4dcda57d15f237))
+
 ## [0.10.0](https://github.com/ouo11y/ouo11y/compare/plugin-v0.9.0...plugin-v0.10.0) (2026-10-31)
 
 ### Added
