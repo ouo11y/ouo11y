@@ -68,7 +68,7 @@ To compare by hand: `atos -i -arch arm64 -o MyApp.app.dSYM/Contents/Resources/DW
 
 ## Retention and deletion
 
-dSYMs follow the source-map rules: kept for `debug_files.retention.default` in Muninn (one year by default) from the upload, and deleted with the project ([sourcemaps.md](sourcemaps.md#retention-and-deletion)). Keep the retention at least as long as your crashes are kept in Loki.
+dSYMs follow the source-map rules: kept for `debug_files.retention.default` in Muninn (one year by default) from the last upload, and deleted with the project ([sourcemaps.md](sourcemaps.md#retention-and-deletion)). Keep the retention at least as long as your crashes are kept in Loki. A store version that lives longer than the retention keeps its dSYMs when CI uploads them again: a re-upload of the same slice answers 200 and restarts its retention. Otherwise set `debug_files.retention.per_project` to `0` for the app.
 
 ## Limits
 

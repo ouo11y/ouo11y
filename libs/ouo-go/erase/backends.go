@@ -2,7 +2,6 @@ package erase
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,67 +121,4 @@ func client(c *http.Client) *http.Client {
 		return c
 	}
 	return defaultHTTP
-}
-
-// Tempo finds a session's trace ids (TraceQL `{ span.session.id = "<id>" }` on
-// GET /api/search). Tempo has no delete API: the ids go into the audit record for
-// `tempo-cli redact`, or expire with the trace retention.
-type Tempo struct {
-	URL   string // base URL, e.g. http://tempo:3200
-	OrgID string // X-Scope-OrgID when set
-	Token string // bearer when set
-	HTTP  *http.Client
-	// Limit is the per-search trace limit (default 1000).
-	Limit int
-}
-
-// TraceIDs returns the ids of the traces with a span of the session in [start, end].
-func (t *Tempo) TraceIDs(ctx context.Context, session string, start, end time.Time) ([]string, error) {
-	limit := t.Limit
-	if limit <= 0 {
-		limit = 1000
-	}
-	v := url.Values{}
-	v.Set("q", fmt.Sprintf(`{ span.session.id = %s }`, strconv.Quote(session)))
-	v.Set("start", strconv.FormatInt(start.Unix(), 10))
-	v.Set("end", strconv.FormatInt(end.Unix(), 10))
-	v.Set("limit", strconv.Itoa(limit))
-	v.Set("spss", "1")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(t.URL, "/")+"/api/search?"+v.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-	if t.OrgID != "" {
-		req.Header.Set("X-Scope-OrgID", t.OrgID)
-	}
-	if t.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+t.Token)
-	}
-	resp, err := client(t.HTTP).Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("tempo search: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-	if err != nil {
-		return nil, fmt.Errorf("tempo read: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tempo search: %s: %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-	var sr struct {
-		Traces []struct {
-			TraceID string `json:"traceID"`
-		} `json:"traces"`
-	}
-	if err := json.Unmarshal(body, &sr); err != nil {
-		return nil, fmt.Errorf("tempo decode: %w", err)
-	}
-	ids := make([]string, 0, len(sr.Traces))
-	for _, tr := range sr.Traces {
-		if tr.TraceID != "" {
-			ids = append(ids, tr.TraceID)
-		}
-	}
-	return ids, nil
 }

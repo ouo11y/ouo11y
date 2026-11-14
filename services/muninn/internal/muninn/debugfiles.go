@@ -39,6 +39,10 @@ var (
 // upload: a dSYM slice near its limit takes minutes from CI.
 const uploadTimeout = 10 * time.Minute
 
+// maxUploads bounds the debug-file uploads one Muninn holds in memory at once (DBG-5):
+// a dSYM is up to 512 MiB decompressed plus its gzip copy, and Muninn also takes replays.
+const maxUploads = 4
+
 // maxReleaseBytes bounds the release and file query values.
 const maxReleaseBytes = 1024
 
@@ -123,13 +127,25 @@ func (s *Server) counted(route string, h http.HandlerFunc) http.Handler {
 	}))
 }
 
-// private checks the read token and the tenant of a private route (section 7);
-// status 0 on success.
+// private checks the read (or admin) token and the tenant of a private route (section 7).
 func (s *Server) private(w http.ResponseWriter, r *http.Request) (string, bool) {
-	if !bearerOK(r, s.cfg.Auth.ReadToken) {
+	if !s.readOK(r) {
 		writeError(w, r, http.StatusUnauthorized, "unauthorized")
 		return "", false
 	}
+	return s.tenantOf(w, r)
+}
+
+// admin checks the admin token and the tenant of an admin route (MUN-45, section 14).
+func (s *Server) admin(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if !adminOK(r, s.cfg.Auth.AdminToken) {
+		writeError(w, r, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	return s.tenantOf(w, r)
+}
+
+func (s *Server) tenantOf(w http.ResponseWriter, r *http.Request) (string, bool) {
 	tenant, code := s.tenant(r)
 	if code != 0 {
 		writeError(w, r, code, "bad or missing X-Scope-OrgID")
@@ -172,6 +188,14 @@ func (s *Server) putDebugFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d.tenant = tenant
+	select {
+	case s.uploads <- struct{}{}:
+		defer func() { <-s.uploads }()
+	default:
+		w.Header().Set("Retry-After", "10")
+		writeError(w, r, http.StatusServiceUnavailable, fmt.Sprintf("%d uploads in progress, retry later", maxUploads))
+		return
+	}
 	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(time.Now().Add(uploadTimeout))
 	_ = rc.SetWriteDeadline(time.Now().Add(uploadTimeout))
@@ -210,6 +234,15 @@ func (s *Server) putDebugFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if !created {
+		// DBG-20: a re-upload restarts the retention; the file itself stays write-once.
+		seen, _ := json.Marshal(map[string]int64{"uploaded_at": s.now().UnixMilli()})
+		if err := s.store.Put(r.Context(), s.keys.debugFile(d.tenant, d.project, d.kind, d.id)+".seen", seen); err != nil {
+			w.Header().Set("Retry-After", "5")
+			storeFailure(w, r, err)
+			return
+		}
+	}
 	code := http.StatusOK
 	if created {
 		code = http.StatusCreated
@@ -220,6 +253,16 @@ func (s *Server) putDebugFile(w http.ResponseWriter, r *http.Request) {
 }
 
 var errConflict = errors.New("other content under the same key")
+
+// debugBody reports whether key, relative to a project's debug-file prefix, is a file
+// body (<kind>/<id>), not its meta, its .seen or a pointer; it returns kind/id.
+func debugBody(rel string) (string, bool) {
+	kind, id, ok := strings.Cut(rel, "/")
+	if !ok || !kinds[kind] || strings.ContainsAny(id, "/.") {
+		return "", false
+	}
+	return rel, true
+}
 
 // readDebugBody reads and, for Content-Encoding gzip, decompresses the body up to
 // limit bytes (DBG-3). status is 0 on success.
@@ -401,8 +444,8 @@ func (s *Server) listDebugFiles(w http.ResponseWriter, r *http.Request, d debugR
 	out := []entry{}
 	for _, o := range objs {
 		id := strings.TrimPrefix(o.Key, prefix)
-		if strings.Contains(id, "/") || strings.HasSuffix(id, ".json") {
-			continue
+		if strings.Contains(id, "/") || strings.Contains(id, ".") {
+			continue // meta (.json) or last re-upload (.seen)
 		}
 		out = append(out, entry{DebugID: id, Bytes: o.Size, UploadedAt: o.Modified.UnixMilli()})
 	}
@@ -419,7 +462,7 @@ func (s *Server) sweepDebugFiles(ctx context.Context, now time.Time) error {
 	}
 	type file struct {
 		tenant, project string
-		uploaded        time.Time
+		uploaded, seen  time.Time // body written; last re-upload (.seen)
 		keys            []string
 	}
 	files := map[string]*file{} // tenant/project/kind/id
@@ -427,8 +470,9 @@ func (s *Server) sweepDebugFiles(ctx context.Context, now time.Time) error {
 		parts := strings.Split(strings.TrimPrefix(o.Key, s.keys.debug), "/")
 		var id string
 		switch {
-		case len(parts) == 4 && kinds[parts[2]]: // t/p/kind/id[.json]
-			id = strings.Join(parts[:3], "/") + "/" + strings.TrimSuffix(parts[3], ".json")
+		case len(parts) == 4 && kinds[parts[2]]: // t/p/kind/id[.json|.seen]
+			base, _, _ := strings.Cut(parts[3], ".")
+			id = strings.Join(parts[:3], "/") + "/" + base
 		case len(parts) == 7 && parts[2] == "release": // t/p/release/h/h/kind/id
 			id = strings.Join(parts[:2], "/") + "/" + parts[5] + "/" + parts[6]
 		default:
@@ -440,14 +484,21 @@ func (s *Server) sweepDebugFiles(ctx context.Context, now time.Time) error {
 			files[id] = f
 		}
 		f.keys = append(f.keys, o.Key)
-		if len(parts) == 4 && !strings.HasSuffix(parts[3], ".json") {
+		switch {
+		case len(parts) == 4 && strings.HasSuffix(parts[3], ".seen"):
+			f.seen = o.Modified
+		case len(parts) == 4 && !strings.Contains(parts[3], "."):
 			f.uploaded = o.Modified
 		}
 	}
 	var errs []error
 	for _, f := range files {
 		ret := s.cfg.DebugFiles.RetentionFor(f.project)
-		if ret <= 0 || f.uploaded.IsZero() || now.Sub(f.uploaded) < ret {
+		last := f.uploaded
+		if f.seen.After(last) {
+			last = f.seen
+		}
+		if ret <= 0 || f.uploaded.IsZero() || now.Sub(last) < ret {
 			continue // a pointer or meta without its file is left to the file's own upload
 		}
 		for _, k := range f.keys {

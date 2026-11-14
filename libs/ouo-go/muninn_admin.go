@@ -11,8 +11,9 @@ import (
 	"regexp"
 )
 
-// Muninn's delete API (spec section 8) and audit entries (spec section 14). They take the
-// same read token and tenant header as the reads; ouo-erase (package erase) calls them.
+// Muninn's delete API (spec section 8) and audit entries (spec section 14). A session's
+// replays are deleted with the read token; DeleteProject and the audit entries need
+// AdminToken (Muninn's auth.admin_token). ouo-erase (package erase) calls them.
 
 // ProjectDeleteCounts is the answer of DeleteProject (MUN-45).
 type ProjectDeleteCounts struct {
@@ -75,8 +76,8 @@ func (m *Muninn) send(ctx context.Context, method, path string, body []byte) (*h
 		tenant = "anonymous"
 	}
 	req.Header.Set("X-Scope-OrgID", tenant)
-	if m.ReadToken != "" {
-		req.Header.Set("Authorization", "Bearer "+m.ReadToken)
+	if t := m.bearer(); t != "" {
+		req.Header.Set("Authorization", "Bearer "+t)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

@@ -8,8 +8,9 @@
 //
 // user and project print the final audit record as JSON (complete, even when the stored
 // one had to be cut to Muninn's 64 KiB limit) and exit 1 when anything failed; audit prints
-// the stored records. Muninn's read token comes from MUNINN_READ_TOKEN, Tempo's bearer
-// (when it has one) from OUO_TEMPO_TOKEN: tokens never go on the command line.
+// the stored records. Muninn's admin token (auth.admin_token, which also opens the reads)
+// comes from MUNINN_ADMIN_TOKEN, Tempo's bearer (when it has one) from OUO_TEMPO_TOKEN:
+// tokens never go on the command line.
 package main
 
 import (
@@ -19,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -118,7 +120,8 @@ func run(ctx context.Context, args []string, env func(string) string, stdout, st
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
-	mn := &ouogo.Muninn{URL: c.muninnURL, Tenant: c.tenant, ReadToken: env("MUNINN_READ_TOKEN")}
+	mn := &ouogo.Muninn{URL: c.muninnURL, Tenant: c.tenant, AdminToken: env("MUNINN_ADMIN_TOKEN"),
+		HTTP: &http.Client{Timeout: 30 * time.Minute}} // a project delete can run for minutes
 	out := json.NewEncoder(stdout)
 	out.SetIndent("", "  ")
 
@@ -140,7 +143,7 @@ func run(ctx context.Context, args []string, env func(string) string, stdout, st
 		LogRetention:  c.logRetention,
 	}
 	if c.tempoURL != "" {
-		e.Tempo = &erase.Tempo{URL: c.tempoURL, OrgID: c.tenant, Token: env("OUO_TEMPO_TOKEN")}
+		e.Tempo = &ouogo.Tempo{URL: c.tempoURL, OrgID: c.tenant, Token: env("OUO_TEMPO_TOKEN")}
 	}
 	req := erase.Request{Actor: c.actor, Reason: c.reason, DryRun: c.dryRun}
 	var rec *erase.Record

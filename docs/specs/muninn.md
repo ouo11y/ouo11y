@@ -218,7 +218,7 @@ On S3 every object except `schema.json` carries a retention tag ([section 9](#9-
 
 ## 7. Read API
 
-All paths start with `/api/v1/projects/{project}`. Every request carries `X-Scope-OrgID` when multi-tenancy is on, and `Authorization: Bearer <read token>` when a read token is configured. Responses are JSON unless stated, and are gzip-compressed when the request accepts it. Errors are `{"error": "<message>"}`.
+All paths start with `/api/v1/projects/{project}`. Every request carries `X-Scope-OrgID` when multi-tenancy is on, and `Authorization: Bearer <read token>` when a read token is configured. The admin token (`auth.admin_token`) opens every route of this section too; it alone opens MUN-45 and section 14, and when it is not configured those routes answer 401. The admin token is the operator's (`ouo-erase`); a plugin backend holds only the read token. Responses are JSON unless stated, and are gzip-compressed when the request accepts it. Errors are `{"error": "<message>"}`.
 
 ### 7.1 List the replays of a session
 
@@ -338,7 +338,7 @@ Byte ranges, conditional requests and a call that returns a run of chunks in one
 | 200 | Read answered. A session with no replays is 200 with an empty list |
 | 204 | Delete done, or nothing to delete |
 | 400 | An identifier or the tenant header is malformed |
-| 401 | Missing or wrong read token, or missing tenant header |
+| 401 | Missing or wrong read token (admin token on MUN-45 and section 14), or missing tenant header |
 | 404 | The replay or chunk does not exist, is deleted, or belongs to another tenant or project |
 | 503 | The object store is unavailable |
 
@@ -375,7 +375,7 @@ Known windows, accepted in the first version:
 DELETE /api/v1/projects/{project}
 ```
 
-- **MUN-45** Deleting a project MUST remove every replay of the project as MUN-40 does (each with its own tombstone, `by` `api`), then every debug file, meta and pointer of the project (section 13). It answers 200 with `{"replays": n, "debug_files": n}`, the same counts as its MUN-44 log record. It is idempotent and used by `ouo-erase project`.
+- **MUN-45** Deleting a project MUST remove every replay of the project as MUN-40 does (each with its own tombstone, `by` `api`), then every debug file, meta, pointer and `.seen` of the project (section 13). It takes the admin token only. It answers 200 with `{"replays": n, "debug_files": n}`: the replays that were live (not tombstoned before) and the debug files (bodies, not their meta or pointers), the same counts as its MUN-44 log record. It is idempotent (a second call answers zeros) and used by `ouo-erase project`. It may run for minutes: its write deadline is 10 minutes, and a rerun after a timeout finishes the job.
 
 Delete by user or by time range is composed by the caller (`ouo-erase` or a client backend), which finds the sessions in Loki and calls these endpoints.
 
@@ -453,6 +453,7 @@ Decided in [ADR-0026](../adr/0026-debug-files-and-erasure-without-rum-api.md). A
 ```
 [<prefix>/]debug-files/<tenant>/<project>/<kind>/<debug id>                         body, gzip
 [<prefix>/]debug-files/<tenant>/<project>/<kind>/<debug id>.json                    meta
+[<prefix>/]debug-files/<tenant>/<project>/<kind>/<debug id>.seen                    last re-upload (overwritten)
 [<prefix>/]debug-files/<tenant>/<project>/release/<h(release)>/<h(file)>/<kind>/<debug id>   empty pointer
 ```
 
@@ -469,10 +470,10 @@ Authorization: Bearer <upload token>
 - **DBG-1** The route MUST accept only an upload token configured for `{project}` (`debug_files.upload_tokens`), compared in constant time. The read token and the ingest token MUST NOT open it, and an upload token MUST NOT open any other route. A wrong or missing token, or a token of another project, answers 401.
 - **DBG-2** The tenant of an upload is the tenant configured with its token (`anonymous` with multi-tenancy off). `X-Scope-OrgID` is ignored on this route, so a client cannot write into another tenant.
 - **DBG-3** The body is read up to the kind's size limit, decompressed when `Content-Encoding: gzip`; over the limit answers 413 and stores nothing. An empty body answers 400.
-- **DBG-4** Write-once by content. If the key is new, Muninn writes the body (gzip) first, then the meta, then the pointer when `release` and `file` are both given, and answers **201**. If the key exists and the stored `sha256` equals the new content's, it writes any missing pointer and answers **200**. Otherwise it answers **409** and keeps the first file. Two uploads racing for one key end with one stored file and the other answered 200 or 409.
-- **DBG-5** A store failure answers 503 with `Retry-After`. The response body is the meta as JSON (201 and 200) or `{"error": ...}`.
+- **DBG-4** Write-once by content. If the key is new, Muninn writes the body (gzip) first, then the meta, then the pointer when `release` and `file` are both given, and answers **201**. If the key exists and the stored `sha256` equals the new content's, it writes any missing pointer, overwrites `<debug id>.seen` with the time (DBG-20) and answers **200**. Otherwise it answers **409** and keeps the first file. Two uploads racing for one key end with one stored file and the other answered 200 or 409.
+- **DBG-5** A store failure answers 503 with `Retry-After`. A Muninn holds at most 4 uploads at once (a dSYM is up to 512 MiB decompressed in memory, plus its gzip copy, and Muninn also serves replays); a fifth answers 503 with `Retry-After: 10` before reading the body, and `ouo-sourcemaps` retries it. A leaked upload token can still keep the route busy: rotate it. The response body is the meta as JSON (201 and 200) or `{"error": ...}`.
 
-### 13.3 Reads (private, read token)
+### 13.3 Reads (private, read or admin token)
 
 ```
 GET /api/v1/projects/{project}/debug-files/{kind}/{debug id}       the file
@@ -486,7 +487,7 @@ GET /api/v1/projects/{project}/debug-files/{kind}                  {"debug_files
 
 ### 13.4 Retention
 
-- **DBG-20** A debug file, its meta and its pointers are deleted together when the file is older than `debug_files.retention.default` (per project: `debug_files.retention.per_project`), counted from the upload. `0` keeps them forever. The sweep runs with the replay sweeper, records `muninn.sweeper.deleted` with `reason` `debug_file_retention`, and is safe in several replicas. On S3 the objects carry `ouo-retention=<days>d` or `keep`.
+- **DBG-20** A debug file, its meta and its pointers are deleted together when the file is older than `debug_files.retention.default` (per project: `debug_files.retention.per_project`), counted from the last upload: a 200 re-upload restarts it (the newer of the body's and `.seen`'s time counts), so a long-lived mobile release keeps its dSYMs while CI uploads them again. `0` keeps them forever. The sweep runs with the replay sweeper, records `muninn.sweeper.deleted` with `reason` `debug_file_retention`, and is safe in several replicas. On S3 the objects carry `ouo-retention=<days>d` or `keep`; a bucket lifecycle rule on that tag counts from the first upload, so the operator sets none for `debug-files/` or one well above the retention.
 - A file deleted by retention can be uploaded again.
 
 ### 13.5 Settings
@@ -509,11 +510,11 @@ Only `PUT /api/v1/projects/*/debug-files/*` is published to the internet (Caddy 
 The record of erasures run by `ouo-erase` (ADR-0026 section 5). Muninn stores them create-only and never deletes them; no retention applies.
 
 ```
-PUT /api/v1/audit/{entry}/{status}     create-only, read token
+PUT /api/v1/audit/{entry}/{status}     create-only, admin token
 GET /api/v1/audit[?entry=]             {"entries": [{"entry", "status", "record"}]}, oldest first
 [<prefix>/]audit/<tenant>/<entry>/<status>.json
 ```
 
 - **AUD-1** `entry` matches `^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$` (UTC start time, then 8 random hex digits), so keys sort by time. `status` is `started`, `completed` or `failed`. The body is a JSON object of at most 65 536 bytes; anything else answers 400.
-- **AUD-2** Create-only: a new key answers 201; the same bytes again answer 200; other bytes answer 409 and the first record stays. Muninn MUST NOT update or delete an audit object; on S3 the operator pairs the `audit/` prefix with Object Lock for immutability.
-- **AUD-3** The routes take the read token and `X-Scope-OrgID` like section 7. A read without `entry` lists every entry of the tenant.
+- **AUD-2** Create-only: a new key answers 201; the same bytes again answer 200; other bytes answer 409 and the first record stays. Muninn MUST NOT update or delete an audit object; on S3 the operator pairs the `audit/` prefix with Object Lock for immutability. **Tamper evidence exists only on S3 with Object Lock.** The filesystem backend has none: anyone with access to the disk can edit or remove a record without a trace (rum-api's filesystem audit was a hash chain; Muninn's is not).
+- **AUD-3** The routes take the admin token only (never the read token) and `X-Scope-OrgID` like section 7. A read without `entry` lists every entry of the tenant.

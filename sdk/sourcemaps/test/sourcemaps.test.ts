@@ -184,7 +184,7 @@ describe("ouo-sourcemaps", () => {
           }
           const s = statusOf(got.length);
           got.push({ method: req.method ?? "", url: req.url ?? "", auth: req.headers.authorization ?? "", encoding: String(req.headers["content-encoding"]), body, raw });
-          res.writeHead(s, { "content-type": "application/json" });
+          res.writeHead(s, { "content-type": "application/json", ...(s === 503 ? { "retry-after": "2" } : {}) });
           res.end(JSON.stringify(s === 201 || s === 200 ? { kind: "sourcemap" } : { error: s === 401 ? "unauthorized" : "conflict" }));
         });
       });
@@ -226,7 +226,7 @@ describe("ouo-sourcemaps", () => {
       const d = await dist();
       const arts = await findArtifacts(d);
       const { debugId } = await inject(arts[0]!);
-      const statuses = [201, 200, 409, 401, 503];
+      const statuses = [201, 200, 409, 401, 500];
       const { url } = await server((n) => statuses[n]!);
       const o = { url, token: "t", project: "web-store" };
       expect(await upload(arts[0]!, o)).toMatchObject({ status: 201 });
@@ -236,7 +236,23 @@ describe("ouo-sourcemaps", () => {
         error: `HTTP 409: sourcemap ${debugId} is already stored with different content (debug files are write-once)`,
       });
       expect(await upload(arts[0]!, o)).toMatchObject({ status: 401, error: "HTTP 401: unauthorized" });
-      expect(await upload(arts[0]!, o)).toMatchObject({ status: 503, error: "HTTP 503: conflict" });
+      expect(await upload(arts[0]!, o)).toMatchObject({ status: 500, error: "HTTP 500: conflict" });
+    });
+
+    it("retries a 503 after its Retry-After, four times at most", async () => {
+      const d = await dist();
+      const arts = await findArtifacts(d);
+      await inject(arts[0]!);
+      const waits: number[] = [];
+      const wait = async (ms: number) => void waits.push(ms);
+      const busy = await server((n) => (n < 2 ? 503 : 201));
+      expect(await upload(arts[0]!, { url: busy.url, token: "t", project: "web-store", wait })).toMatchObject({ status: 201 });
+      expect(busy.got).toHaveLength(3);
+      expect(waits).toEqual([2000, 2000]);
+      close?.();
+      const down = await server(503);
+      expect(await upload(arts[0]!, { url: down.url, token: "t", project: "web-store", wait })).toMatchObject({ status: 503 });
+      expect(down.got).toHaveLength(5);
     });
 
     it("derives the debug id of a map without one from its bytes when a release is given", async () => {

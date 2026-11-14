@@ -66,7 +66,7 @@ func setup(t *testing.T) (*backend, func(args ...string) (int, string, string)) 
 	srv := httptest.NewServer(b)
 	t.Cleanup(srv.Close)
 	env := map[string]string{
-		"OUO_LOKI_URL": srv.URL, "OUO_MUNINN_URL": srv.URL, "MUNINN_READ_TOKEN": "secret", "USER": "ops",
+		"OUO_LOKI_URL": srv.URL, "OUO_MUNINN_URL": srv.URL, "MUNINN_ADMIN_TOKEN": "secret", "USER": "ops",
 	}
 	return b, func(args ...string) (int, string, string) {
 		var out, errOut bytes.Buffer

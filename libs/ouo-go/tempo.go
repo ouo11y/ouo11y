@@ -138,6 +138,30 @@ func tracesOf(sr *tempoSearch) []Trace {
 	return out
 }
 
+// TraceIDs returns the ids of the traces with a span of the session in the range, in
+// Tempo's order, never nil: one search, no root names or errors. ouo-erase lists them
+// before a deletion, because Tempo cannot delete by attribute.
+func (t *Tempo) TraceIDs(ctx context.Context, session string, r TimeRange) ([]string, error) {
+	if err := checkID("session", session); err != nil {
+		return nil, err
+	}
+	from, to, err := r.window(t.Now)
+	if err != nil {
+		return nil, err
+	}
+	sr, err := t.search(ctx, `{ span.session.id = "`+session+`" }`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(sr.Traces))
+	for _, tr := range sr.Traces {
+		if tr.TraceID != "" {
+			ids = append(ids, tr.TraceID)
+		}
+	}
+	return ids, nil
+}
+
 // SessionTraces returns the traces with a span of the session in the range, newest
 // first, never nil. TraceWindow(session) is the range rum-api searched. HasError also
 // comes from a second search with `&& status = error`, and RootURLPath from a third for

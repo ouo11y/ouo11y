@@ -24,7 +24,7 @@ const maxAuditBytes = 64 << 10
 
 // PUT /api/v1/audit/{entry}/{status} (AUD-1, AUD-2).
 func (s *Server) putAudit(w http.ResponseWriter, r *http.Request) {
-	tenant, ok := s.private(w, r)
+	tenant, ok := s.admin(w, r)
 	if !ok {
 		return
 	}
@@ -66,7 +66,7 @@ func (s *Server) putAudit(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/audit[?entry=] (AUD-3): oldest entry first, started before its outcome.
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
-	tenant, ok := s.private(w, r)
+	tenant, ok := s.admin(w, r)
 	if !ok {
 		return
 	}

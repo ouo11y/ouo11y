@@ -36,11 +36,14 @@ type Server struct {
 
 	mu      sync.Mutex
 	headers map[string]header // chunk headers by key; immutable, so never invalidated
+
+	uploads chan struct{} // debug-file uploads in progress, at most maxUploads (DBG-5)
 }
 
 // New wraps st with the operation-duration metric and returns the server.
 func New(cfg config.Config, st store.Store, version string) *Server {
-	s := &Server{cfg: cfg, keys: newKeys(cfg.Storage.Prefix), now: time.Now, version: version, headers: map[string]header{}}
+	s := &Server{cfg: cfg, keys: newKeys(cfg.Storage.Prefix), now: time.Now, version: version, headers: map[string]header{},
+		uploads: make(chan struct{}, maxUploads)}
 	s.m = newMetrics()
 	s.store = timedStore{Store: st, d: s.m.storeDuration}
 	return s
@@ -122,6 +125,16 @@ func recoverWith(status int, h http.Handler) http.Handler {
 		}()
 		h.ServeHTTP(w, r)
 	})
+}
+
+// readOK: the read token, or the admin token, which opens every route (section 7).
+func (s *Server) readOK(r *http.Request) bool {
+	return bearerOK(r, s.cfg.Auth.ReadToken) || adminOK(r, s.cfg.Auth.AdminToken)
+}
+
+// adminOK: the admin token, never open when it is not configured (MUN-45, AUD-1).
+func adminOK(r *http.Request, token string) bool {
+	return token != "" && bearerOK(r, token)
 }
 
 func bearerOK(r *http.Request, token string) bool {

@@ -217,7 +217,7 @@ func newEraser(t *testing.T, f *fakes) *Eraser {
 	return &Eraser{
 		Loki:       &ouogo.Loki{URL: lk.URL, OrgID: "acme"},
 		LokiDelete: true,
-		Tempo:      &Tempo{URL: tp.URL},
+		Tempo:      &ouogo.Tempo{URL: tp.URL},
 		Muninn:     &ouogo.Muninn{URL: mn.URL, Tenant: "acme", ReadToken: "tok"},
 		Now:        func() time.Time { return now },
 		Rand:       bytes.NewReader(bytes.Repeat([]byte{0xab}, 64)),

@@ -279,7 +279,12 @@ export interface UploadOptions {
   /** URL path the scanned directory is served under (default "/"): "/static/" for /static/js/a.js. */
   urlPrefix?: string;
   fetch?: typeof globalThis.fetch;
+  /** Waits before a retry (tests replace it); default setTimeout. */
+  wait?: (ms: number) => Promise<void>;
 }
+
+/** Retries after a 503 (Muninn busy with other uploads, or its store briefly down). */
+const maxRetries = 4;
 
 export interface UploadResult {
   artifact: Artifact;
@@ -323,7 +328,8 @@ export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResul
 
 /**
  * PUTs a gzip body to `<url>/api/v1/projects/<project>/debug-files/<kind>/<id>` with the upload
- * token. 201 (stored) and 200 (already stored, same content) succeed; anything else sets error.
+ * token. 201 (stored) and 200 (already stored, same content) succeed; a 503 is retried up to
+ * four times after its Retry-After (at most 30 s); anything else sets error.
  */
 async function put(
   o: UploadOptions,
@@ -337,12 +343,19 @@ async function put(
   const doFetch = o.fetch ?? globalThis.fetch;
   const qs = q.size > 0 ? `?${q}` : "";
   const target = `${o.url.replace(/\/+$/, "")}/api/v1/projects/${encodeURIComponent(o.project)}/debug-files/${kind}/${id}${qs}`;
+  const wait = o.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
   try {
-    const res = await doFetch(target, {
-      method: "PUT",
-      headers: { authorization: `Bearer ${o.token}`, "content-type": contentType, "content-encoding": "gzip" },
-      body,
-    });
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await doFetch(target, {
+        method: "PUT",
+        headers: { authorization: `Bearer ${o.token}`, "content-type": contentType, "content-encoding": "gzip" },
+        body,
+      });
+      if (res.status !== 503 || attempt === maxRetries) break;
+      const after = Number(res.headers.get("retry-after"));
+      await wait(Math.min(Number.isFinite(after) && after > 0 ? after : 5, 30) * 1000);
+    }
     let err: string | undefined;
     try {
       err = ((await res.json()) as { error?: string } | undefined)?.error;

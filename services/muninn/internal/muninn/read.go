@@ -38,7 +38,7 @@ func (s *Server) api(route string, h func(http.ResponseWriter, *http.Request, re
 			s.m.readRequests.Add(r.Context(), 1, attrs)
 			s.m.readBytes.Add(r.Context(), cw.n, attrs)
 		}()
-		if !bearerOK(r, s.cfg.Auth.ReadToken) {
+		if !s.readOK(r) {
 			writeError(cw, r, http.StatusUnauthorized, "unauthorized")
 			return
 		}
@@ -490,12 +490,14 @@ func (s *Server) removeReplay(ctx context.Context, rc readCtx, replay, by string
 }
 
 // DELETE /api/v1/projects/{project} (MUN-45): every replay with its tombstone, then
-// every debug file of the project.
+// every debug file of the project. Counts are live replays (not tombstoned before) and
+// debug files (bodies, not their meta and pointers).
 func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
-	tenant, ok := s.private(w, r)
+	tenant, ok := s.admin(w, r)
 	if !ok {
 		return
 	}
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(uploadTimeout))
 	project := r.PathValue("project")
 	if !reProject.MatchString(project) {
 		writeError(w, r, http.StatusBadRequest, "malformed project id")
@@ -508,27 +510,43 @@ func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type rep struct{ session, replay string }
-	seen := map[rep]bool{}
+	seen := map[rep]bool{} // true: live, false: tombstoned already
 	for _, o := range objs {
 		parts := strings.Split(strings.TrimPrefix(o.Key, s.keys.root+tenant+"/"+project+"/"), "/")
 		if len(parts) < 3 || !reHex32.MatchString(parts[0]) || !reHex32.MatchString(parts[1]) {
 			continue
 		}
-		seen[rep{parts[0], parts[1]}] = true
+		k := rep{parts[0], parts[1]}
+		live, known := seen[k]
+		seen[k] = (live || !known) && !(len(parts) == 3 && parts[2] == "deleted.json")
 	}
-	for rp := range seen {
+	replays := 0
+	for rp, live := range seen {
+		if live {
+			replays++
+		}
 		if err := s.removeReplay(ctx, readCtx{tenant: tenant, project: project, session: rp.session}, rp.replay, "api"); err != nil {
 			storeFailure(w, r, err)
 			return
 		}
 	}
-	n, err := s.purge(ctx, s.keys.debugProject(tenant, project), "")
+	dbg, err := s.store.List(ctx, s.keys.debugProject(tenant, project))
 	if err != nil {
 		storeFailure(w, r, err)
 		return
 	}
-	slog.InfoContext(ctx, "project deleted", "tenant", tenant, "ouo.project.id", project, "replays", len(seen), "debug_file_objects", n)
-	writeJSON(w, r, http.StatusOK, map[string]int{"replays": len(seen), "debug_files": n})
+	files := 0
+	for _, o := range dbg {
+		if _, ok := debugBody(strings.TrimPrefix(o.Key, s.keys.debugProject(tenant, project))); ok {
+			files++
+		}
+	}
+	if _, err := s.purge(ctx, s.keys.debugProject(tenant, project), ""); err != nil {
+		storeFailure(w, r, err)
+		return
+	}
+	slog.InfoContext(ctx, "project deleted", "tenant", tenant, "ouo.project.id", project, "replays", replays, "debug_files", files)
+	writeJSON(w, r, http.StatusOK, map[string]int{"replays": replays, "debug_files": files})
 }
 
 // purge deletes every object under prefix except keep.

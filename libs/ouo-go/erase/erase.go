@@ -111,8 +111,10 @@ type Eraser struct {
 	LokiDeleteURL string
 	// LokiDelete submits Loki delete requests; false records Loki as skipped.
 	LokiDelete bool
-	// Tempo lists a user's trace ids; nil records Tempo as skipped.
-	Tempo  *Tempo
+	// Tempo lists a user's trace ids (Tempo cannot delete by attribute: the ids go into
+	// the record for `tempo-cli redact`, or expire with the trace retention); nil
+	// records Tempo as skipped.
+	Tempo  *ouogo.Tempo
 	Muninn *ouogo.Muninn
 	// LogRetention bounds the session lookup and the Loki delete window (default 720h).
 	LogRetention time.Duration
@@ -380,9 +382,12 @@ func (e *Eraser) traceIDs(ctx context.Context, found []sessionRef) *Backend {
 	set := map[string]bool{}
 	var errs []error
 	for _, s := range found {
+		if !reSession.MatchString(s.ID) {
+			continue // every SDK and the Sentry bridge send 32 hex; Tempo is searched by those only
+		}
 		end := s.Seen.Add(time.Hour)
 		start := s.Seen.Add(-sessionWindow - maxSession)
-		ids, err := e.Tempo.TraceIDs(ctx, s.ID, start, end)
+		ids, err := e.Tempo.TraceIDs(ctx, s.ID, ouogo.TimeRange{From: start, To: end})
 		if err != nil {
 			errs = append(errs, err)
 			continue

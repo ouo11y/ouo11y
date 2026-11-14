@@ -38,3 +38,20 @@ func TestDebugFileDefaults(t *testing.T) {
 		t.Fatal("retention")
 	}
 }
+
+func TestTokensDistinct(t *testing.T) {
+	cfg := Defaults()
+	cfg.Auth.ReadToken, cfg.Auth.AdminToken = "r", "r"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "admin_token must differ") {
+		t.Errorf("admin = read: %v", err)
+	}
+	cfg.Auth.AdminToken = "a"
+	cfg.DebugFiles.UploadTokens = []UploadToken{{Project: "shop", Token: "a"}}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "equal to an auth token") {
+		t.Errorf("upload = admin: %v", err)
+	}
+	cfg.DebugFiles.UploadTokens[0].Token = "u"
+	if err := cfg.Validate(); err != nil {
+		t.Error(err)
+	}
+}

@@ -55,7 +55,7 @@ npx ouo-sourcemaps upload dist \
 - `--url`, `--token`, `--project` and `--release` can come from `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN`, `OUO_PROJECT_ID` and `OUO_RELEASE` instead; the examples below assume they do.
 - `--delete-after` removes the `.map` files once every upload succeeded, so you never serve your sources.
 - Use `--url-prefix /static/` when the output directory is served under a path, so that `dist/js/a.js` is `/static/js/a.js` in the browser.
-- Uploads are write-once per debug id. Uploading the same map again succeeds (Muninn answers 200). A different map under an id that is already stored fails the step (409): two builds claim one id, which `inject` never does on its own.
+- Uploads are write-once per debug id. Uploading the same map again succeeds (Muninn answers 200). A different map under an id that is already stored fails the step (409): two builds claim one id, which `inject` never does on its own. When Muninn is busy with other uploads it answers 503 and the CLI retries up to four times after its `Retry-After`.
 - A map without a debug id (not injected) is uploaded only with `--release`. Its id is then derived from the map's bytes, and only the release + URL path finds it.
 
 ## Bundlers
@@ -268,7 +268,7 @@ If a stack still shows minified frames:
 
 ## Retention and deletion
 
-Maps are kept for `debug_files.retention.default` in Muninn (one year by default, `0` keeps them forever), counted from their upload, and `debug_files.retention.per_project` overrides it. Keep it at least your log retention, or older errors lose their maps. Deleting the project in Muninn (`DELETE /api/v1/projects/{project}`, [spec MUN-45](specs/muninn.md#8-delete-api)) deletes its maps with its replays.
+Maps are kept for `debug_files.retention.default` in Muninn (one year by default, `0` keeps them forever), counted from their last upload (uploading the same map again restarts it), and `debug_files.retention.per_project` overrides it. Keep it at least your log retention, or older errors lose their maps. Deleting the project in Muninn (`ouo-erase project`, which calls `DELETE /api/v1/projects/{project}` with Muninn's admin token, [spec MUN-45](specs/muninn.md#8-delete-api)) deletes its maps with its replays.
 
 ## Limits
 

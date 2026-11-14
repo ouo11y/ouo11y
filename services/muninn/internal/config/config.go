@@ -24,6 +24,9 @@ type Config struct {
 	Auth                struct {
 		IngestToken string `yaml:"ingest_token"` // Collector -> POST /otlp/v1/logs
 		ReadToken   string `yaml:"read_token"`   // BFF -> /api/v1/*
+		// AdminToken opens DELETE /api/v1/projects/{p} and the audit routes (ouo-erase),
+		// and every route the read token opens. Empty: those routes answer 401.
+		AdminToken string `yaml:"admin_token"`
 	} `yaml:"auth"`
 	Storage struct {
 		Backend    string `yaml:"backend"` // filesystem | s3
@@ -159,6 +162,14 @@ func (c Config) Validate() error {
 		errs = append(errs, errors.New("debug_files.max_bytes must be positive"))
 	}
 	seen := map[string]bool{}
+	for _, t := range []string{c.Auth.IngestToken, c.Auth.ReadToken, c.Auth.AdminToken} {
+		if t != "" {
+			seen[t] = true
+		}
+	}
+	if a := c.Auth.AdminToken; a != "" && (a == c.Auth.ReadToken || a == c.Auth.IngestToken) {
+		errs = append(errs, errors.New("auth.admin_token must differ from the read and ingest tokens"))
+	}
 	for i, t := range c.DebugFiles.UploadTokens {
 		switch {
 		case !reProject.MatchString(t.Project):
@@ -168,7 +179,7 @@ func (c Config) Validate() error {
 		case c.MultitenancyEnabled && !reTenant.MatchString(t.Tenant):
 			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: tenant %q is not a tenant id", i, t.Tenant))
 		case seen[t.Token]:
-			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: token used twice", i))
+			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: token used twice, or equal to an auth token", i))
 		}
 		seen[t.Token] = true
 	}

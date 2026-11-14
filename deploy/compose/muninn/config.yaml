@@ -6,6 +6,7 @@ multitenancy_enabled: false   # tenant "anonymous"; the Collector sends one fixe
 auth:
   ingest_token: ${MUNINN_INGEST_TOKEN}
   read_token: ${MUNINN_READ_TOKEN}
+  admin_token: ${MUNINN_ADMIN_TOKEN}   # ouo-erase: project delete and audit entries
 storage:
   backend: s3
   s3:

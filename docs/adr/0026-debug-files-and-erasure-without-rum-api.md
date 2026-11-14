@@ -56,13 +56,16 @@ A Go CLI in `libs/ouo-go/cmd/ouo-erase`, run by the client's operator with the o
 5. Send a Loki delete request.
 6. Write a `completed` or `failed` entry with the same id and the counts per backend.
 
-Audit entries are create-only objects under `audit/<tenant>/<project>/<entry id>` in Muninn's bucket (rum-api's S3 backend already works this way; pair it with S3 Object Lock for immutability). `--dry-run` reports what would be deleted.
+Audit entries are create-only objects under `audit/<tenant>/<entry id>/<status>.json` in Muninn's bucket (spec section 14). `--dry-run` reports what would be deleted.
+
+- **Admin token.** Project delete and the audit routes take Muninn's `auth.admin_token` only, which `ouo-erase` reads from `MUNINN_ADMIN_TOKEN`. The read token, held by every plugin backend, can neither erase a project nor write or backdate an audit record, as rum-api kept erasure behind its own admin token.
+- **Tamper evidence exists only on S3 with Object Lock** on the `audit/` prefix. The filesystem backend has none: its records are plain create-only files that anyone with disk access can edit or remove without a trace. rum-api's filesystem audit was a SHA-256 hash chain; bringing one back is possible later, but the supported immutable setup is S3 with Object Lock.
 
 Why a CLI and not a library call or a service: erasure is an operator action with powerful credentials, run rarely and on request, and the audit trail must not depend on a client's plugin backend existing. A client that wants a button can call the same package from its backend.
 
 ## 6. Consequences
 
-- **Muninn** grows the `debug-files/` prefix with four routes (PUT public; file, meta and list private), the upload tokens per project and tenant, a retention per project for debug files (default one year from upload, `0` keeps), `DELETE /api/v1/projects/{project}` (MUN-45), and the create-only `audit/` prefix with two routes. Spec sections 13 and 14.
+- **Muninn** grows the `debug-files/` prefix with four routes (PUT public, at most 4 uploads at once; file, meta and list private), the upload tokens per project and tenant, a retention per project for debug files (default one year from the last upload, so a re-upload of the same file restarts it; `0` keeps), an `auth.admin_token`, `DELETE /api/v1/projects/{project}` (MUN-45), and the create-only `audit/` prefix with two routes. Spec sections 13 and 14.
 - **`ouo-sourcemaps`** points `--url` at the public Muninn URL, uses the new path, handles 409, and splits dSYMs itself.
 - **`ouo-go`** gains `symbolicate` (dependency `github.com/go-sourcemap/sourcemap`, BSD-2, the parser rum-api uses) and `cmd/ouo-erase`.
 - **Deploy** publishes one Muninn route through Caddy and the Helm Ingress once Muninn itself is in the VM install and the Helm chart; today it runs only in the compose stack (`compose.muninn.yaml`), where the CI upload token of the `demo` project is configured.

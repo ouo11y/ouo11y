@@ -12,6 +12,10 @@ auth:
   ingest_token: ${MUNINN_INGEST_TOKEN:-}
   # Bearer the BFF sends on /api/v1/*.
   read_token: ${MUNINN_READ_TOKEN:-}
+  # Bearer of the operator's ouo-erase: DELETE /api/v1/projects/{p} and the audit routes
+  # (MUN-45, section 14), plus every route the read token opens. Empty: those routes
+  # answer 401. Never in a plugin backend.
+  admin_token: ${MUNINN_ADMIN_TOKEN:-}
 
 storage:
   backend: filesystem # or s3

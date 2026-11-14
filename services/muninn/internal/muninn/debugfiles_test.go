@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ouo11y/ouo11y/services/muninn/internal/config"
+	"github.com/ouo11y/ouo11y/services/muninn/internal/store"
 )
 
 const (
@@ -151,7 +154,9 @@ func TestDebugFileRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			codes[i], _ = h.upload(dbgPath("dsym", dbgID, ""), upTok, []byte("same"), false)
+			for codes[i] = 503; codes[i] == 503; { // more than maxUploads at once: retried, as the CLI does
+				codes[i], _ = h.upload(dbgPath("dsym", dbgID, ""), upTok, []byte("same"), false)
+			}
 		}()
 	}
 	wg.Wait()
@@ -209,8 +214,12 @@ func TestDebugFileRetentionAndProjectDelete(t *testing.T) {
 
 	// Project delete: replays and debug files.
 	h.mustStore(chunk(strm, 0, "rrweb/2", "gzip", gz("a")))
-	w := h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + rdTok})
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"replays":1`) {
+	// The read token never deletes a project (MUN-45).
+	if w := h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + rdTok}); w.Code != 401 {
+		t.Fatalf("read token deleted a project: %d", w.Code)
+	}
+	w := h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + admTok})
+	if w.Code != 200 || w.Body.String() != `{"debug_files":1,"replays":1}`+"\n" {
 		t.Fatalf("delete project: %d %s", w.Code, w.Body.String())
 	}
 	if code, _ := h.manifest(rep); code != 404 {
@@ -223,15 +232,16 @@ func TestDebugFileRetentionAndProjectDelete(t *testing.T) {
 		t.Fatalf("other project touched: %d", w.Code)
 	}
 	// Idempotent.
-	if w := h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + rdTok}); w.Code != 200 {
-		t.Fatalf("second delete: %d", w.Code)
+	w = h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + admTok})
+	if w.Code != 200 || w.Body.String() != `{"debug_files":0,"replays":0}`+"\n" {
+		t.Fatalf("second delete: %d %s", w.Code, w.Body.String())
 	}
 }
 
 func TestAuditEntries(t *testing.T) {
 	h := newHarness(t)
 	put := func(entry, status, body string) int {
-		return h.do("PUT", "/api/v1/audit/"+entry+"/"+status, []byte(body), map[string]string{"Authorization": "Bearer " + rdTok}).Code
+		return h.do("PUT", "/api/v1/audit/"+entry+"/"+status, []byte(body), map[string]string{"Authorization": "Bearer " + admTok}).Code
 	}
 	e1, e2 := "20261114T100000Z-0000aaaa", "20261114T090000Z-0000bbbb"
 	if c := put(e1, "started", `{"user":"u1"}`); c != 201 {
@@ -254,16 +264,22 @@ func TestAuditEntries(t *testing.T) {
 			t.Errorf("%v: %d", bad, c)
 		}
 	}
-	if w := h.do("PUT", "/api/v1/audit/"+e2+"/failed", []byte("{}"), nil); w.Code != 401 {
-		t.Errorf("no token: %d", w.Code)
+	for _, tok := range []string{"", rdTok, ingTok} {
+		if w := h.do("PUT", "/api/v1/audit/"+e2+"/failed", []byte("{}"), map[string]string{"Authorization": "Bearer " + tok}); w.Code != 401 {
+			t.Errorf("token %q put: %d", tok, w.Code)
+		}
+		if w := h.do("GET", "/api/v1/audit", nil, map[string]string{"Authorization": "Bearer " + tok}); w.Code != 401 {
+			t.Errorf("token %q list: %d", tok, w.Code)
+		}
 	}
+	adm := map[string]string{"Authorization": "Bearer " + admTok}
 	var out struct {
 		Entries []struct {
 			Entry, Status string
 			Record        json.RawMessage
 		}
 	}
-	w := h.get("/api/v1/audit")
+	w := h.get("/api/v1/audit", adm)
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +291,7 @@ func TestAuditEntries(t *testing.T) {
 	if fmt.Sprint(got) != fmt.Sprint(want) || string(out.Entries[1].Record) != `{"user":"u1"}` {
 		t.Fatalf("got %v, want %v (%s)", got, want, w.Body.String())
 	}
-	w = h.get("/api/v1/audit?entry=" + e2)
+	w = h.get("/api/v1/audit?entry="+e2, adm)
 	if strings.Contains(w.Body.String(), e1) {
 		t.Fatalf("entry filter: %s", w.Body.String())
 	}
@@ -284,7 +300,88 @@ func TestAuditEntries(t *testing.T) {
 	if err := h.srv.Sweep(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if w := h.get("/api/v1/audit"); !strings.Contains(w.Body.String(), e1) {
+	if w := h.get("/api/v1/audit", adm); !strings.Contains(w.Body.String(), e1) {
 		t.Fatal("audit swept")
+	}
+}
+
+func TestDebugFileUploadCap(t *testing.T) {
+	h := newHarness(t, withUploadTokens)
+	for range maxUploads {
+		h.srv.uploads <- struct{}{}
+	}
+	w := h.do("PUT", dbgPath("sourcemap", dbgID, ""), []byte("{}"), map[string]string{"Authorization": "Bearer " + upTok})
+	if w.Code != 503 || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("over the cap: %d %q", w.Code, w.Header().Get("Retry-After"))
+	}
+	<-h.srv.uploads
+	if code, body := h.upload(dbgPath("sourcemap", dbgID, ""), upTok, []byte("{}"), false); code != 201 {
+		t.Fatalf("a slot free: %d %s", code, body)
+	}
+}
+
+// DBG-20: a re-upload of the same content restarts the file's retention.
+func TestDebugFileReuploadRestartsRetention(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.NewFS(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Defaults()
+	cfg.Auth.ReadToken = rdTok
+	withUploadTokens(&cfg)
+	h := newHarnessStore(t, cfg, st)
+	q := "release=1&file=/a.js"
+	if code, _ := h.upload(dbgPath("sourcemap", dbgID, q), upTok, []byte("{}"), false); code != 201 {
+		t.Fatal(code)
+	}
+	// The first upload was 400 days ago; the CI uploads the same map again now.
+	fk := filepath.Join(dir, filepath.FromSlash(h.srv.keys.debugFile("anonymous", proj, "sourcemap", dbgID)))
+	old := time.Now().Add(-400 * 24 * time.Hour)
+	for _, f := range []string{fk, fk + ".json"} {
+		if err := os.Chtimes(f, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if code, _ := h.upload(dbgPath("sourcemap", dbgID, q), upTok, []byte("{}"), false); code != 200 {
+		t.Fatal(code)
+	}
+	h.now = time.Now()
+	if err := h.srv.Sweep(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if w := h.get(dbgPath("sourcemap", dbgID, "")); w.Code != 200 {
+		t.Fatalf("swept after a re-upload: %d", w.Code)
+	}
+	if w := h.get(fmt.Sprintf("/api/v1/projects/%s/debug-files/sourcemap", proj)); strings.Count(w.Body.String(), "debug_id") != 1 {
+		t.Fatalf("list shows .seen: %s", w.Body.String())
+	}
+	// A year after the re-upload it goes, with its meta, pointer and .seen.
+	h.now = time.Now().Add(8761 * time.Hour)
+	if err := h.srv.Sweep(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if objs, _ := h.st.List(context.Background(), h.srv.keys.debugProject("anonymous", proj)); len(objs) != 0 {
+		t.Fatalf("left behind: %v", objs)
+	}
+}
+
+func TestDeleteProjectCountsLiveReplaysOnly(t *testing.T) {
+	h := newHarness(t)
+	h.mustStore(chunk(strm, 0, "rrweb/2", "gzip", gz("a")))
+	second := chunk(strm, 0, "rrweb/2", "gzip", gz("b"))
+	second.attrs["ouo.replay.id"] = sv("dddddddddddddddddddddddddddddddd")
+	h.mustStore(second)
+	del := fmt.Sprintf("/api/v1/projects/%s/sessions/%s/replays/%s", proj, sess, rep)
+	if w := h.do("DELETE", del, nil, map[string]string{"Authorization": "Bearer " + rdTok}); w.Code != 204 {
+		t.Fatal(w.Code)
+	}
+	w := h.do("DELETE", "/api/v1/projects/"+proj, nil, map[string]string{"Authorization": "Bearer " + admTok})
+	if w.Code != 200 || w.Body.String() != `{"debug_files":0,"replays":1}`+"\n" {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	// The admin token also opens the reads.
+	if w := h.get(fmt.Sprintf("/api/v1/projects/%s/sessions/%s/replays", proj, sess), map[string]string{"Authorization": "Bearer " + admTok}); w.Code != 200 {
+		t.Fatalf("admin read: %d", w.Code)
 	}
 }

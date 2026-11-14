@@ -119,7 +119,7 @@ It does what the rum-api routes below do, in the same order, against Loki, Tempo
 its `started` / `completed` / `failed` records as create-only objects in Muninn (`ouo-erase audit`):
 
 ```bash
-export MUNINN_READ_TOKEN=...   # Muninn's read token: it also opens Muninn's delete and audit routes
+export MUNINN_ADMIN_TOKEN=...  # Muninn's auth.admin_token: the only token that deletes a project or writes audit records
 ouo-erase user <user id> [--project <project id>] --reason <ticket> --actor dpo@example.com \
   --muninn-url http://muninn:3400 --loki-url http://loki:3100 --tempo-url http://tempo:3200 [--dry-run]
 ouo-erase project <project id> --reason <ticket> --actor ops@example.com --muninn-url ... --loki-url ...
@@ -127,8 +127,17 @@ ouo-erase audit [--entry <id>] --muninn-url http://muninn:3400
 ```
 
 A user is matched on `enduser_id` (the browser SDK's `enduser.id`) or `user_id` (React Native and the
-Sentry bridge). `ouo-erase project` also removes the project's debug files from Muninn. The rest of this
-section describes rum-api's routes, which stay until rum-api is removed.
+Sentry bridge). `ouo-erase project` also removes the project's debug files from Muninn.
+
+- **The admin token stays with the operator.** Muninn's read token, which every plugin backend holds,
+  cannot delete a project or write an audit record; keep `MUNINN_ADMIN_TOKEN` out of plugin backends.
+- **Tamper evidence exists only on S3 with Object Lock** on the `audit/` prefix. On Muninn's
+  filesystem backend the records are plain create-only files that anyone with disk access can edit or
+  remove without a trace (rum-api's filesystem audit was a hash chain; Muninn's is not).
+- **A project delete can take minutes.** If `ouo-erase project` times out (Muninn gives it 10 minutes),
+  the run is recorded `failed`; run it again: the delete is idempotent and the second run finishes it.
+
+The rest of this section describes rum-api's routes, which stay until rum-api is removed.
 
 
 rum-api's operator API is behind its own bearer, the **admin token** (`OUO_ADMIN_TOKEN`,
