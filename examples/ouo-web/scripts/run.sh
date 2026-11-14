@@ -60,13 +60,18 @@ npm run -w examples/ouo-web build >/dev/null
 [[ -f sdk/sourcemaps/dist/cli.js ]] || { log "build @ouo11y/sourcemaps"; npm run -w sdk/sourcemaps build >/dev/null; }
 release="${VITE_APP_VERSION:-1.4.2}"
 node sdk/sourcemaps/dist/cli.js inject examples/ouo-web/dist >/dev/null
+# OUO_MUNINN_URL can be set while no Muninn runs (CI's stack-env.sh sets every URL): only a
+# Muninn that answers /ready counts, and without one verify skips its Muninn check too.
+if [[ -n ${OUO_MUNINN_URL:-} ]] && [[ $(curl -s -o /dev/null -m 5 -w '%{http_code}' "$OUO_MUNINN_URL/ready" || true) != 200 ]]; then
+  unset OUO_MUNINN_URL
+fi
 if [[ -n ${OUO_MUNINN_URL:-} ]]; then
   log "source maps: debug ids injected, upload to $OUO_MUNINN_URL (release $release), delete them from dist"
   node sdk/sourcemaps/dist/cli.js upload examples/ouo-web/dist --url "$OUO_MUNINN_URL" \
     --token "${OUO_UPLOAD_TOKEN:-ut_dev_demo_0000000000000000}" --project "${VITE_OUO_PROJECT_ID:-demo}" \
     --release "$release" --delete-after | tail -1
 else
-  log "source maps: debug ids injected; no Muninn in this stack (OUO_MUNINN_URL), maps deleted unuploaded"
+  log "source maps: debug ids injected; no Muninn answering in this stack, maps deleted unuploaded"
   find examples/ouo-web/dist -name '*.map' -delete
 fi
 # On a fresh Linux CI runner the browser also needs its system libraries.
