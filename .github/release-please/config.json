@@ -45,6 +45,13 @@
       "component": "ios",
       "extra-files": [{ "type": "generic", "path": "Sources/OuoSDK/Ouo.swift" }]
     },
+    "libs/ouo-kit": {
+      "release-type": "node",
+      "component": "kit",
+      "extra-files": [
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['libs/ouo-kit'].version" }
+      ]
+    },
     "plugins/ouo11y-rum-app": {
       "release-type": "node",
       "component": "plugin",

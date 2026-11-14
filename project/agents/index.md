@@ -33,5 +33,6 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [session-replay](session-replay/) | Session replay internals and borrowing recorders: `project/kb/session-replay/`; the Sentry iOS recorder spike, with its harness in `measure/` | post-MVP |
 | [muninn-design](muninn-design/) | Step 8 design of the post-MVP plan: ADR-0019, `docs/specs/muninn.md` and `project/kb/muninn/`, the Collector to Muninn replay path | post-MVP step 8 (design) |
 | [muninn-build](muninn-build/) | Muninn, the replay store (`services/muninn`), and the spec-wire Collector config that feeds it (`deploy/compose/collector/config.muninn.yaml`, `compose.muninn.yaml`, `ouo-env up --muninn`, `tests/e2e/muninn/`), from the ADR-0019 design | post-MVP step 8 |
+| [plugin-bff](plugin-bff/) | Generic libraries for clients' own plugins (ADR-0025): `libs/ouo-go` (Loki and Muninn readers, optional `redact` and `oidc`), `libs/ouo-kit` (`@ouo11y/kit` replay player), `project/kb/plugin/` | post-MVP step 9 |
 
 Folders for agents that have not run yet are created by the orchestrator when the phase starts.

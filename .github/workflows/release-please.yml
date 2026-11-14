@@ -21,6 +21,7 @@ on:
     tags:
       - 'browser-v*'
       - 'react-native-v*'
+      - 'kit-v*'
       - 'ios-v*'
       - 'plugin-v*'
       - 'collector-v*'

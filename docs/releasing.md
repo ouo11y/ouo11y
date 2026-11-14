@@ -32,6 +32,7 @@ last released) with the settings in
 |---|---|---|---|---|---|
 | `browser` | `sdk/browser` | `package.json` (+ root lockfile) | `browser-v<semver>` | npm `@ouo11y/browser` (public) | `release-npm.yml` |
 | `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` (public) | `release-npm.yml` |
+| `kit` | `libs/ouo-kit` | `package.json` (+ root lockfile) | `kit-v<semver>` | npm `@ouo11y/kit` (public) | `release-npm.yml` |
 | `ios` | `sdk/ios` | `version.txt` | `ios-v<semver>` | mirror `ouo11y/ouo11y-ios`, tag `<semver>` (SwiftPM `ouo11y-ios`) | `release-ios.yml` |
 | `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
@@ -194,7 +195,9 @@ the last rc when possible.
 manifest (no release PR is needed, the version fields and changelogs are in place):
 `browser-v0.2.0`, `react-native-v0.2.0`, `ios-v0.2.0`, `plugin-v0.7.0`, `chart-v0.1.1`. Muninn's
 first image is the same: tag `muninn-v0.1.0` (manifest and `services/muninn/CHANGELOG.md` are at 0.1.0),
-then make the new `muninn` package public (section 7). Each needs
+then make the new `muninn` package public (section 7). `@ouo11y/kit`'s first release is the
+same: tag `kit-v0.1.0` (manifest, `package.json` and `libs/ouo-kit/CHANGELOG.md` are at 0.1.0),
+published by hand once so its trusted publisher can be set (section 8). Each needs
 its accounts from section 8 first, and its changelog section dated in a small PR.
 
 ## 6. Dry runs
@@ -241,7 +244,7 @@ can run the stack on their own infra. Pulling an image needs no login and no tok
 echo $GHCR_TOKEN | helm registry login ghcr.io -u <github-user> --password-stdin
 ```
 - **SDK npm packages** are public on npmjs.org (founder decision 2026-10-24, Apache-2.0):
-  `npm install @ouo11y/browser` or `npm install @ouo11y/react-native`, no login. The 0.2.0
+  `npm install @ouo11y/browser`, `npm install @ouo11y/react-native` or `npm install @ouo11y/kit`, no login. The 0.2.0
   copies published to GitHub Packages on 2026-10-23 stay there, private, and get no new versions.
 
 ## 8. Accounts, secrets and settings (founder)
@@ -291,7 +294,7 @@ runners. Layout and setup: [ci-runners.md](../project/kb-archive/ci-runners.md).
 
 | Component | Commands |
 |---|---|
-| browser / react-native | `npm run build -w sdk/<x> && npm run test -w sdk/<x> && npm pack --dry-run -w sdk/<x>` |
+| browser / react-native / kit | `npm run build -w <dir> && npm run test -w <dir> && npm pack --dry-run -w <dir>` (`sdk/browser`, `sdk/react-native`, `libs/ouo-kit`) |
 | ios | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
 | plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
 | rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` |

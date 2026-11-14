@@ -1,7 +1,8 @@
-# Publishes @ouo11y/browser or @ouo11y/react-native to npmjs.org (public)
+# Publishes @ouo11y/browser, @ouo11y/react-native or @ouo11y/kit to npmjs.org (public)
 # when the founder pushes a tag.
 #   browser-v0.2.0        -> sdk/browser        -> @ouo11y/browser@0.2.0
 #   react-native-v0.2.0   -> sdk/react-native   -> @ouo11y/react-native@0.2.0
+#   kit-v0.1.0            -> libs/ouo-kit       -> @ouo11y/kit@0.1.0
 # The tag version must equal the workspace package.json version (the release PR bumps it).
 #
 # Every run builds, tests, packs the tarball, writes a CycloneDX SBOM (`npm sbom`) and
@@ -26,6 +27,7 @@ on:
     tags:
       - 'browser-v*'
       - 'react-native-v*'
+      - 'kit-v*'
   pull_request:
     paths:
       - .github/workflows/release-npm.yml
@@ -76,6 +78,7 @@ jobs:
           case "$tag" in
             browser-v*)      ws=sdk/browser;      version="${tag#browser-v}" ;;
             react-native-v*) ws=sdk/react-native; version="${tag#react-native-v}" ;;
+            kit-v*)          ws=libs/ouo-kit;     version="${tag#kit-v}" ;;
             *) echo "::error::unexpected tag $tag"; exit 1 ;;
           esac
           name=$(node -p "require('./$ws/package.json').name")
