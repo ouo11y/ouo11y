@@ -29,6 +29,7 @@ sdk/                 SDKs: browser, react-native (TypeScript), ios (Swift)
 collector/           ouo-collector (ocb distribution) and its components (Go)
 services/rum-api/    platform service (Go)
 plugins/ouo11y-rum-app/ Grafana app plugin
+libs/                generic libraries for client plugins: ouo-go (Go), ouo-kit (@ouo11y/kit); ADR-0025
 deploy/              compose/ (local + VM stack), helm/, vm/, envs/ (ouo-env), images/, scripts/
 examples/            demo web, mobile, sentry-mobile and backend apps; fast-tracked guides
 tests/               end-to-end scenario

@@ -57,9 +57,9 @@ jobs:
           fi
           match() { [ "$all" = true ] || printf '%s\n' "$files" | grep -Eq "$1"; }
           flag() { if match "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
-          flag go        '^(services/rum-api|services/muninn|examples/backend)/'
+          flag go        '^(services/rum-api|services/muninn|examples/backend|libs/ouo-go)/'
           flag collector '^(collector|deploy/compose/collector)/'
-          flag node      '^(sdk|plugins|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
+          flag node      '^(sdk|plugins|libs/ouo-kit|examples/ouo-web|deploy/envs)/|^package(-lock)?\.json$'
           flag swift     '^sdk/ios/'
           # The Kotlin, the scripts and manifests that vendor and build it into the example app.
           flag android   '^(sdk/android|sdk/react-native/(android|scripts)|examples/ouo-mobile/(modules|plugins))/|^(sdk/react-native/package\.json|examples/ouo-mobile/(package(-lock)?\.json|app\.config\.ts)|package-lock\.json)$'
@@ -137,7 +137,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [services/rum-api, services/muninn, examples/backend]
+        module: [services/rum-api, services/muninn, examples/backend, libs/ouo-go]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -312,6 +312,7 @@ jobs:
         run: |
           npm pack --dry-run -w sdk/browser
           npm pack --dry-run -w sdk/react-native
+          npm pack --dry-run -w libs/ouo-kit
 
   # One stack (deploy/compose, built from this checkout) and each example's
   # scripted journey + verify, path-filtered (checklist N23 / N24). The mobile apps need an iOS
