@@ -13,7 +13,7 @@ Every job runs on a GitHub-hosted runner. Hosted minutes are free for a public r
 
 ## Why not the self-hosted runners
 
-- The org runner group `Default` has `allows_public_repositories: false`, and it stays false: a self-hosted runner runs whatever a pull request's workflow says, and the runners are not ephemeral (a job can rewrite the runner's files). With the repo public, a fork pull request could otherwise run code on the Hetzner server or the founder's Mac.
+- The org runner group `Default` must have `allows_public_repositories: false`. The founder set it to true for a few hours on 2026-11-15 so queued PRs could run, and it is set back to false right after this move merges (a merge step in PR #198). Check it with `gh api orgs/ouo11y/actions/runner-groups --jq '.runner_groups[] | {name, allows_public_repositories}'`. Why it matters: a self-hosted runner runs whatever a pull request's workflow says, and the runners are not ephemeral (a job can rewrite the runner's files). With the repo public, a fork pull request could otherwise run code on the Hetzner server or the founder's Mac.
 - The server's eight runners and the Mac runner `ouo11y-mac-1` still exist and are registered to the org. How they were built: [ci-runners.md](../../../kb-archive/ci-runners.md). Their setup script `.github/scripts/setup-mac-runner.sh` was removed from the tree (it is in git history).
 
 ## What the move dropped

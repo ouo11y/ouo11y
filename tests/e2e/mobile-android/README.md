@@ -33,6 +33,6 @@ before: cause `memory`.
 
 About 6 minutes plus the build (the first one downloads the NDK and takes about 15 minutes).
 
-**Not in CI** (like the native iOS suite, checklist N78): the Mac runner runs one job at a time and
-has no stack. CI builds the library, runs its unit tests and compiles the Expo module (`ci.yml`, job
+**Not in CI** (like the native iOS suite, checklist N78): it needs an Android emulator with KVM
+and an `ouo-env` stack in one job, which the hosted runners do not set up yet. CI builds the library, runs its unit tests and compiles the Expo module (`ci.yml`, job
 `android`).

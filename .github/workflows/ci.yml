@@ -5,8 +5,8 @@
 # push) plus a Trivy scan of every released container image. See docs/releasing.md.
 #
 # Runners: GitHub-hosted only (ubuntu-latest, macos-latest), free for this public repository.
-# The org's self-hosted runners do not serve public repositories, so fork pull requests never
-# run on our hosts (project/kb/ci/runners/github-hosted.md). The `changes` job lists the files a
+# No job asks for a self-hosted runner, and the org runner group must not serve public
+# repositories, so fork pull requests never run on our hosts (project/kb/ci/runners/github-hosted.md). The `changes` job lists the files a
 # pull request touches and every other job runs only when its paths changed. A push to main runs
 # everything. A change to this file runs everything.
 name: ci

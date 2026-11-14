@@ -285,8 +285,9 @@ BuildKit SBOM and max-mode provenance attestations, private or not.
 | Disclosure policy | `.github/SECURITY.md` | |
 
 Runners: every job runs on GitHub-hosted runners (`ubuntu-latest`, `macos-latest` for the Swift,
-iOS release and benchmark jobs), free for a public repository. The org's self-hosted runners do
-not serve public repositories, so code from a fork pull request never runs on our hosts. `ci.yml`
+iOS release and benchmark jobs), free for a public repository. No job asks for a self-hosted
+runner, and the org runner group `Default` must keep `allows_public_repositories: false` (check
+command in the kb entry below), so code from a fork pull request never runs on our hosts. `ci.yml`
 still runs each job only for the paths it covers, every workflow has a concurrency group, and
 release dry runs only run when their own workflow file changes. What runs where, and the job
 times: [github-hosted.md](../project/kb/ci/runners/github-hosted.md).

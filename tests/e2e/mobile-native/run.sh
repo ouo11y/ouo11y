@@ -3,8 +3,8 @@
 # (examples/ouo-ios) on a simulator against an ouo-env stack, launches for every check, then
 # check.mjs asserts rum-api with the same check ids as the React Native suite and prints the
 # maturity row. C6.1's taps come from an XCUITest runner (taps/, generated with xcodegen) that
-# drives the example by accessibility identifier. Run by hand: CI's Mac runner runs one job at a
-# time and has no stack (README.md).
+# drives the example by accessibility identifier. Run by hand: no CI runner has both a simulator
+# and a stack (README.md).
 #
 # Usage: run.sh <env> <simulator udid>
 # OUO_NATIVE_OUT keeps the build, the app's notes and the proxy log (default: a temp folder).
