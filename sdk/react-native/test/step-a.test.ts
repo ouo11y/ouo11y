@@ -361,7 +361,7 @@ describe("beforeSend (CFG-4, PRV-14)", () => {
     const err = captured.byName("exception")[0]!;
     expect(attr(err.attributes, "exception.message")).toBe("[scrubbed]");
     expect(err.body?.stringValue).toBe("scrubbed");
-    expect(JSON.stringify(captured.logs)).not.toContain("4111");
+    expect(JSON.stringify(captured.logs)).not.toContain("card 4111"); // not bare "4111": hex ids can contain it
     // Before persistence: a dropped record is not in the last-events buffer other records carry.
     expect(feedbackId).toBeDefined();
     const last = String(attr(captured.byName("feedback")[0]!.attributes, "ouo.last_events"));
