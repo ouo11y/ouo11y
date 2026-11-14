@@ -46,4 +46,5 @@ Deliberate differences: 30-day ranges (every `ouo-go` read; rum-api 31), no 10 s
 - **Overlap with the ADR-0026 branch** (`claude/rum-api-leftovers-33b874`, not merged): it also edits `libs/ouo-go/README.md`, `docs/adr/README.md` and `project/kb/index.md`, and has its own `erase.Tempo` with `TraceIDs`. Whichever merges second rebases those files; afterwards `erase` can use `ouogo.Tempo` instead of its own type.
 - rum-api's handlers also served the plugin's session list and detail; those are `Loki.ListSessions` / `SessionEvents` already. The plugin and rum-api can go once ADR-0026 and this PR are merged and released (`libs/ouo-go/v0.2.0`).
 - No dependency added.
-- Env `ouo-go-readers` is torn down at the end of this run (see the PR).
+- Env `ouo-go-readers` is **still running** for the reviewer: http://grafana.ouo-go-readers.ouo.localhost (admin / testing567), Loki http://loki.ouo-go-readers.ouo.localhost, rum-api http://rum-api.ouo-go-readers.ouo.localhost. Tear it down with `deploy/envs/ouo-env down ouo-go-readers` once the review is done (`ouo-env gc` also takes it once the PR closes).
+- Not done: the reviewer session (ADR-0013) could not be started from this session (the app only starts sessions on the user's own words); it is proposed as a card. No `Review:` / `Author:` comments on the PR yet.
