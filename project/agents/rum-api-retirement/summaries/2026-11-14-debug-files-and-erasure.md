@@ -38,7 +38,7 @@ Not changed: a user erase removes only lines that carry `enduser_id` / `user_id`
 
 CI fix found along the way: `stack-env.sh` sets `OUO_MUNINN_URL` before CI starts Muninn, so `run.sh` now uploads only when Muninn answers `/ready`.
 
-Verified: Muninn `go test -race` with new tests (admin token on delete and audit, exact counts, live-only replay count, upload cap, re-upload keeps a 400-day-old file and the sweep a year later removes all its objects, distinct tokens); `ouo-go` `go test -race` with `Tempo.TraceIDs`; `sdk/sourcemaps` vitest 37/37 with the 503 retry.
+Verified: Muninn `go test -race` with new tests (admin token on delete and audit, exact counts, live-only replay count, upload cap, re-upload keeps a 400-day-old file and the sweep a year later removes all its objects, distinct tokens); `ouo-go` `go test -race` with `Tempo.TraceIDs`; `sdk/sourcemaps` vitest 37/37 with the 503 retry. Live on the rebuilt env: the read token gets 401 on project delete, audit put and audit list, and the admin token gets 200; same-content re-upload 200; `ouo-erase project demo` answered `debug_files: 5` for the 5 listed files and 3 live replays, and with only the read token it stopped before deleting anything; `tests/e2e/muninn` 25/25.
 
 ## Not done / next
 
