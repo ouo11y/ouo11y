@@ -7,8 +7,8 @@
 | [specs/session-lifecycle.md](specs/session-lifecycle.md) | normative session spec |
 | [specs/mobile-replay.md](specs/mobile-replay.md) | frame-chunk contract and iOS capture rules |
 | [specs/sentry-bridge.md](specs/sentry-bridge.md) | Sentry envelope to ouo mapping, forwarding rules, session resolution, `video` replay chunk and rum-api video API (ADR-0008, accepted 2026-10-17) |
-| [funnels.md](funnels.md) | user guide: build and read a funnel in the plugin, what a step can be, counting rules, limits |
 | [specs/funnels.md](specs/funnels.md) | funnel reports: steps (page path, custom event), strict order, `within`, session counting, range and filters, Loki reads, limits (ADR-0012) |
+| [../libs/ouo-go/funnels.md](../libs/ouo-go/funnels.md) | funnels user guide: what a step can be, reading a report, counting rules, limits, what differs from rum-api |
 | [specs/mobile-vitals.md](specs/mobile-vitals.md) | mobile vitals (app start, TTID, frames, stalls) as session events, shared by the Sentry bridge and the ouo SDK; rum-api vitals endpoint |
 | [specs/mobile-sdk.md](specs/mobile-sdk.md) | mobile SDK spec: the twelve capabilities (records, attributes, thresholds), the conformance checks, maturity L0–L3 and the platform matrix, the React Native iOS suite (ADR-0015) |
 | [specs/muninn.md](specs/muninn.md) | draft: Muninn replay store contract: OTLP ingest of `ouo.replay.chunk` and `ouo.replay.ended`, Collector requirements (durable 2xx, routing, reference records), storage layout, read and delete API, retention and tenancy (ADR-0019, proposed) |

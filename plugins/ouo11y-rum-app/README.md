@@ -2,7 +2,7 @@
 
 Plugin id `ouo11y-rum-app`, version in `package.json` (see `CHANGELOG.md`). Frontend-only Grafana app
 plugin that is the ouo user interface: **Overview** (healthy / errored / crashed percentages per
-platform and version), **Sessions** (filterable list), **Funnels** (step conversion and drop-off, [docs/funnels.md](../../docs/funnels.md)) and **Session detail** (timeline, traces with
+platform and version), **Sessions** (filterable list), **Funnels** (step conversion and drop-off, [libs/ouo-go/funnels.md](../../libs/ouo-go/funnels.md)) and **Session detail** (timeline, traces with
 Grafana Explore links, rrweb, frame or video replay synced to the timeline). All data comes from
 `services/rum-api` through the plugin route proxy; the browser never talks to rum-api directly and
 never sees the read token.
