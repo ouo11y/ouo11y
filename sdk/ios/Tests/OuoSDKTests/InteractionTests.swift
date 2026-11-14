@@ -114,7 +114,8 @@ import UIKit
         c.start(previousReport: nil, background: false, appStart: nil)
         c.trackScreen("Products")
         c.tap(target: "add-to-cart", path: "add-to-cart > product-card", viewType: "button", gesture: "long_press", at: h.clock.now - 700, screen: c.screenName)
-        let off = h.core { $0.taps = false }
+        // Its own folder: a second Core on h.dir would recover and send c's spooled tap.
+        let off = Harness(clock: h.clock, sink: h.sink).core { $0.taps = false }
         off.start(previousReport: nil, background: false, appStart: nil)
         off.tap(target: "x", path: nil, viewType: nil, gesture: "tap", at: h.clock.now, screen: "")
         await flush(c)

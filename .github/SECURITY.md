@@ -5,8 +5,7 @@
 Please report vulnerabilities privately, never in a public issue, pull request or discussion.
 
 - Email: **`SECURITY_CONTACT_TBD`** (placeholder until the founder sets the disclosure address)
-- Or, once this repository is public: GitHub > Security > "Report a vulnerability" (private
-  vulnerability reporting).
+- Or GitHub > Security > "Report a vulnerability" (private vulnerability reporting).
 
 Include the affected component and version (see the table below), how to reproduce it, and
 the impact you expect. We acknowledge within 3 working days and agree a disclosure date with
@@ -38,7 +37,7 @@ Which versions work together: [`docs/compatibility.md`](../docs/compatibility.md
   and the plugin, and Trivy on every container image; fixable critical findings fail the build.
 - Every release carries an SBOM: images as BuildKit SBOM attestations, npm packages and the
   plugin zip as CycloneDX files attached to the GitHub release. Build provenance is attested
-  for images today and for npm packages, the plugin and the chart once the repository is public.
+  for images, npm packages, the plugin and the chart (the repository is public since 2026-11-15).
 - GitHub Actions are pinned by commit digest; Renovate pins container base images by digest.
 
 The release and supply-chain process is described in
