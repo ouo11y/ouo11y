@@ -4,7 +4,7 @@ npm `@ouo11y/kit`, tag `kit-v<version>`. Policy: `docs/releasing.md`. Design: `d
 
 ## Unreleased
 
-## 0.1.0 - unreleased
+## 0.1.0 (2026-11-14)
 
 ### Added
 
