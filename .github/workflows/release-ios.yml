@@ -15,8 +15,8 @@
 # Dry run: Actions > release-ios > Run workflow with the tag to rehearse, or any pull request
 # that changes this file. It splits and, when the key exists, runs `git push --dry-run` against
 # the mirror (checks the key and that main fast-forwards); nothing is pushed. The macOS test
-# job (10x Actions minutes) is skipped on pull requests and when `skip_tests` is ticked; ci.yml
-# runs the same tests on every change under sdk/ios.
+# job is skipped on pull requests and when `skip_tests` is ticked; ci.yml runs the same tests
+# on every change under sdk/ios. A fork pull request gets no secrets: its run splits only.
 name: release-ios
 
 on:
@@ -33,7 +33,7 @@ on:
         required: true
         type: string
       skip_tests:
-        description: 'Skip the macOS swift tests (they cost 10x Actions minutes)'
+        description: 'Skip the macOS swift tests (ci.yml already ran them on the commit)'
         type: boolean
         default: false
 
@@ -51,7 +51,7 @@ jobs:
   test:
     name: swift tests
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.skip_tests)
-    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb-archive/ci-runners.md), only on ios-v* tags
+    runs-on: macos-latest
     timeout-minutes: 20
     permissions:
       contents: read
@@ -69,7 +69,7 @@ jobs:
     needs: test
     # Runs after the tests, or alone when they were skipped (never after a failure).
     if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read

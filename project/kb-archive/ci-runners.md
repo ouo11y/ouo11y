@@ -1,5 +1,7 @@
 # CI runners: one user and one rootless dockerd per runner
 
+> **Superseded 2026-11-15.** The repository is public and every job runs on GitHub-hosted runners: [github-hosted.md](../kb/ci/runners/github-hosted.md). This page records how the self-hosted runners were built.
+
 Question: how are the self-hosted GitHub Actions runners on the `ouo11y` server laid out, and how do two jobs that start the full stack run at the same time? (2026-10-25)
 
 ## Layout

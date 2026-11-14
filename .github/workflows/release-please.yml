@@ -40,7 +40,7 @@ concurrency:
 jobs:
   release-prs:
     if: github.ref_type == 'branch'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
@@ -56,7 +56,7 @@ jobs:
 
   mark-tagged:
     if: github.ref_type == 'tag'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: write

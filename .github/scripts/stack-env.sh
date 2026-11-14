@@ -1,16 +1,11 @@
 #!/bin/sh
 # Prints the stack's URLs as KEY=value lines for $GITHUB_ENV, from the OUO_*_PORT host ports
-# (compose.yaml's defaults when unset). Each self-hosted runner has its own rootless dockerd and
-# its own port set in its .env (ouo11y-N: 20N00..20N91, project/kb-archive/ci-runners.md), so stack jobs on two
-# runners run at the same time. compose reads the same OUO_*_PORT variables; the scripts and the
-# example apps read these URLs.
+# (compose.yaml's defaults when unset, as on the GitHub-hosted runners). compose reads the same
+# OUO_*_PORT variables; the scripts and the example apps read these URLs.
 #   .github/scripts/stack-env.sh >> "$GITHUB_ENV"
 set -eu
 h=http://localhost
-# Muninn (compose.muninn.yaml) has no slot in the runners' .env: 20N40, next to Grafana's 20N00.
-if [ -n "${OUO_MUNINN_PORT:-}" ]; then muninn=$OUO_MUNINN_PORT
-elif [ -n "${OUO_GRAFANA_PORT:-}" ]; then muninn=$((OUO_GRAFANA_PORT + 40))
-else muninn=3400; fi
+muninn=${OUO_MUNINN_PORT:-3400}
 cat <<EOF
 OUO_GRAFANA_URL=$h:${OUO_GRAFANA_PORT:-3000}
 OUO_LOKI_URL=$h:${OUO_LOKI_PORT:-3100}

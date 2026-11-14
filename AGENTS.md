@@ -103,4 +103,4 @@ deploy/envs/ouo-env down <env>    # no --purge unless asked: volumes are kept
 
 ## Processes on the founder's Mac
 
-Sessions, CI (the self-hosted runner) and the founder's own apps share one machine. Stop only processes you started: keep the PID (`$!`, a PID file) and `kill <pid>`, or use the tool's own stop command (`ouo-env down`, `xcrun simctl shutdown <udid>`, Playwright teardown). Never kill by pattern (`pkill`, `killall`, `pkill -f`, `ps | grep | xargs kill`): `pkill -f "cat"` matches every `/Applications/...` path and closed the founder's apps on 2026-10-24.
+Sessions and the founder's own apps share one machine. Stop only processes you started: keep the PID (`$!`, a PID file) and `kill <pid>`, or use the tool's own stop command (`ouo-env down`, `xcrun simctl shutdown <udid>`, Playwright teardown). Never kill by pattern (`pkill`, `killall`, `pkill -f`, `ps | grep | xargs kill`): `pkill -f "cat"` matches every `/Applications/...` path and closed the founder's apps on 2026-10-24.
