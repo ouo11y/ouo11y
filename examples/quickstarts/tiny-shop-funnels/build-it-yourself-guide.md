@@ -1676,7 +1676,7 @@ Under each bar: the big percentage is relative to step 1; **% of previous step**
 conversion (checkout -> paid is about 50%, the leak); **median · p75** is the time from the
 previous step. The 5 deep-link sessions never opened `/`, so they are not in this funnel; the 3
 out-of-order ones added to cart before opening `/` and count for step 1 only. The full rules are
-in [docs/funnels.md](../../../docs/funnels.md).
+in [libs/ouo-go/funnels.md](../../../libs/ouo-go/funnels.md).
 
 ## Step 9. From a drop-off to the replay
 

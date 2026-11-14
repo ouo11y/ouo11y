@@ -25,8 +25,12 @@ type Loki struct {
 	// ListLimit bounds the records ListSessions reads (default 5000, Loki's default
 	// max_entries_limit_per_query). A list that hit it says Truncated.
 	ListLimit int
-	// EventLimit bounds the events SessionEvents reads (default 5000).
+	// EventLimit bounds the events SessionEvents and SessionVitals read, and is the page
+	// size of the paged reads of Funnel and Health (default 5000).
 	EventLimit int
+	// FunnelEventLimit bounds the records one paged read of Funnel (per step kind) and
+	// Health reads (default 100000). An answer that hit it says Truncated.
+	FunnelEventLimit int
 	// Now is the clock for default time ranges; time.Now when nil.
 	Now func() time.Time
 }
@@ -118,6 +122,25 @@ func (l *Loki) QueryRange(ctx context.Context, logql string, from, to time.Time,
 
 // QueryVector runs an instant metric query and returns each series' labels.
 func (l *Loki) QueryVector(ctx context.Context, logql string, at time.Time) ([]map[string]string, error) {
+	series, err := l.queryVector(ctx, logql, at)
+	if err != nil {
+		return nil, err
+	}
+	labels := make([]map[string]string, 0, len(series))
+	for _, s := range series {
+		labels = append(labels, s.Metric)
+	}
+	return labels, nil
+}
+
+type lokiSample struct {
+	Metric map[string]string `json:"metric"`
+	Value  [2]any            `json:"value"` // [unix seconds, "value"]
+}
+
+func (s lokiSample) value() string { v, _ := s.Value[1].(string); return v }
+
+func (l *Loki) queryVector(ctx context.Context, logql string, at time.Time) ([]lokiSample, error) {
 	q := url.Values{"query": {logql}, "time": {strconv.FormatInt(at.UnixNano(), 10)}}
 	a, err := l.get(ctx, "/loki/api/v1/query", q)
 	if err != nil {
@@ -126,17 +149,11 @@ func (l *Loki) QueryVector(ctx context.Context, logql string, at time.Time) ([]m
 	if a.Data.ResultType != "vector" {
 		return nil, &BackendError{Backend: "loki", Err: fmt.Errorf("want vector, got %q", a.Data.ResultType)}
 	}
-	var series []struct {
-		Metric map[string]string `json:"metric"`
-	}
+	var series []lokiSample
 	if err := json.Unmarshal(a.Data.Result, &series); err != nil {
 		return nil, &BackendError{Backend: "loki", Err: fmt.Errorf("decode vector: %w", err)}
 	}
-	labels := make([]map[string]string, 0, len(series))
-	for _, s := range series {
-		labels = append(labels, s.Metric)
-	}
-	return labels, nil
+	return series, nil
 }
 
 func truncate(s string, n int) string {
