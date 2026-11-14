@@ -9,9 +9,9 @@ const kv = (key, v) => ({ key, value: { stringValue: v } });
 const body = {
   resourceLogs: [{
     resource: { attributes: [
-      kv("service.name", "juhi-care-api"), kv("service.namespace", "care"),
+      kv("service.name", "client-care-api"), kv("service.namespace", "care"),
       kv("deployment.environment.name", "prod"), kv("service.instance.id", "care-api-7d9f-1"),
-      kv("k8s.namespace.name", "care"), kv("k8s.pod.name", "care-api-7d9f-1"), kv("k8s.cluster.name", "juhi-eu"),
+      kv("k8s.namespace.name", "care"), kv("k8s.pod.name", "care-api-7d9f-1"), kv("k8s.cluster.name", "client-eu"),
     ] },
     scopeLogs: [{ scope: { name: "care-api" }, logRecords: [1, 2, 3].map((i) => ({
       timeUnixNano: String(now + BigInt(i)), severityText: "INFO", severityNumber: 9,

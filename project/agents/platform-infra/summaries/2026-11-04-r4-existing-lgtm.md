@@ -1,6 +1,6 @@
 # R4: ouo on an existing Loki / Tempo / Mimir (2026-11-04)
 
-Client JUHI already runs its own Loki, Tempo and Mimir: 336h retention, a single tenant, and
+A pilot client already runs its own Loki, Tempo and Mimir: 336h retention, a single tenant, and
 its own OTel collectors in front. R4 makes "point ouo at it" a supported, documented and
 verified path.
 
@@ -60,7 +60,7 @@ verified path.
 `go test ./...` and `go vet ./...` pass in `services/rum-api`.
 
 Helm:
-- `helm template` with `values-external-lgtm.yaml` plus `tenantId=juhi` and `lokiDeleteUrl`:
+- `helm template` with `values-external-lgtm.yaml` plus `tenantId=pilot` and `lokiDeleteUrl`:
   rum-api's config has `tenant_id` and `delete_url`; images are collector 0.5.0, rum-api 0.6.0,
   grafana 0.6.0 (the chart defaults).
 - Bundled mode renders no tenant.
@@ -84,10 +84,10 @@ rum-api are built from the tree; Grafana 0.6.0 comes from `compose.images.yaml`,
 5. Delete-by-user (`qa-user-w-0`, project `demo`): 6 sessions, 1 replay deleted, Loki request
    from `now - 336h`. It was `processed` after about 165 s and hidden from queries about 45 s
    later. That user's lines went 16 → 0; another user's 16 lines and the client's 6 lines were kept.
-6. Multi-tenant (`auth_enabled: true`, `OUO_LGTM_TENANT_ID=juhi`, logs direct to Loki's OTLP):
+6. Multi-tenant (`auth_enabled: true`, `OUO_LGTM_TENANT_ID=pilot`, logs direct to Loki's OTLP):
    - Loki answers 401 without a tenant.
-   - E2E OK again: 106 records in `juhi`, 0 in `fake`.
-   - Delete of `qa-user-w-2` under `juhi`: processed after about 180 s, lines 12 → 0, and
+   - E2E OK again: 106 records in `pilot`, 0 in `fake`.
+   - Delete of `qa-user-w-2` under `pilot`: processed after about 180 s, lines 12 → 0, and
      `qa-user-w-1` kept its 16.
    - Final line: `existing-lgtm OK`.
 

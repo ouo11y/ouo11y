@@ -2,7 +2,7 @@
 
 Answers: how `@ouo11y/browser` masks all text with rrweb 2.1.7 without a fork, what rrweb does
 not mask, why stopping on a route change drops the new page, and how the React Native SDK hides a
-screen (ADR-0003 revision 2026-11-03, ADR-0006 revision 3; P1 for the client JUHI, 2026-11-03).
+screen (ADR-0003 revision 2026-11-03, ADR-0006 revision 3; P1 for a pilot client, 2026-11-03).
 
 ## rrweb hooks that work
 

@@ -119,8 +119,8 @@ describe("React Native bundles", () => {
       vm.runInNewContext(reactNativeSnippet(id), ctx);
       return ctx["__ouoDebugIds"];
     };
-    expect(run("Error\n    at anonymous (address at /data/user/0/com.juhi/files/bundle-store/0193/index.android.bundle:1:120)\n    at global (address at /data/user/0/com.juhi/files/bundle-store/0193/index.android.bundle:1:9)")).toEqual({
-      "/data/user/0/com.juhi/files/bundle-store/0193/index.android.bundle": id,
+    expect(run("Error\n    at anonymous (address at /data/user/0/com.example/files/bundle-store/0193/index.android.bundle:1:120)\n    at global (address at /data/user/0/com.example/files/bundle-store/0193/index.android.bundle:1:9)")).toEqual({
+      "/data/user/0/com.example/files/bundle-store/0193/index.android.bundle": id,
     });
     expect(run("Error\n    at anonymous (address at index.android.bundle:1:120)")).toEqual({ "index.android.bundle": id });
     expect(run("@/var/containers/Bundle/Application/X/App.app/main.jsbundle:1:200\nglobal code@/var/x/main.jsbundle:1:2")).toEqual({

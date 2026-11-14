@@ -1,6 +1,6 @@
 # 2026-11-03 P1 privacy defaults: mask all text, ouo-unmask, never-record routes and screens
 
-Work item P1 for the client JUHI (care company, GDPR Art. 9 data), directed by the founder on
+Work item P1 for a pilot client (care company, GDPR Art. 9 data), directed by the founder on
 2026-11-03. Branch `claude/p1-mask-all-text`, one PR. ADR-0003 revision 2026-11-03 and ADR-0006
 revision 3 record the decisions.
 

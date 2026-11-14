@@ -66,7 +66,7 @@ count() { # count <LogQL selector + filters>: lines in the last 2 h
     | python3 -c 'import sys,json; r=json.load(sys.stdin)["data"]["result"]; print(r[0]["value"][1] if r else 0)'
 }
 client_series() {
-  loki_get /loki/api/v1/series --data-urlencode 'match[]={service_name="juhi-care-api"}' --data-urlencode "start=$(( $(date +%s) - 7200 ))" \
+  loki_get /loki/api/v1/series --data-urlencode 'match[]={service_name="client-care-api"}' --data-urlencode "start=$(( $(date +%s) - 7200 ))" \
     | python3 -c 'import sys,json; d=json.load(sys.stdin)["data"]; print(len(d), ",".join(sorted(d[0])) if d else "")'
 }
 
@@ -111,7 +111,7 @@ echo "== 1. client Loki with its own defaults"
 OUO_CLIENT_LOKI_CONFIG=./loki.client.yaml client up -d >/dev/null
 wait_loki
 node "$HERE/client-logs.mjs" "$CLIENT_OTLP" before
-for _ in $(seq 30); do [[ "$(count '{service_name="juhi-care-api"}')" == 3 ]] && break; sleep 2; done
+for _ in $(seq 30); do [[ "$(count '{service_name="client-care-api"}')" == 3 ]] && break; sleep 2; done
 BEFORE="$(client_series)"
 echo "client series: $BEFORE"
 [[ "$BEFORE" == 1\ *k8s_pod_name* ]] || fail "client stream not as expected: $BEFORE"
@@ -140,7 +140,7 @@ echo "grafana datasources loki, tempo, mimir: OK"
 
 echo "== 4. client labels unchanged, ouo labels present"
 node "$HERE/client-logs.mjs" "$CLIENT_OTLP" after
-for _ in $(seq 30); do [[ "$(count '{service_name="juhi-care-api"}')" == 6 ]] && break; sleep 2; done
+for _ in $(seq 30); do [[ "$(count '{service_name="client-care-api"}')" == 6 ]] && break; sleep 2; done
 AFTER="$(client_series)"
 echo "client series: $AFTER"
 [[ "$AFTER" == "$BEFORE" ]] || fail "client labels changed: $BEFORE -> $AFTER"
@@ -175,25 +175,25 @@ delete_user() { # delete_user <user>: through rum-api, wait until Loki processed
 }
 echo "== 5. delete by user"
 delete_user qa-user-w-0
-CLIENT_LINES="$(count '{service_name="juhi-care-api"}')"
+CLIENT_LINES="$(count '{service_name="client-care-api"}')"
 [[ "$CLIENT_LINES" == 6 ]] || fail "client lines after delete: $CLIENT_LINES"
 echo "client lines kept: $CLIENT_LINES"
 
 if (( MT == 1 )); then
-  echo "== 6. multi-tenant Loki, OUO_LGTM_TENANT_ID=juhi"
+  echo "== 6. multi-tenant Loki, OUO_LGTM_TENANT_ID=pilot"
   sed 's/^auth_enabled: false/auth_enabled: true/' "$HERE/loki.client-plus-ouo.yaml" > "$TMP/loki.mt.yaml"
   OUO_CLIENT_LOKI_CONFIG="$TMP/loki.mt.yaml" client up -d loki >/dev/null
   wait_loki
   [[ "$(curl -s -o /dev/null -w '%{http_code}' "$LOKI/loki/api/v1/labels")" == 401 ]] || fail "Loki answers without a tenant"
-  printf 'OUO_LGTM_TENANT_ID=juhi\nOUO_EXTERNAL_OTLP_LOGS=http://host.docker.internal:%s/otlp\n' "${OUO_CLIENT_LOKI_PORT:-20810}" >> "$TMP/ouo.env"
+  printf 'OUO_LGTM_TENANT_ID=pilot\nOUO_EXTERNAL_OTLP_LOGS=http://host.docker.internal:%s/otlp\n' "${OUO_CLIENT_LOKI_PORT:-20810}" >> "$TMP/ouo.env"
   ouo up -d otel-collector rum-api grafana >/dev/null
   e2e "$TMP/e2e-mt.json"
   RUN="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["run_id"])' "$TMP/e2e-mt.json")"
-  IN_TENANT="$(TENANT=juhi count "{service_name=~\"qa-.+\"} | session_id=~\"qa-$RUN-.*\"")"
+  IN_TENANT="$(TENANT=pilot count "{service_name=~\"qa-.+\"} | session_id=~\"qa-$RUN-.*\"")"
   IN_FAKE="$(TENANT=fake count "{service_name=~\"qa-.+\"} | session_id=~\"qa-$RUN-.*\"")"
-  echo "run $RUN: $IN_TENANT lines in tenant juhi, $IN_FAKE in fake"
+  echo "run $RUN: $IN_TENANT lines in tenant pilot, $IN_FAKE in fake"
   [[ "$IN_TENANT" != 0 && "$IN_FAKE" == 0 ]] || fail "tenant routing"
-  TENANT=juhi delete_user qa-user-w-2
+  TENANT=pilot delete_user qa-user-w-2
 fi
 
 echo "existing-lgtm OK"
