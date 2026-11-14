@@ -17,7 +17,9 @@
 #
 # Dry run (publishes nothing, `npm publish --dry-run`):
 #   - Actions > release-npm > Run workflow with the tag to rehearse;
-#   - every pull request that changes this file (rehearses browser-v<package.json version>).
+#   - every pull request that changes this file (rehearses kit-v<libs/ouo-kit/package.json version>).
+# A dry run of a version that is already published skips `npm publish --dry-run`, which npm
+# refuses for it; a real run fails.
 # Both also check, with the same token, that the registry answers for @ouo11y and that the
 # version is not published yet.
 name: release-npm
@@ -73,7 +75,8 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             push)              tag="$GITHUB_REF_NAME" ;;
             workflow_dispatch) tag="$INPUT_TAG" ;;
-            *)                 tag="browser-v$(node -p "require('./sdk/browser/package.json').version")" ;;
+            # A pull request rehearses @ouo11y/kit, the newest package (it also checks the kit-v* mapping).
+            *)                 tag="kit-v$(node -p "require('./libs/ouo-kit/package.json').version")" ;;
           esac
           case "$tag" in
             browser-v*)      ws=sdk/browser;      version="${tag#browser-v}" ;;
@@ -135,6 +138,7 @@ jobs:
           echo "tarball=./out/$tarball" >> "$GITHUB_OUTPUT"
 
       - name: Check the registry and that the version is new
+        id: registry
         env:
           NAME: ${{ steps.pkg.outputs.name }}
           VERSION: ${{ steps.pkg.outputs.version }}
@@ -144,7 +148,7 @@ jobs:
           if out=$(npm view "$NAME@$VERSION" version 2>&1); then
             if [ -n "$out" ]; then
               msg="$NAME@$VERSION is already published on npmjs.org"
-              if [ "$DRY_RUN" = true ]; then echo "::warning::$msg (a real run would fail)"; else echo "::error::$msg"; exit 1; fi
+              if [ "$DRY_RUN" = true ]; then echo "::warning::$msg (a real run would fail)"; echo "published=true" >> "$GITHUB_OUTPUT"; else echo "::error::$msg"; exit 1; fi
             else
               echo "$NAME is published, $VERSION is not: ok"
             fi
@@ -157,7 +161,7 @@ jobs:
           fi
 
       - name: npm publish --dry-run
-        if: env.DRY_RUN == 'true'
+        if: env.DRY_RUN == 'true' && steps.registry.outputs.published != 'true'
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
           PRERELEASE: ${{ steps.pkg.outputs.prerelease }}

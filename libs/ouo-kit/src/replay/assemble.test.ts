@@ -8,7 +8,7 @@ const chunk = (sequence: number, keyframe = false): ChunkEntry => ({
   encoding: 'gzip', byte_size: 1, sha256: '', received_at: 0, attributes: null,
 });
 const stream = (chunks: ChunkEntry[], start = 0): StreamEntry => ({
-  stream_id: 's' + start, state: 'complete', start_time: start, end_time: start, missing: null, chunks,
+  stream_id: 's' + start, state: 'complete', start_time: start, end_time: start, end: null, missing: null, chunks,
 });
 const enc = (s: string) => new TextEncoder().encode(s).buffer as ArrayBuffer;
 

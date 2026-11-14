@@ -197,7 +197,9 @@ manifest (no release PR is needed, the version fields and changelogs are in plac
 first image is the same: tag `muninn-v0.1.0` (manifest and `services/muninn/CHANGELOG.md` are at 0.1.0),
 then make the new `muninn` package public (section 7). `@ouo11y/kit`'s first release is the
 same: tag `kit-v0.1.0` (manifest, `package.json` and `libs/ouo-kit/CHANGELOG.md` are at 0.1.0),
-published by hand once so its trusted publisher can be set (section 8). Each needs
+published by hand once so its trusted publisher can be set (section 8). Push `kit-v0.1.0` on
+the merge commit that added the kit before release-please runs again, or close the
+"release kit 0.2.0" PR it opens in the meantime (no `kit-v0.1.0` tag yet means it counts every commit since bootstrap). Each needs
 its accounts from section 8 first, and its changelog section dated in a small PR.
 
 ## 6. Dry runs

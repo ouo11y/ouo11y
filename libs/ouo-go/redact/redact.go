@@ -100,6 +100,21 @@ func Events(events []ouogo.Event, drop Match) {
 	}
 }
 
+// Session clears the session's User (enduser.id, else the Sentry bridge's user.id) when
+// drop matches either of those keys, in place.
+func Session(s *ouogo.Session, drop Match) {
+	if drop("enduser.id") || drop("user.id") {
+		s.User = ""
+	}
+}
+
+// Sessions applies Session to every session of a list, in place.
+func Sessions(sessions []ouogo.Session, drop Match) {
+	for i := range sessions {
+		Session(&sessions[i], drop)
+	}
+}
+
 // Manifest drops the matching attributes from every chunk of a manifest, in place.
 // Muninn returns every stored chunk attribute (MUN-6), so a chunk may carry identity.
 func Manifest(m *ouogo.Manifest, drop Match) {

@@ -37,11 +37,15 @@ func record(event string, extra map[string]string) map[string]string {
 
 type fakeLoki struct {
 	queries []string
+	limits  []string
 }
 
 func (f *fakeLoki) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("query")
 	f.queries = append(f.queries, q)
+	if l := r.URL.Query().Get("limit"); l != "" {
+		f.limits = append(f.limits, l)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	switch r.URL.Path {
 	case "/loki/api/v1/query_range":
@@ -288,5 +292,19 @@ func TestErrors(t *testing.T) {
 	f.loki.URL = "http://127.0.0.1:1"
 	if _, err := f.loki.ListSessions(ctx, SessionQuery{}); !errors.As(err, &be) || be.Backend != "loki" || strings.Contains(be.Public(), "127.0.0.1") {
 		t.Errorf("loki down: %v", err)
+	}
+}
+
+func TestQueryRangeLimit(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	if _, err := f.loki.QueryRange(ctx, `{ouo_project_id="demo"}`, time.Unix(0, 0), time.Unix(10, 0), 0, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.loki.QueryRange(ctx, `{ouo_project_id="demo"}`, time.Unix(0, 0), time.Unix(10, 0), 7, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(f.fl.limits, ",") != "5000,7" {
+		t.Errorf("limits sent: %v, want 5000 for 0, then 7", f.fl.limits)
 	}
 }

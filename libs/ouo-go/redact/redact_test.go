@@ -80,3 +80,31 @@ func TestEventsAndManifest(t *testing.T) {
 		t.Errorf("manifest: %+v", m.Streams[0].Chunks)
 	}
 }
+
+func TestSessions(t *testing.T) {
+	mk := func() []ouogo.Session {
+		return []ouogo.Session{{ID: "a", User: "u1"}, {ID: "b"}, {ID: "c", User: "u3"}}
+	}
+	for _, c := range []struct {
+		name  string
+		drop  Match
+		users string
+	}{
+		{"identity", Identity, ",,"},
+		{"enduser.id only", Keys("enduser_id"), ",,"},
+		{"user.id only (Sentry bridge)", Keys("user.id"), ",,"},
+		{"other keys keep the user", Keys("http.url"), "u1,,u3"},
+		{"nothing", Any(), "u1,,u3"},
+	} {
+		s := mk()
+		Sessions(s, c.drop)
+		if got := s[0].User + "," + s[1].User + "," + s[2].User; got != c.users {
+			t.Errorf("%s: users %q, want %q", c.name, got, c.users)
+		}
+	}
+	one := ouogo.Session{User: "u"}
+	Session(&one, Identity)
+	if one.User != "" {
+		t.Errorf("Session: user %q kept", one.User)
+	}
+}

@@ -18,8 +18,8 @@ import (
 // labels and keeps the rest as structured metadata, which Loki merges into the stream
 // labels of a query answer.
 type Loki struct {
-	URL  string // base URL, e.g. http://loki:3100
-	HTTP *http.Client
+	URL  string       // base URL, e.g. http://loki:3100
+	HTTP *http.Client // nil: a client with a 30 second timeout
 	// OrgID is sent as X-Scope-OrgID when set (Loki with auth_enabled).
 	OrgID string
 	// ListLimit bounds the records ListSessions reads (default 5000, Loki's default
@@ -55,11 +55,7 @@ func (l *Loki) get(ctx context.Context, path string, q url.Values) (*lokiAnswer,
 	if l.OrgID != "" {
 		req.Header.Set("X-Scope-OrgID", l.OrgID)
 	}
-	c := l.HTTP
-	if c == nil {
-		c = http.DefaultClient
-	}
-	resp, err := c.Do(req)
+	resp, err := httpClient(l.HTTP).Do(req)
 	if err != nil {
 		return nil, &BackendError{Backend: "loki", Err: err}
 	}
@@ -78,8 +74,8 @@ func (l *Loki) get(ctx context.Context, path string, q url.Values) (*lokiAnswer,
 	return &a, nil
 }
 
-// QueryRange runs a log query and returns its lines, oldest first. The query is sent as
-// given: build it only from validated values.
+// QueryRange runs a log query and returns at most limit lines (5000 when limit is 0),
+// oldest first. The query is sent as given: build it only from validated values.
 func (l *Loki) QueryRange(ctx context.Context, logql string, from, to time.Time, limit int, backward bool) ([]LokiLine, error) {
 	dir := "forward"
 	if backward {
@@ -89,7 +85,7 @@ func (l *Loki) QueryRange(ctx context.Context, logql string, from, to time.Time,
 		"query":     {logql},
 		"start":     {strconv.FormatInt(from.UnixNano(), 10)},
 		"end":       {strconv.FormatInt(to.UnixNano(), 10)},
-		"limit":     {strconv.Itoa(limit)},
+		"limit":     {strconv.Itoa(orDefault(limit, 5000))},
 		"direction": {dir},
 	}
 	a, err := l.get(ctx, "/loki/api/v1/query_range", q)

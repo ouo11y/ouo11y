@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChunkEntry, ChunkFetcher, Manifest } from '../manifest';
 import { parseNdjson, playableRuns, primaryStream } from './assemble';
 import { formatInfo } from './formats';
@@ -21,7 +21,7 @@ type Loaded =
 /**
  * Plays one replay from its manifest: picks a stream, assembles its playable runs, fetches the
  * chunks and hands them to the renderer chosen by the chunks' format id. Several streams (two
- * tabs) get a stream picker.
+ * tabs) get a stream picker. Key it by replay id when one instance shows several replays.
  */
 export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: ReplayPlayerProps) {
   const streams = useMemo(() => manifest.streams ?? [], [manifest]);
@@ -29,6 +29,10 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
   const [streamId, setStreamId] = useState<string>();
   const stream = streams.find((s) => s.stream_id === streamId) ?? primaryStream(streams);
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' });
+  // A ref, so a new fetcher identity (an inline arrow in a parent that re-renders, e.g. on
+  // onTime) does not reload the replay; the stream alone decides what is loaded.
+  const fetchRef = useRef(fetchChunk);
+  fetchRef.current = fetchChunk;
 
   useEffect(() => {
     let cancelled = false;
@@ -46,13 +50,13 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
       return;
     }
     set({ state: 'loading' });
-    loadStructure(runs, (seq) => fetchChunk(streamId, seq))
+    loadStructure(runs, (seq) => fetchRef.current(streamId, seq))
       .then((events) => set({ state: 'ready', events }))
       .catch((err: unknown) => set({ state: 'error', message: err instanceof Error ? err.message : String(err) }));
     return () => {
       cancelled = true;
     };
-  }, [stream, fetchChunk]);
+  }, [stream]);
 
   return (
     <div className={className} data-testid="ouo-replay">

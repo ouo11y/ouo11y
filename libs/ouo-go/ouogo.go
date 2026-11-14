@@ -9,9 +9,21 @@ package ouogo
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"time"
 )
+
+// defaultHTTP is the client of a Loki or Muninn reader whose HTTP is nil: a store that
+// hangs must not hang the caller when its context has no deadline.
+var defaultHTTP = &http.Client{Timeout: 30 * time.Second}
+
+func httpClient(c *http.Client) *http.Client {
+	if c != nil {
+		return c
+	}
+	return defaultHTTP
+}
 
 // ErrNotFound is a session or replay the store has no record of.
 var ErrNotFound = errors.New("not found")

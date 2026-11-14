@@ -28,14 +28,30 @@ The plugin BFF (`plugins/ouo11y-rum-app/pkg`), the Session explorer pages, the n
 | `rrweb-player` 2.1.7 | `@ouo11y/kit` runtime | The rrweb renderer the player wraps; same version the plugin already uses |
 | `tsup` ^8.5.1 | `@ouo11y/kit` dev | Builds the publishable `dist/` with types; same tool and version as `sdk/browser`, already in the lockfile |
 | `@types/react` ^19, `typescript` ~5.9.3, `vitest` ^5.0.3 | `@ouo11y/kit` dev | Typecheck and tests; versions as elsewhere in the workspaces (typescript moved from the pin `5.9.2` to `~5.9.3`, as `sdk/browser`) |
+| `@testing-library/react` ^16.3.0, `jsdom` ^30.1.2, `react` ^18.3.1, `react-dom` ^18.3.1 | `@ouo11y/kit` dev | Render `ReplayPlayer` in a test (the reload-loop regression, review finding 3); all already in the lockfile through the plugin and `sdk/browser` |
 
 ## Verified, and how
 
 - `cd libs/ouo-go && go mod verify && go vet ./... && go test -race -count=1 ./...`: ok for `ouogo`, `oidc`, `redact`. Reader table tests run against a fake Loki and a fake Muninn (gzip JSON and chunks, read token, tenant): list and event fields, `truncated` at both limits, the exact LogQL sent, validation with no store called, not-found and backend errors, `Public()` without URLs.
-- `npm run typecheck -w libs/ouo-kit`: clean. `npm test -w libs/ouo-kit`: 5/5. `npm run build -w libs/ouo-kit` and `npm pack --dry-run -w libs/ouo-kit`: `dist/index.js`, `dist/index.d.ts`, map, README, LICENSE, CHANGELOG, package.json.
+- `npm run typecheck -w libs/ouo-kit`: clean. `npm test -w libs/ouo-kit`: 8/8 (after the review). `npm run build -w libs/ouo-kit` and `npm pack --dry-run -w libs/ouo-kit`: `dist/index.js`, `dist/index.d.ts`, map, README, LICENSE, CHANGELOG, package.json.
 - Plugin unchanged: `lint` 0 errors (7 old `Select` warnings), `typecheck` clean, Jest 29 suites / 208 tests, `build` ok.
 - `lychee --offline --no-progress --exclude-path node_modules --exclude-path /dist/ './**/*.md' './**/*.html'`: 0 errors.
 - No stack was started; no env is left running.
+
+## Review (session review-192, PR #192)
+
+`Review: changes needed`, 10 findings, all fixed in the second commit:
+
+1. `compatibility matrix` red: `kit | 0.1` row added to `docs/compatibility.md`.
+2. `release-npm / publish` red on the PR (the dry run rehearsed `browser-v0.4.1`, already published; a bug on `main` hit by any PR touching the workflow): a PR now rehearses `kit-v<version>`, and a dry run of an already published version skips `npm publish --dry-run`.
+3. `ReplayPlayer` reloaded on every new `fetchChunk` identity (a loop with `onTime` driving parent re-renders): the fetcher is a ref, the effect depends on the stream only; `ReplayPlayer.test.tsx` fails on the old code and passes now.
+4. `Session.User` not covered by `redact`: `redact.Session` and `redact.Sessions` clear it when the matcher matches `enduser.id` or `user.id`.
+5. One default HTTP client (30 s timeout) for both readers; the false `DisableCompression` caveat dropped.
+6. `QueryRange` limit 0 means 5000, tested.
+7. ADR-0025 no longer names a fourth repository.
+8. JWKS read bounded to 1 MiB; the lock-across-fetch behaviour commented.
+9. Kit types: every `state` is `string`, `StreamEntry.end` added, as in Go.
+10. `docs/releasing.md`: tag `kit-v0.1.0` on the merge commit, or close release-please's "release kit 0.2.0" PR.
 
 ## For the next agent
 

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -139,6 +140,9 @@ func Strings(claim any) []string {
 
 // key returns the provider's public key with this id, fetching the key set when it is not
 // held yet or the id is unknown.
+//
+// The lock is held across a fetch, so calls wait for it (up to the client's timeout) and
+// do not honour their own context meanwhile; with at most one fetch a minute that is rare.
 func (o *Verifier) key(ctx context.Context, kid string) (*jose.JSONWebKey, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -182,7 +186,8 @@ func (o *Verifier) key(ctx context.Context, kid string) (*jose.JSONWebKey, error
 		return nil, fmt.Errorf("oidc: keys: %s answered %d", o.JWKSURL, resp.StatusCode)
 	}
 	var set jose.JSONWebKeySet
-	if err := json.NewDecoder(resp.Body).Decode(&set); err != nil {
+	// A key set is a few KiB; a provider answering more is not read further.
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&set); err != nil {
 		return nil, fmt.Errorf("oidc: keys: %w", err)
 	}
 	o.keys, o.fetched = &set, o.now()

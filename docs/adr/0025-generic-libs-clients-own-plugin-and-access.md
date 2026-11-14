@@ -10,7 +10,7 @@ Founder direction, 2026-11-14:
 
 - Clients build their own plugin backend and frontend. We provide generic libraries they may use or not.
 - Clients choose their own access model: their own groups, a ladder, or nothing, with plain Grafana Viewer, Editor and Admin enough.
-- We may build and host client plugins in the private repository `ouo11y/clients`. A demo "client zero" lives in its own repository as the example.
+- Client plugins, including a demo "client zero" that serves as the example, live outside this repository.
 
 A ladder in the library forces one access model on every client, and a BFF in our plugin is a backend a client did not choose. Both go.
 
@@ -21,7 +21,7 @@ A ladder in the library forces one access model on every client, and a BFF in ou
 | Piece | Where | What it is |
 |---|---|---|
 | `ouo-go` | `libs/ouo-go`, Go module `github.com/ouo11y/ouo11y/libs/ouo-go`, Apache-2.0 | Typed readers that return the data as stored: `Loki.ListSessions`, `Loki.SessionEvents`, `Muninn.ListReplays`, `Muninn.Manifest`, `Muninn.Chunk`, and the raw `Loki.QueryRange` / `QueryVector`. Identifiers are validated before they reach LogQL or a Muninn path. No user, role, level or `Clearance` argument anywhere |
-| `ouo-go/redact` | sub-package, optional | Identity-key detection (`enduser.*`, `user.*`, `client.address`, matching `.` and `_` spellings) and attribute filters that take the caller's keys or predicate (`Drop`, `Keep`, `Events`, `Manifest`). It decides nothing about who sees what |
+| `ouo-go/redact` | sub-package, optional | Identity-key detection (`enduser.*`, `user.*`, `client.address`, matching `.` and `_` spellings) and attribute filters that take the caller's keys or predicate (`Drop`, `Keep`, `Session`, `Sessions`, `Events`, `Manifest`). It decides nothing about who sees what |
 | `ouo-go/oidc` | sub-package, optional | Verifies an OpenID Connect ID token (JWKS signature, asymmetric algorithms only, issuer, audience, expiry; one key fetch a minute at most) and returns its claims or groups. It maps them to nothing |
 | `@ouo11y/kit` | `libs/ouo-kit`, npm, Apache-2.0 | `ReplayPlayer` (a Muninn manifest plus a chunk fetcher the caller supplies), `RrwebPlayer`, the replay format seam and the manifest types. React and `rrweb-player` only; no Grafana and no backend of ours assumed. Published to npm through release-please (component `kit`) and `release-npm.yml` |
 
@@ -38,7 +38,7 @@ What a client decides, with or without the libraries:
 ## 3. Consequences
 
 - A client that wants a ladder writes one table and a call to `redact` per answer; a client that wants none passes everything. Neither pays for the other's model.
-- Deny by default is now the client's job. The libraries return everything they read, identity included; `redact.Identity` and `redact.Manifest` exist so that removing identity is one line, and the README says that chunk attributes may carry identity (MUN-6).
+- Deny by default is now the client's job. The libraries return everything they read, identity included; `redact.Identity` with `redact.Session`, `Sessions`, `Events` and `Manifest` removes identity from everything the readers return, and the README says that chunk attributes may carry identity (MUN-6).
 - `oidc` does not bind a token to the calling Grafana user, and a datasource's settings can be replaced by an org Admin who creates their own instance. Both are written in the kb with the attacks the verification was tested against, so a client sees them before choosing groups.
 - `@ouo11y/kit` gets its own version line from 0.1.0; the founder pushes `kit-v0.1.0` and publishes once by hand so its npm trusted publisher can be set ([releasing](../releasing.md)). `ouo-go` is consumed by Go module path at a commit until it needs tags.
 - What #189 and #191 found stays: the kb entries under [project/kb/plugin](../../project/kb/plugin/index.md), the review findings fixed in the library code (identity in chunk attributes, the Sentry bridge's `user.id`, `truncated` on long sessions, store errors kept out of answers, one key fetch a minute).

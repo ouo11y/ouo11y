@@ -5,7 +5,8 @@
 /** One entry of a session's replay list (Muninn spec 7.1). */
 export interface ReplaySummary {
   replay_id: string;
-  state: 'open' | 'complete' | 'partial';
+  /** `open`, `complete` or `partial`. */
+  state: string;
   start_time: number;
   end_time: number;
   chunk_count: number;
@@ -37,6 +38,8 @@ export interface StreamEntry {
   state: string;
   start_time: number;
   end_time: number;
+  /** How the stream ended (`ouo.replay.ended`), or null while open. */
+  end: unknown;
   missing: Array<[number, number]> | null;
   chunks: ChunkEntry[] | null;
 }

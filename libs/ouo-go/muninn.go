@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 // Muninn reads the replay store's API (docs/specs/muninn.md section 7).
@@ -17,14 +16,9 @@ type Muninn struct {
 	URL       string // base URL, e.g. http://muninn:3400
 	Tenant    string // X-Scope-OrgID; "anonymous" when Muninn runs single-tenant
 	ReadToken string // bearer for reads, when Muninn has one configured
-	// HTTP must not undo Content-Encoding: the default client used when this is nil has
-	// DisableCompression set, so a gzip chunk arrives as stored.
+	// HTTP is the client; nil means one with a 30 second timeout. Requests set
+	// Accept-Encoding themselves, so no Go transport decompresses an answer on the way.
 	HTTP *http.Client
-}
-
-var muninnHTTP = &http.Client{
-	Timeout:   30 * time.Second,
-	Transport: &http.Transport{DisableCompression: true, Proxy: http.ProxyFromEnvironment},
 }
 
 // ReplaySummary is one entry of a session's replay list (Muninn spec 7.1).
@@ -105,11 +99,7 @@ func (m *Muninn) do(ctx context.Context, path string) (*http.Response, error) {
 	}
 	// Explicit, so no transport adds and then undoes it (kb muninn/implementation/gzip-on-the-read-path.md).
 	req.Header.Set("Accept-Encoding", "gzip")
-	c := m.HTTP
-	if c == nil {
-		c = muninnHTTP
-	}
-	resp, err := c.Do(req)
+	resp, err := httpClient(m.HTTP).Do(req)
 	if err != nil {
 		return nil, &BackendError{Backend: "muninn", Err: err}
 	}
