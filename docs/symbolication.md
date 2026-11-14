@@ -7,20 +7,20 @@ A native iOS crash caught by the ouo React Native SDK (or `OuoCrash` in `sdk/ios
 1   MyApp   0x0000000104a1c3c4 level2 (in MyApp) (ChaosScreen.swift:47)
 ```
 
-Web and JavaScript stacks use source maps instead: [sourcemaps.md](sourcemaps.md). The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md), section 7.
+Web and JavaScript stacks use source maps instead: [sourcemaps.md](sourcemaps.md). The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md), section 7; dSYMs live in Muninn since [ADR-0026](adr/0026-debug-files-and-erasure-without-rum-api.md).
 
 ## How it works
 
 - Every binary Xcode links gets a new build UUID (`LC_UUID`), and its dSYM carries the same UUID. The crash report lists the UUID of each binary a frame points into (`ouo.crash.images`), so a frame finds its dSYM without a release name.
-- `ouo-sourcemaps upload-dsym` sends the dSYM's DWARF file to rum-api with the project's upload token. rum-api stores one copy per architecture under its UUID, next to the project's source maps.
-- When the plugin (or any client) reads the session, rum-api translates each frame. The record in Loki keeps the raw addresses. A dSYM uploaded after the crash still applies.
+- `ouo-sourcemaps upload-dsym` splits the dSYM's DWARF file into its architectures and uploads each one to Muninn under its UUID, with the project's upload token, next to the project's source maps.
+- When the session is read, the plugin backend translates each frame with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/native.go). The record in Loki keeps the raw addresses. A dSYM uploaded after the crash still applies.
 - Frames in system libraries (`libsystem_kernel`, `UIKitCore`, `dyld`) have no dSYM from you and stay as addresses. That is expected: the frames that matter are in your app.
 
 ## Setup
 
 ### 1. An upload token (operator)
 
-The same token as for source maps: `projects.<id>.upload_token` in rum-api, or `OUO_UPLOAD_TOKENS=<project>:<token>`. It is a CI secret, never the public project token in the app. The local stack has `demo:ut_dev_demo_0000000000000000`. Details: [sourcemaps.md](sourcemaps.md#1-give-the-project-an-upload-token-operator).
+The same token as for source maps: `debug_files.upload_tokens` in Muninn's config. It is a CI secret, never the public project token in the app. The local stack with Muninn has `ut_dev_demo_0000000000000000` for the `demo` project. Details: [sourcemaps.md](sourcemaps.md#1-give-the-project-an-upload-token-operator).
 
 ### 2. Build with dSYMs
 
@@ -36,13 +36,13 @@ Release builds write a dSYM by default (`DEBUG_INFORMATION_FORMAT = dwarf-with-d
 
 ```bash
 npx ouo-sourcemaps upload-dsym build/MyApp.xcarchive/dSYMs \
-  --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --release "$APP_VERSION"
+  --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --project my-app --release "$APP_VERSION"
 ```
 
 - A path can be a `.dSYM` bundle, a folder with dSYMs anywhere under it, or one DWARF file. Every `<name>.dSYM/Contents/Resources/DWARF/<binary>` found is uploaded, frameworks included.
-- Each architecture of a universal dSYM is stored separately. The output lists them: `uploaded 55dca0d0-6915-31b5-91cf-827d7da30926 (arm64)  .../MyApp`.
+- Each architecture of a universal dSYM is uploaded separately, to `<url>/api/v1/projects/<project>/debug-files/dsym/<uuid>`. The output lists them: `uploaded 55dca0d0-6915-31b5-91cf-827d7da30926 (arm64)  .../MyApp`. Uploading the same dSYM again succeeds; different content under a UUID that is already stored fails (409).
 - Upload the dSYMs of every build that reaches users, simulator and device builds alike: each link gets a new UUID, so the dSYM of yesterday's build does not match today's crash.
-- `--release` is kept with the upload for listing only. `--project` makes the upload fail unless the token belongs to that project. `--dry-run` lists the files.
+- `--url` is Muninn's public base URL. `--project` is required, and the token must be that project's. `--release` is kept with the upload as metadata only. `--dry-run` lists the files.
 - Environment variables: `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN`, `OUO_PROJECT_ID`, `OUO_RELEASE`.
 
 ## What you see
@@ -55,24 +55,22 @@ Swift functions appear under their DWARF name (`level2`), without the argument l
 
 ```bash
 dwarfdump --uuid build/MyApp.xcarchive/dSYMs/MyApp.app.dSYM      # the UUIDs of the dSYM
-curl -s -H "Authorization: Bearer $OUO_READ_TOKEN" "$OUO_RUM_API_URL/v1/sourcemaps?project=<id>"   # entries with "kind":"dsym"
+curl -s -H "Authorization: Bearer $MUNINN_READ_TOKEN" "$MUNINN/api/v1/projects/<id>/debug-files/dsym"   # from the private network
 ```
 
 The crash's own UUIDs are in its `Binary Images` lines (`<55dca0d0...>`). When a frame of your app stays as an address:
 
 - **The UUIDs differ**: the dSYM is from another build. Upload the one from the build that crashed.
-- **400 `no DWARF (__debug_info)`**: the app binary was uploaded instead of the dSYM, or the build has `DEBUG_INFORMATION_FORMAT = dwarf` (no dSYM).
-- **413**: the file is above `limits.max_dsym_bytes` (512 MiB by default).
-- **Upload cut off**: one dSYM upload may take up to 10 minutes (other requests keep rum-api's 60 s read timeout). The CLI sends it gzip-compressed, usually a third of the size.
+- **No file, line or function at all**: the app binary was uploaded instead of the dSYM (Muninn stores any Mach-O slice with a UUID without parsing it), or the build has `DEBUG_INFORMATION_FORMAT = dwarf` (no dSYM). Upload the file inside the `.dSYM` bundle.
+- **413**: one architecture is above `debug_files.max_bytes.dsym` (512 MiB decompressed by default). The CLI sends it gzip-compressed, usually a third of the size.
 
 To compare by hand: `atos -i -arch arm64 -o MyApp.app.dSYM/Contents/Resources/DWARF/MyApp -l <image_addr> <instruction_addr>`, with the addresses from the raw stack.
 
 ## Retention and deletion
 
-dSYMs follow the source-map rules: kept for `retention.sourcemaps` (90 days by default) from the upload, a re-upload restarts it, and `DELETE /v1/admin/projects/{project}` deletes them. Keep the retention at least as long as your crashes are kept in Loki.
+dSYMs follow the source-map rules: kept for `debug_files.retention.default` in Muninn (one year by default) from the upload, and deleted with the project ([sourcemaps.md](sourcemaps.md#retention-and-deletion)). Keep the retention at least as long as your crashes are kept in Loki.
 
 ## Limits
 
 - iOS (Mach-O) only. Android R8 / ProGuard mappings come with the Android SDK (W9).
 - Only the crashed thread has frames (an `OuoCrash` limit).
-- Upload goes to rum-api directly, as for source maps, until the collector route exists (N41).

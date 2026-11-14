@@ -11,8 +11,10 @@
 #       # proxied to the collector by scripts/serve-first-party.mjs (docs/first-party-endpoint.md)
 #
 # The build is minified with hidden source maps: they get debug ids (`ouo-sourcemaps inject`), go to
-# rum-api with the demo project's upload token (OUO_UPLOAD_TOKEN, ADR-0011) and are deleted before the
-# app is served, so verify can check that rum-api symbolicates the render error back to its source.
+# Muninn's upload route with the demo project's upload token (OUO_UPLOAD_TOKEN, ADR-0026) when the
+# stack runs Muninn (OUO_MUNINN_URL, `ouo-env up <env> --muninn`), and are deleted before the app is
+# served. verify checks that the render error carries the bundle's debug id and, with Muninn, that its
+# map is stored there; resolving the stack is `libs/ouo-go/symbolicate`'s job, tested in that module.
 #
 # Stock ports: OTLP 4318, replay 4319, backend 8081, Tempo 3200, rum-api 8080, overridden by
 # examples/ouo-web/.env (copy .env.example). With --env the URLs come from `ouo-env env/url`.
@@ -57,11 +59,16 @@ log "build (OTLP $VITE_OTLP_ENDPOINT, backend $VITE_BACKEND_URL)"
 npm run -w examples/ouo-web build >/dev/null
 [[ -f sdk/sourcemaps/dist/cli.js ]] || { log "build @ouo11y/sourcemaps"; npm run -w sdk/sourcemaps build >/dev/null; }
 release="${VITE_APP_VERSION:-1.4.2}"
-log "source maps: inject debug ids, upload to $OUO_RUM_API_URL (release $release), delete them from dist"
 node sdk/sourcemaps/dist/cli.js inject examples/ouo-web/dist >/dev/null
-node sdk/sourcemaps/dist/cli.js upload examples/ouo-web/dist --url "$OUO_RUM_API_URL" \
-  --token "${OUO_UPLOAD_TOKEN:-ut_dev_demo_0000000000000000}" --project "${VITE_OUO_PROJECT_ID:-demo}" \
-  --release "$release" --delete-after | tail -1
+if [[ -n ${OUO_MUNINN_URL:-} ]]; then
+  log "source maps: debug ids injected, upload to $OUO_MUNINN_URL (release $release), delete them from dist"
+  node sdk/sourcemaps/dist/cli.js upload examples/ouo-web/dist --url "$OUO_MUNINN_URL" \
+    --token "${OUO_UPLOAD_TOKEN:-ut_dev_demo_0000000000000000}" --project "${VITE_OUO_PROJECT_ID:-demo}" \
+    --release "$release" --delete-after | tail -1
+else
+  log "source maps: debug ids injected; no Muninn in this stack (OUO_MUNINN_URL), maps deleted unuploaded"
+  find examples/ouo-web/dist -name '*.map' -delete
+fi
 # On a fresh Linux CI runner the browser also needs its system libraries.
 IFS=, read -ra browsers <<< "$BROWSERS"
 if [[ -n $IMAGE ]]; then

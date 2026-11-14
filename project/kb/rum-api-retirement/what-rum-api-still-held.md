@@ -27,3 +27,10 @@ Routes are in `services/rum-api/internal/httpapi/server.go` (`Handler`).
 - `internal/lifecycle/delete.go`, `DeleteUser`: writes a `started` audit entry, finds the user's sessions in Loki, lists their Tempo trace ids (Tempo 3.0 cannot delete by attribute), deletes their replays, sends a Loki delete request, writes `completed` / `failed`.
 - `internal/audit/audit.go`: JSON Lines with a SHA-256 chain on disk, or one create-only object per entry on S3.
 - Muninn's own delete API removes one session's or one replay's chunks and leaves delete-by-user to the caller (`docs/specs/muninn.md`, section 8).
+
+## Where they went (built 2026-11-14)
+
+- Debug files: Muninn spec section 13; `libs/ouo-go` `DebugFile`, `DebugFileIDs`, `symbolicate`; `ouo-sourcemaps` uploads there. Muninn compares the decompressed content, so the same map gzipped by another zlib is a 200, not a 409.
+- Erasure: `libs/ouo-go/erase`, `cmd/ouo-erase`, audit records in Muninn (spec section 14), project delete MUN-45.
+- Loki's delete API accepts a label filter with `or` (`| enduser_id="u" or user_id="u"`), checked against the compose stack's Loki; it validates the query when the request is created.
+- A Muninn route behind `http.ResponseController` deadlines needs its wrapping writer to `Unwrap()`, or the deadline calls fail silently.

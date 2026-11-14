@@ -1,4 +1,4 @@
-// ouo-sourcemaps: debug ids into built bundles, maps and dSYMs up to rum-api (ADR-0011,
+// ouo-sourcemaps: debug ids into built bundles, maps and dSYMs up to Muninn (ADR-0011, ADR-0026,
 // docs/sourcemaps.md, docs/symbolication.md).
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -268,13 +268,13 @@ export async function debugIdOf(a: Artifact, mapText?: string): Promise<string |
 }
 
 export interface UploadOptions {
-  /** rum-api base URL, e.g. http://rum-api:8080. */
+  /** Muninn's public base URL, e.g. https://muninn.example.com. */
   url: string;
   /** The project's upload token (secret; never the public ingest token). */
   token: string;
-  /** Checked against the token's project by rum-api when set. */
-  project?: string;
-  /** service.version of the build: indexes the map by release + URL path too. */
+  /** The project the files belong to: the upload route names it, and the token must be this project's. */
+  project: string;
+  /** service.version of the build: indexes each map by release + URL path too. */
   release?: string;
   /** URL path the scanned directory is served under (default "/"): "/static/" for /static/js/a.js. */
   urlPrefix?: string;
@@ -285,6 +285,9 @@ export interface UploadResult {
   artifact: Artifact;
   file: string;
   debugId?: string;
+  /** True when the map had no debug id and the id was derived from its bytes (needs a release). */
+  derived?: boolean;
+  /** 201 stored, 200 already stored with the same content. */
   status: number;
   error?: string;
 }
@@ -295,48 +298,62 @@ export function urlPathOf(a: Artifact, prefix = "/"): string {
   return (p.endsWith("/") ? p : `${p}/`) + a.rel;
 }
 
-/** PUTs one map (gzip) to rum-api's /v1/sourcemaps. */
+/**
+ * PUTs one map (gzip) to Muninn as debug file kind `sourcemap`, keyed by its debug id, with the
+ * release and the script's URL path when a release is given (docs/specs/muninn.md 13.2). A map
+ * without a debug id gets one derived from its bytes, which only a release + path lookup finds.
+ */
 export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResult> {
-  const mapText = await readFile(a.map, "utf8");
-  const debugId = await debugIdOf(a, mapText);
+  const mapBytes = await readFile(a.map);
   const file = urlPathOf(a, o.urlPrefix);
-  if (!debugId && !o.release) {
-    return { artifact: a, file, status: 0, error: "no debug id (run `ouo-sourcemaps inject` first) and no --release" };
+  let debugId = await debugIdOf(a, mapBytes.toString("utf8"));
+  const derived = !debugId;
+  if (!debugId) {
+    if (!o.release) return { artifact: a, file, status: 0, error: "no debug id (run `ouo-sourcemaps inject` first) and no --release" };
+    debugId = debugIdFor(mapBytes);
   }
-  const q = new URLSearchParams({ file });
-  if (debugId) q.set("debug_id", debugId);
-  const r = await put(o, "/v1/sourcemaps", q, "application/json", gzipSync(mapText));
-  return { artifact: a, file, ...(debugId ? { debugId } : {}), status: r.status, ...(r.error ? { error: r.error } : {}) };
+  const q = new URLSearchParams();
+  if (o.release) {
+    q.set("release", o.release);
+    q.set("file", file);
+  }
+  const r = await put(o, "sourcemap", debugId, q, "application/json", gzipSync(mapBytes));
+  return { artifact: a, file, debugId, ...(derived ? { derived } : {}), status: r.status, ...(r.error ? { error: r.error } : {}) };
 }
 
-/** PUTs a gzip body to rum-api with the upload token; error is set unless the status is 2xx. */
+/**
+ * PUTs a gzip body to `<url>/api/v1/projects/<project>/debug-files/<kind>/<id>` with the upload
+ * token. 201 (stored) and 200 (already stored, same content) succeed; anything else sets error.
+ */
 async function put(
   o: UploadOptions,
-  route: string,
+  kind: "sourcemap" | "dsym",
+  id: string,
   q: URLSearchParams,
   contentType: string,
   body: Buffer,
-): Promise<{ status: number; json?: unknown; error?: string }> {
-  if (o.release) q.set("release", o.release);
-  if (o.project) q.set("project", o.project);
+): Promise<{ status: number; error?: string }> {
+  if (!o.project) return { status: 0, error: "no project (--project or OUO_PROJECT_ID)" };
   const doFetch = o.fetch ?? globalThis.fetch;
+  const qs = q.size > 0 ? `?${q}` : "";
+  const target = `${o.url.replace(/\/+$/, "")}/api/v1/projects/${encodeURIComponent(o.project)}/debug-files/${kind}/${id}${qs}`;
   try {
-    const res = await doFetch(`${o.url.replace(/\/+$/, "")}${route}?${q}`, {
+    const res = await doFetch(target, {
       method: "PUT",
       headers: { authorization: `Bearer ${o.token}`, "content-type": contentType, "content-encoding": "gzip" },
       body,
     });
-    let json: unknown;
+    let err: string | undefined;
     try {
-      json = await res.json();
+      err = ((await res.json()) as { error?: string } | undefined)?.error;
     } catch {
       // not JSON
     }
-    if (!res.ok) {
-      const err = (json as { error?: string } | undefined)?.error;
-      return { status: res.status, error: `HTTP ${res.status}${err ? `: ${err}` : ""}` };
+    if (res.status === 201 || res.status === 200) return { status: res.status };
+    if (res.status === 409) {
+      return { status: 409, error: `HTTP 409: ${kind} ${id} is already stored with different content (debug files are write-once)` };
     }
-    return { status: res.status, json };
+    return { status: res.status, error: `HTTP ${res.status}${err ? `: ${err}` : ""}` };
   } catch (e) {
     return { status: 0, error: String(e) };
   }
@@ -355,20 +372,119 @@ export async function findDSYMs(p: string): Promise<string[]> {
   return (await walk(abs)).filter((f) => DWARF_FILE.test(f)).sort();
 }
 
+/** One architecture slice of a Mach-O file. */
+export interface MachOSlice {
+  /** Its LC_UUID, lowercase with dashes: the debug id of the binary image in a crash report. */
+  uuid: string;
+  arch: string;
+  data: Buffer;
+}
+
+const FAT_MAGIC = 0xcafebabe;
+const FAT_MAGIC_64 = 0xcafebabf;
+const MH_MAGIC = 0xfeedface;
+const MH_MAGIC_64 = 0xfeedfacf;
+const LC_UUID = 0x1b;
+
+/**
+ * The architecture slices of a Mach-O file (a dSYM's DWARF file), each with its LC_UUID: the
+ * slices of a universal (fat, fat64) file, or the file itself when it is thin (32 or 64-bit,
+ * either byte order). Throws when the bytes are not Mach-O or a slice has no LC_UUID.
+ */
+export function machoSlices(b: Buffer): MachOSlice[] {
+  if (b.length < 8) throw new Error("not a Mach-O file");
+  const magic = b.readUInt32BE(0);
+  if (magic !== FAT_MAGIC && magic !== FAT_MAGIC_64) return [thinSlice(b)];
+  // Fat headers are big-endian: magic, nfat_arch, then fat_arch (20 bytes) or fat_arch_64 (32).
+  const is64 = magic === FAT_MAGIC_64;
+  const n = b.readUInt32BE(4);
+  const entry = is64 ? 32 : 20;
+  if (n === 0 || 8 + n * entry > b.length) throw new Error("not a Mach-O file: truncated universal header");
+  const out: MachOSlice[] = [];
+  for (let i = 0; i < n; i++) {
+    const h = 8 + i * entry;
+    const offset = is64 ? Number(b.readBigUInt64BE(h + 8)) : b.readUInt32BE(h + 8);
+    const size = is64 ? Number(b.readBigUInt64BE(h + 16)) : b.readUInt32BE(h + 12);
+    if (offset + size > b.length) throw new Error("not a Mach-O file: truncated universal file");
+    out.push(thinSlice(b.subarray(offset, offset + size)));
+  }
+  return out;
+}
+
+function thinSlice(b: Buffer): MachOSlice {
+  if (b.length < 28) throw new Error("not a Mach-O file");
+  let le: boolean;
+  if (b.readUInt32LE(0) === MH_MAGIC || b.readUInt32LE(0) === MH_MAGIC_64) le = true;
+  else if (b.readUInt32BE(0) === MH_MAGIC || b.readUInt32BE(0) === MH_MAGIC_64) le = false;
+  else throw new Error("not a Mach-O file");
+  const u32 = (o: number): number => (le ? b.readUInt32LE(o) : b.readUInt32BE(o));
+  const is64 = u32(0) === MH_MAGIC_64;
+  const cpu = u32(4);
+  const arch = archName(cpu);
+  const ncmds = u32(16);
+  let at = is64 ? 32 : 28;
+  for (let i = 0; i < ncmds && at + 8 <= b.length; i++) {
+    const cmd = u32(at);
+    const size = u32(at + 4);
+    if (cmd === LC_UUID && size >= 24 && at + 24 <= b.length) {
+      const x = b.subarray(at + 8, at + 24).toString("hex");
+      const uuid = `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+      return { uuid, arch, data: b };
+    }
+    if (size < 8) break;
+    at += size;
+  }
+  throw new Error(`no LC_UUID in the ${arch} slice`);
+}
+
+function archName(cpu: number): string {
+  switch (cpu) {
+    case 0x0100000c:
+      return "arm64";
+    case 0x0200000c:
+      return "arm64_32";
+    case 0x01000007:
+      return "x86_64";
+    case 7:
+      return "i386";
+    case 12:
+      return "arm";
+  }
+  return `cpu${cpu}`;
+}
+
 export interface DSYMResult {
   file: string;
+  /** The status of the last slice PUT (0 when the file could not be read as Mach-O). */
   status: number;
-  /** The slices rum-api stored, one per architecture, keyed by LC_UUID. */
+  /** The slices stored (or already stored), one per architecture, keyed by LC_UUID. */
   dsyms?: { debug_id: string; arch: string }[];
   error?: string;
 }
 
-/** PUTs one DWARF file, gzip-compressed, to <url>/v1/dsyms; rum-api splits it into its slices. */
+/**
+ * Splits one DWARF file into its Mach-O slices and PUTs each, gzip-compressed, to Muninn as debug
+ * file kind `dsym` under its LC_UUID, with the release as metadata when given.
+ */
 export async function uploadDSYM(file: string, o: UploadOptions): Promise<DSYMResult> {
-  const q = new URLSearchParams({ file: path.basename(file) });
-  const r = await put(o, "/v1/dsyms", q, "application/octet-stream", gzipSync(await readFile(file)));
-  if (r.error) return { file, status: r.status, error: r.error };
-  return { file, status: r.status, dsyms: (r.json as { dsyms?: DSYMResult["dsyms"] } | undefined)?.dsyms ?? [] };
+  let slices: MachOSlice[];
+  try {
+    slices = machoSlices(await readFile(file));
+  } catch (e) {
+    return { file, status: 0, error: (e as Error).message };
+  }
+  const q = new URLSearchParams();
+  if (o.release) q.set("release", o.release);
+  const dsyms: { debug_id: string; arch: string }[] = [];
+  const errors: string[] = [];
+  let status = 0;
+  for (const s of slices) {
+    const r = await put(o, "dsym", s.uuid, q, "application/octet-stream", gzipSync(s.data));
+    status = r.status;
+    if (r.error) errors.push(`${s.arch}: ${r.error}`);
+    else dsyms.push({ debug_id: s.uuid, arch: s.arch });
+  }
+  return { file, status, dsyms, ...(errors.length > 0 ? { error: errors.join("; ") } : {}) };
 }
 
 /** Deletes the maps so they are never deployed (and drops the bundles' sourceMappingURL lines). */

@@ -371,7 +371,13 @@ Known windows, accepted in the first version:
 - A chunk held back longer than `tombstone_ttl` (the SDK persists for 72 h; a Collector queue retries without a time limit while Muninn is down) arrives after the tombstone is gone and is stored. It shows as a `partial` replay and is removed by retention.
 - A replay whose first chunk arrives only after its session's replays were deleted has no tombstone and is stored.
 
-Delete by user, by project or by time range is composed by the caller (the BFF or an operator tool), which finds the sessions in Loki and calls these endpoints.
+```
+DELETE /api/v1/projects/{project}
+```
+
+- **MUN-45** Deleting a project MUST remove every replay of the project as MUN-40 does (each with its own tombstone, `by` `api`), then every debug file, meta and pointer of the project (section 13). It answers 200 with `{"replays": n, "debug_files": n}`, the same counts as its MUN-44 log record. It is idempotent and used by `ouo-erase project`.
+
+Delete by user or by time range is composed by the caller (`ouo-erase` or a client backend), which finds the sessions in Loki and calls these endpoints.
 
 ## 9. Retention and tenancy
 
@@ -433,3 +439,81 @@ Checked by a suite that runs against a real Muninn with a filesystem store and a
 | COL-1 to COL-5, COL-8 | Against the real ouo-collector: 2xx only after the queue write (kill the Collector right after a 2xx, restart, chunk reaches Muninn); Muninn down, telemetry still flows; queue full answers 503; restart drains the queue |
 | COL-6, COL-7 | Loki holds a record per chunk with the reference and an empty body |
 | RDR-1 to RDR-5 | Player tests in the plugin, against recorded manifests |
+
+## 13. Debug files
+
+Decided in [ADR-0026](../adr/0026-debug-files-and-erasure-without-rum-api.md). A debug file is a build artefact a client's CI uploads so that stacks can be resolved on read: a JavaScript source map (`sourcemap`), one Mach-O DWARF slice of a dSYM (`dsym`), later an R8 mapping (`proguard`). Muninn stores it opaque and write-once; it never parses one. Resolution is `ouo-go/symbolicate`'s job.
+
+### 13.1 Identifiers and layout
+
+- **kind**: `sourcemap`, `dsym` or `proguard`.
+- **debug id**: a UUID, lowercase with dashes (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`). Muninn accepts the 32-hex and uppercase spellings and normalises them. For a source map it is the id `ouo-sourcemaps inject` wrote; for a map without one, the CLI derives it from the SHA-256 of the map (the first 16 bytes as a UUID, version nibble 4, variant 10); for a dSYM it is the slice's `LC_UUID`.
+- **file** (optional): the script's URL path, normalised as rum-api did: a full URL loses scheme, host, query and fragment; a bare name gets a leading `/`; then `path.Clean`.
+
+```
+[<prefix>/]debug-files/<tenant>/<project>/<kind>/<debug id>                         body, gzip
+[<prefix>/]debug-files/<tenant>/<project>/<kind>/<debug id>.json                    meta
+[<prefix>/]debug-files/<tenant>/<project>/release/<h(release)>/<h(file)>/<kind>/<debug id>   empty pointer
+```
+
+`h(x)` is the lowercase hex SHA-256 of x. The meta object is `{"kind", "debug_id", "sha256", "bytes", "release", "file", "uploaded_at"}`, where `sha256` and `bytes` describe the **decompressed** content and `uploaded_at` is Unix milliseconds. The `debug-files/` root is separate from `muninn/`, so the replay sweeper never sees it.
+
+### 13.2 Upload (the one public route)
+
+```
+PUT /api/v1/projects/{project}/debug-files/{kind}/{debug id}[?release=&file=]
+Authorization: Bearer <upload token>
+[Content-Encoding: gzip]
+```
+
+- **DBG-1** The route MUST accept only an upload token configured for `{project}` (`debug_files.upload_tokens`), compared in constant time. The read token and the ingest token MUST NOT open it, and an upload token MUST NOT open any other route. A wrong or missing token, or a token of another project, answers 401.
+- **DBG-2** The tenant of an upload is the tenant configured with its token (`anonymous` with multi-tenancy off). `X-Scope-OrgID` is ignored on this route, so a client cannot write into another tenant.
+- **DBG-3** The body is read up to the kind's size limit, decompressed when `Content-Encoding: gzip`; over the limit answers 413 and stores nothing. An empty body answers 400.
+- **DBG-4** Write-once by content. If the key is new, Muninn writes the body (gzip) first, then the meta, then the pointer when `release` and `file` are both given, and answers **201**. If the key exists and the stored `sha256` equals the new content's, it writes any missing pointer and answers **200**. Otherwise it answers **409** and keeps the first file. Two uploads racing for one key end with one stored file and the other answered 200 or 409.
+- **DBG-5** A store failure answers 503 with `Retry-After`. The response body is the meta as JSON (201 and 200) or `{"error": ...}`.
+
+### 13.3 Reads (private, read token)
+
+```
+GET /api/v1/projects/{project}/debug-files/{kind}/{debug id}       the file
+GET /api/v1/projects/{project}/debug-files/{kind}/{debug id}/meta  the meta object
+GET /api/v1/projects/{project}/debug-files/{kind}?release=&file=   {"debug_ids": [...]}
+GET /api/v1/projects/{project}/debug-files/{kind}                  {"debug_files": [{"debug_id", "bytes", "uploaded_at"}]}
+```
+
+- **DBG-10** Reads take the read token and `X-Scope-OrgID` like section 7. The file is sent with `Content-Encoding: gzip` when the request accepts gzip, decompressed otherwise. 404 when the file does not exist or belongs to another tenant or project.
+- **DBG-11** The list with `release` and `file` returns the debug ids of the pointers under `h(release)/h(file)/<kind>/`, sorted; the caller decides what one, none or several candidates mean (ADR-0022: exactly one). `bytes` in the unfiltered list is the stored (compressed) size.
+
+### 13.4 Retention
+
+- **DBG-20** A debug file, its meta and its pointers are deleted together when the file is older than `debug_files.retention.default` (per project: `debug_files.retention.per_project`), counted from the upload. `0` keeps them forever. The sweep runs with the replay sweeper, records `muninn.sweeper.deleted` with `reason` `debug_file_retention`, and is safe in several replicas. On S3 the objects carry `ouo-retention=<days>d` or `keep`.
+- A file deleted by retention can be uploaded again.
+
+### 13.5 Settings
+
+| Setting | Default | |
+|---|---|---|
+| `debug_files.upload_tokens` | none | List of `{project, tenant, token}`. `tenant` is ignored with multi-tenancy off. A project without a token cannot upload |
+| `debug_files.max_bytes.sourcemap` | 67 108 864 | Decompressed |
+| `debug_files.max_bytes.dsym` | 536 870 912 | Decompressed, one slice |
+| `debug_files.max_bytes.proguard` | 268 435 456 | Decompressed |
+| `debug_files.retention.default` | 8 760 h (one year) | `0` keeps forever |
+| `debug_files.retention.per_project` | none | |
+
+### 13.6 Exposure
+
+Only `PUT /api/v1/projects/*/debug-files/*` is published to the internet (Caddy on the VM, the Ingress in Helm). Every other route stays on the private network. This is the one exception to "ingest only through the Collector" (ADR-0026 section 3).
+
+## 14. Audit entries
+
+The record of erasures run by `ouo-erase` (ADR-0026 section 5). Muninn stores them create-only and never deletes them; no retention applies.
+
+```
+PUT /api/v1/audit/{entry}/{status}     create-only, read token
+GET /api/v1/audit[?entry=]             {"entries": [{"entry", "status", "record"}]}, oldest first
+[<prefix>/]audit/<tenant>/<entry>/<status>.json
+```
+
+- **AUD-1** `entry` matches `^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$` (UTC start time, then 8 random hex digits), so keys sort by time. `status` is `started`, `completed` or `failed`. The body is a JSON object of at most 65 536 bytes; anything else answers 400.
+- **AUD-2** Create-only: a new key answers 201; the same bytes again answer 200; other bytes answer 409 and the first record stays. Muninn MUST NOT update or delete an audit object; on S3 the operator pairs the `audit/` prefix with Object Lock for immutability.
+- **AUD-3** The routes take the read token and `X-Scope-OrgID` like section 7. A read without `entry` lists every entry of the tenant.

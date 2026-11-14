@@ -18,6 +18,7 @@ One folder per agent or team. Each folder has `index.md`, `tracker.md` and `summ
 | [collector](collector/) | `collector/` custom distribution (ocb), replay receiver and exporter, rate limit processor, `deploy/compose/collector/` config and htpasswd | 8a |
 | [helm](helm/) | `deploy/helm` Kubernetes chart and kind verification | 8a |
 | [release](release/) | versioning, changelogs, package publishing workflows, upgrade procedure (`.github/`, `CHANGELOG.md`, package manifests) | 8a |
+| [rum-api-retirement](rum-api-retirement/) | debug files and erasure out of rum-api: Muninn sections 13 and 14, `libs/ouo-go` `symbolicate` / `erase` / `ouo-erase`, the `sdk/sourcemaps` upload (ADR-0026) | post-MVP |
 | [sentry-demo](sentry-demo/) | `examples/sentry-mobile` (Expo iOS app with `@sentry/react-native`, `ouo.rum.mode` rollout switch to `@ouo11y/react-native`, journey driver, envelope capture for the Sentry bridge); since batch 2 also the three examples' journeys, `verify` scripts and `examples/tools` (trace-continuity checks) | ADR-0008 |
 | [benchmark](benchmark/) | device-cost benchmark ouo vs Sentry (B3): `examples/sentry-mobile/scripts/perf/`, `.github/workflows/benchmark.yml`, `project/reports/benchmarks/`, `docs/benchmarks.md`; iPhone run N22 | B3 |
 | [mobile-sdk-research](mobile-sdk-research/) | `project/kb-archive/mobile-sdk-research/` research on Sentry, PostHog, Luciq and the field (RUM, replay techniques, wire size, footprint methods, OTel, feature matrix) for phases 10 and 13 | research |

@@ -489,6 +489,48 @@ func (s *Server) removeReplay(ctx context.Context, rc readCtx, replay, by string
 	return nil
 }
 
+// DELETE /api/v1/projects/{project} (MUN-45): every replay with its tombstone, then
+// every debug file of the project.
+func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
+	tenant, ok := s.private(w, r)
+	if !ok {
+		return
+	}
+	project := r.PathValue("project")
+	if !reProject.MatchString(project) {
+		writeError(w, r, http.StatusBadRequest, "malformed project id")
+		return
+	}
+	ctx := r.Context()
+	objs, err := s.store.List(ctx, s.keys.root+tenant+"/"+project+"/")
+	if err != nil {
+		storeFailure(w, r, err)
+		return
+	}
+	type rep struct{ session, replay string }
+	seen := map[rep]bool{}
+	for _, o := range objs {
+		parts := strings.Split(strings.TrimPrefix(o.Key, s.keys.root+tenant+"/"+project+"/"), "/")
+		if len(parts) < 3 || !reHex32.MatchString(parts[0]) || !reHex32.MatchString(parts[1]) {
+			continue
+		}
+		seen[rep{parts[0], parts[1]}] = true
+	}
+	for rp := range seen {
+		if err := s.removeReplay(ctx, readCtx{tenant: tenant, project: project, session: rp.session}, rp.replay, "api"); err != nil {
+			storeFailure(w, r, err)
+			return
+		}
+	}
+	n, err := s.purge(ctx, s.keys.debugProject(tenant, project), "")
+	if err != nil {
+		storeFailure(w, r, err)
+		return
+	}
+	slog.InfoContext(ctx, "project deleted", "tenant", tenant, "ouo.project.id", project, "replays", len(seen), "debug_file_objects", n)
+	writeJSON(w, r, http.StatusOK, map[string]int{"replays": len(seen), "debug_files": n})
+}
+
 // purge deletes every object under prefix except keep.
 func (s *Server) purge(ctx context.Context, prefix, keep string) (int, error) {
 	objs, err := s.store.List(ctx, prefix)
@@ -575,6 +617,7 @@ func (s *Server) Sweep(ctx context.Context) error {
 			s.m.swept.Add(ctx, 1, metric.WithAttributes(attribute.String("ouo.project.id", g.rc.project), attribute.String("reason", "retention")))
 		}
 	}
+	errs = append(errs, s.sweepDebugFiles(ctx, now))
 	return errors.Join(errs...)
 }
 

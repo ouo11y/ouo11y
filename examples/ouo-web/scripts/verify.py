@@ -17,7 +17,7 @@ Checks:
     every request in the backend's own log a sampled trace in Tempo, CORS for traceparent / tracestate /
     baggage, no Sentry bridge;
   - rum-api (the MVP read path): the journey's session with its timeline and traces, and the render
-    error symbolicated back to src/components/ChaosPanel.tsx. rum-api folds the MVP event names, so
+    error's debug id; with --muninn, the bundle's map stored in Muninn under it. rum-api folds the MVP event names, so
     these checks describe what the MVP read path still has to learn about the spec wire.
 Defaults are the plain compose stack's ports; `scripts/run.sh --env <name>` passes an ouo-env's URLs.
 """
@@ -120,7 +120,7 @@ BOMB_FILE, BOMB_LINE = "src/components/ChaosPanel.tsx", 18
 
 
 def check_symbolication(a, detail, res):
-    print("source maps (rum-api symbolication)", flush=True)
+    print("source maps (debug ids; maps in Muninn when it runs)", flush=True)
     boundary = [e for e in (detail or {}).get("timeline", [])
                 if e.get("name") == "exception" and e.get("attrs", {}).get("ouo_react_component_stack")]
     ev = boundary[0] if boundary else {}
@@ -130,17 +130,23 @@ def check_symbolication(a, detail, res):
     except ValueError:
         debug_ids = {}
     res.add("render error carries the bundle's debug id (ouo.exception.debug_ids)", bool(debug_ids), f"{debug_ids}")
-    sym = ev.get("symbolicated") or {}
-    frames = sym.get("frames") or []
-    top = (frames[0].get("original") or {}) if frames else {}
-    res.add(f"top frame symbolicated to {BOMB_FILE}:{BOMB_LINE}",
-            top.get("file") == BOMB_FILE and top.get("line") == BOMB_LINE,
-            f"status {sym.get('status')}, mapped {sym.get('mapped')}/{len(frames)}, top {top}")
-    res.add("top frame's function and source line are the original ones",
-            top.get("function") == "RenderBomb" and "throw new Error" in ((frames[0].get("context") or {}).get("line", "") if frames else ""),
-            f"function {top.get('function')!r}")
     raw = attrs.get("exception_stacktrace", "")
     res.add("raw minified stack kept in attrs", "/assets/" in raw and BOMB_FILE not in raw, raw.splitlines()[1].strip() if "\n" in raw else raw[:80])
+    if not a.muninn:
+        return
+    # The map of the bundle that threw is in Muninn under that debug id (ADR-0026); resolving it
+    # back to BOMB_FILE:BOMB_LINE is tested in libs/ouo-go/symbolicate.
+    found = []
+    for debug_id in sorted(set(debug_ids.values())):
+        req = urllib.request.Request(f"{a.muninn.rstrip('/')}/api/v1/projects/{a.project}/debug-files/sourcemap/{debug_id}/meta",
+                                     headers={"Authorization": f"Bearer {a.muninn_token}"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                found.append(json.load(r))
+        except (urllib.error.URLError, ValueError):
+            pass
+    res.add("the bundle's source map is stored in Muninn under its debug id", bool(found) and len(found) == len(set(debug_ids.values())),
+            f"{len(found)}/{len(set(debug_ids.values()))} maps, release {[m.get('release') for m in found]}")
 
 
 def check_interactions(a, j, sid, res):
@@ -168,6 +174,9 @@ def main():
     ap.add_argument("--tempo", default=os.environ.get("OUO_TEMPO_URL", "http://localhost:3200"))
     ap.add_argument("--loki", default=os.environ.get("OUO_LOKI_URL", "http://localhost:3100"))
     ap.add_argument("--rum-api", default=os.environ.get("OUO_RUM_API_URL", "http://localhost:8080"))
+    ap.add_argument("--muninn", default=os.environ.get("OUO_MUNINN_URL", ""), help="check the uploaded maps there (ADR-0026)")
+    ap.add_argument("--muninn-token", default=os.environ.get("OUO_MUNINN_READ_TOKEN", "mrt_dev_0000000000000000"))
+    ap.add_argument("--project", default=os.environ.get("VITE_OUO_PROJECT_ID", "demo"))
     ap.add_argument("--read-token", default=os.environ.get("OUO_READ_TOKEN", "rt_dev_0000000000000000"))
     ap.add_argument("--origin", default=None, help="Origin for the CORS preflight (default: the journey's page origin)")
     a = ap.parse_args()

@@ -38,3 +38,17 @@ retention:
   default: 720h   # 0 keeps replays forever
   sweep_interval: 1h
   per_project: {} # e.g. {shop-web: 168h}
+
+# Debug files: source maps, dSYM slices, R8 mappings (docs/specs/muninn.md section 13,
+# ADR-0026). Only PUT /api/v1/projects/*/debug-files/* is ever published to the internet.
+debug_files:
+  # SECRET per-project CI tokens; they open the upload route and nothing else.
+  # tenant is used only with multitenancy_enabled.
+  upload_tokens: []   # e.g. [{project: shop-web, tenant: acme, token: "${MUNINN_UPLOAD_TOKEN_SHOP_WEB}"}]
+  max_bytes:          # decompressed, per file
+    sourcemap: 67108864
+    dsym: 536870912   # one architecture slice
+    proguard: 268435456
+  retention:
+    default: 8760h    # from the upload; 0 keeps forever
+    per_project: {}

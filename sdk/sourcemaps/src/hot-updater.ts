@@ -17,11 +17,11 @@ export interface BuildAdapterLike<B = never> {
 }
 
 export interface OuoHotUpdaterOptions {
-  /** rum-api base URL. Default: OUO_SOURCEMAPS_URL. */
+  /** Muninn's public base URL. Default: OUO_SOURCEMAPS_URL. */
   url?: string;
   /** The project's upload token (a CI secret). Default: OUO_UPLOAD_TOKEN. */
   token?: string;
-  /** Fail unless the token is this project's. Default: OUO_PROJECT_ID. */
+  /** The project the maps belong to (required). Default: OUO_PROJECT_ID. */
   project?: string;
   /**
    * The app's service.version (the store version the OTA bundle targets). Optional: debug ids
@@ -70,16 +70,16 @@ export async function uploadBuild(result: BuildResultLike, opts: OuoHotUpdaterOp
   const project = opts.project ?? env["OUO_PROJECT_ID"];
   const release = (typeof opts.release === "function" ? opts.release(result) : opts.release) ?? env["OUO_RELEASE"];
   const failOnError = opts.failOnError !== false;
-  const log = opts.onUpload ?? ((r: UploadResult) => console.log(`[ouo] ${r.error ? `failed ${r.file}: ${r.error}` : `uploaded ${r.debugId ?? "(release only)"} ${r.file}`}`));
+  const log = opts.onUpload ?? ((r: UploadResult) => console.log(`[ouo] ${r.error ? `failed ${r.file}: ${r.error}` : `uploaded ${r.debugId} ${r.file}`}`));
   const fail = (msg: string): UploadResult[] => {
     if (failOnError) throw new Error(`[ouo] ${msg}`);
     console.warn(`[ouo] ${msg}`);
     return [];
   };
-  if (!url || !token) return fail("source map upload needs url and token (OUO_SOURCEMAPS_URL, OUO_UPLOAD_TOKEN)");
+  if (!url || !token || !project) return fail("source map upload needs url, token and project (OUO_SOURCEMAPS_URL, OUO_UPLOAD_TOKEN, OUO_PROJECT_ID)");
   const artifacts = await findArtifacts(result.buildPath);
   if (artifacts.length === 0) return fail(`no bundle with a source map in ${result.buildPath}: build with sourcemap: true`);
-  const o: UploadOptions = { url, token, ...(project ? { project } : {}), ...(release ? { release } : {}), ...(opts.fetch ? { fetch: opts.fetch } : {}) };
+  const o: UploadOptions = { url, token, project, ...(release ? { release } : {}), ...(opts.fetch ? { fetch: opts.fetch } : {}) };
   const results: UploadResult[] = [];
   for (const a of artifacts) {
     const r = await upload(a, o);

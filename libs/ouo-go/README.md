@@ -43,6 +43,10 @@ redact.Manifest(m, redact.Identity)
 | `Muninn.ListReplays` | A session's replays (spec 7.1) |
 | `Muninn.Manifest` | A replay's manifest (spec 7.2) without Muninn's chunk paths. Chunk `Attributes` are every stored attribute (MUN-6) and may carry identity |
 | `Muninn.Chunk` | One chunk's bytes, decompressed, and its format id |
+| `Muninn.DebugFile` | One debug file (spec 13.3: kind `sourcemap`, `dsym` or `proguard`, debug id 32-hex or dashed, any case), decompressed up to the kind's upload limit; `ErrNotFound` when there is none |
+| `Muninn.DebugFileIDs` | The debug ids uploaded for a release and file (spec 13.3, DBG-11), sorted; the file is normalised with `DebugFilePath`, so a script URL can be passed as recorded |
+| `Muninn.DeleteSessionReplays`, `Muninn.DeleteProject` | Muninn's delete API (spec 8, MUN-40, MUN-41, MUN-45): a session's replays; a project's replays and debug files, with counts |
+| `Muninn.PutAudit`, `Muninn.Audit` | Muninn's audit entries (spec 14): create-only put (409 is `*AuditConflictError`), list by tenant or entry |
 
 Readers with a nil `HTTP` use a client with a 30 second timeout. Every identifier is checked before it reaches LogQL, TraceQL or a Muninn path (project `^[a-z0-9][a-z0-9._-]{0,63}$`, ids 32 lowercase hex, filter values `^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$`, funnel step values without control characters, quotes, backslashes or backticks): a bad one is a `*BadRequestError` and no store is called. A store failure is a `*BackendError`: log `Error()` (it carries URLs and queries), show users `Public()`.
 
@@ -53,6 +57,9 @@ Optional sub-packages, which decide nothing for you:
 | Package | What |
 |---|---|
 | `redact` | `Identity` (`enduser.*`, `user.id`, `user.email`, `user.name`, `user.full_name`, `user.hash`, `user.roles`, `client.address`, in both the `.` and Loki's `_` spelling), matchers `Keys`, `Prefixes`, `Any`, and filters `Drop`, `Keep` (an allow list), `Session` and `Sessions` (clear `User`), `Events`, `Manifest`: with `Identity` they cover everything the readers return. It does not look inside values |
+| `symbolicate` | `Resolver.Resolve` turns a recorded JavaScript stack (Hermes included) into original files, lines, functions and a few source lines with the source maps in Muninn, and `ResolveNative` native iOS frames with dSYM slices ([ADR-0026](../../docs/adr/0026-debug-files-and-erasure-without-rum-api.md)). A frame whose script has a debug id in `ouo.exception.debug_ids` is mapped with that id's map or not at all (`no_map`); a frame without one is mapped only when exactly one map was uploaded for its release and URL path (several: `ambiguous`, kept as recorded). Parsed files sit in an LRU (128 entries, 512 MiB, about twice the file size each); misses are remembered for 60 s, so a late upload applies a minute later. `FromEvent` builds the input from a `SessionEvents` event. Takes any `Source`; `*ouogo.Muninn` is one |
+| `erase` | Deletes one user's or one project's data across Loki, Tempo and Muninn, between a `started` and a `completed` / `failed` audit record in Muninn ([ADR-0026](../../docs/adr/0026-debug-files-and-erasure-without-rum-api.md) section 5). A user is matched on `enduser_id` or `user_id`. Nothing is deleted when the `started` record cannot be written |
+| `cmd/ouo-erase` | The operator CLI over `erase`: `ouo-erase user <id> [--project p]`, `ouo-erase project <p>`, `ouo-erase audit [--entry id]`, with `--dry-run`, `--loki-delete`, `--log-retention`; URLs from flags or `OUO_*_URL`, tokens only from `MUNINN_READ_TOKEN` / `OUO_TEMPO_TOKEN`. `go install github.com/ouo11y/ouo11y/libs/ouo-go/cmd/ouo-erase@latest` |
 | `oidc` | `Verifier.Verify` checks an OpenID Connect ID token (signature against the provider's JWKS, asymmetric algorithms only, issuer, audience, expiry) and returns its claims; `Groups` returns the groups claim. Keys are cached, refetched for an unknown key id at most once a minute (also when the provider is down) and dropped after an hour. It does not bind a token to the caller: see [the kb](../../project/kb/plugin/idp-tokens/idp-tokens-in-a-plugin-backend.md), which also says how a Grafana plugin backend receives the token at all |
 
 ## Install
@@ -65,4 +72,4 @@ go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0
 
 ## Build
 
-Dependency: `github.com/go-jose/go-jose/v4` (JWS and JWKS, `oidc` only); everything else is the standard library. `go vet ./... && go test ./...`. Licence Apache-2.0.
+Dependencies: `github.com/go-jose/go-jose/v4` (JWS and JWKS, `oidc` only), `github.com/go-sourcemap/sourcemap` (source map parsing, `symbolicate` only; BSD-2, no dependencies of its own); everything else is the standard library. `go vet ./... && go test ./...`. Licence Apache-2.0.

@@ -1,7 +1,7 @@
 {
   "name": "@ouo11y/sourcemaps",
   "version": "0.1.0",
-  "description": "ouo source-map CLI: inject debug ids into built JavaScript and React Native (Hermes) bundles and upload the maps to rum-api for symbolication.",
+  "description": "ouo source-map CLI: inject debug ids into built JavaScript and React Native (Hermes) bundles and upload the maps and dSYMs to Muninn for symbolication.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

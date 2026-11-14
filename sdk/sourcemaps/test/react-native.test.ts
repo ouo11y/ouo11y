@@ -19,8 +19,8 @@ import {
 } from "../src/index";
 import { addDebugId, createOuoSerializer, ouoExpoDebugIdPlugin, withOuoDebugIds } from "../src/metro";
 
-// The Hermes fixture rum-api's TestHermesOTABundles uses (generate.mjs there builds it).
-const FIXTURE = path.resolve(__dirname, "../../../services/rum-api/internal/sourcemap/testdata/hermes");
+// Two Hermes OTA bundles of one store version (fixtures/hermes/generate.mjs builds them).
+const FIXTURE = path.resolve(__dirname, "fixtures/hermes");
 const expected = async (): Promise<Record<string, { debug_id: string }>> => JSON.parse(await readFile(path.join(FIXTURE, "expected.json"), "utf8"));
 const MAP = JSON.stringify({ version: 3, sources: ["src/App.tsx"], names: [], mappings: "AAAA;AACA" });
 // What Metro writes: the prelude on line 1 (no mappings), then modules.
@@ -141,9 +141,10 @@ describe("React Native bundles", () => {
     const a = artifactOf(path.join(d, "index.android.bundle"), path.join(d, "composed.map"));
     expect(await debugIdOf(a)).toBe(exp["v2"]!.debug_id);
     const { fetch, got } = fakeFetch();
-    const r = await upload(a, { url: "http://rum-api:8080", token: "ut", release: "1.4.0", fetch });
+    const r = await upload(a, { url: "https://muninn.example", token: "ut", project: "rn-app", release: "1.4.0", fetch });
     expect(r).toMatchObject({ status: 201, debugId: exp["v2"]!.debug_id, file: "/index.android.bundle" });
-    expect(Object.fromEntries(got[0]!.url.searchParams)).toEqual({ file: "/index.android.bundle", debug_id: exp["v2"]!.debug_id, release: "1.4.0" });
+    expect(got[0]!.url.pathname).toBe(`/api/v1/projects/rn-app/debug-files/sourcemap/${exp["v2"]!.debug_id}`);
+    expect(Object.fromEntries(got[0]!.url.searchParams)).toEqual({ file: "/index.android.bundle", release: "1.4.0" });
   });
 });
 
@@ -241,12 +242,13 @@ describe("hot-updater", () => {
     const { fetch, got } = fakeFetch();
     const calls: string[] = [];
     const bare = (_: { cwd: string }) => ({ name: "bare", build: async (b: { platform: string }) => (calls.push(b.platform), { buildPath: d, bundleId: "0193" }) });
-    const adapter = withOuoSourcemaps(bare, { url: "http://rum-api:8080", token: "ut", release: "1.4.0", fetch, onUpload: () => {}, deleteAfter: true })({ cwd: "/app" });
+    const adapter = withOuoSourcemaps(bare, { url: "https://muninn.example", token: "ut", project: "rn-app", release: "1.4.0", fetch, onUpload: () => {}, deleteAfter: true })({ cwd: "/app" });
     expect(adapter["name"]).toBe("bare");
     expect(await adapter.build({ platform: "android" })).toEqual({ buildPath: d, bundleId: "0193" });
     expect(calls).toEqual(["android"]);
     expect(got).toHaveLength(1);
-    expect(Object.fromEntries(got[0]!.url.searchParams)).toEqual({ file: "/index.android.bundle", debug_id: exp["v1"]!.debug_id, release: "1.4.0" });
+    expect(got[0]!.url.pathname).toBe(`/api/v1/projects/rn-app/debug-files/sourcemap/${exp["v1"]!.debug_id}`);
+    expect(Object.fromEntries(got[0]!.url.searchParams)).toEqual({ file: "/index.android.bundle", release: "1.4.0" });
     expect(got[0]!.body["x_hermes_function_offsets"]).toBeDefined();
     // deleteAfter: neither map ships in the OTA bundle.
     await expect(access(path.join(d, "index.android.bundle.hbc.map"))).rejects.toThrow();
@@ -254,19 +256,21 @@ describe("hot-updater", () => {
     await access(path.join(d, "index.android.bundle.hbc"));
   });
 
-  it("fails the deploy without url or token, or when an upload fails (unless failOnError is false)", async () => {
+  it("fails the deploy without url, token or project, or when an upload fails (unless failOnError is false)", async () => {
     const d = await build();
     const env = { ...process.env };
     delete process.env["OUO_SOURCEMAPS_URL"];
     delete process.env["OUO_UPLOAD_TOKEN"];
+    delete process.env["OUO_PROJECT_ID"];
     try {
-      await expect(uploadBuild({ buildPath: d })).rejects.toThrow(/needs url and token/);
+      await expect(uploadBuild({ buildPath: d })).rejects.toThrow(/needs url, token and project/);
+      await expect(uploadBuild({ buildPath: d }, { url: "http://x", token: "t" })).rejects.toThrow(/needs url, token and project/);
       const failing = (async () => new Response('{"error":"upload token required"}', { status: 401 })) as unknown as Fetch;
-      await expect(uploadBuild({ buildPath: d }, { url: "http://x", token: "t", fetch: failing, onUpload: () => {} })).rejects.toThrow(/1\/1 source map upload/);
-      const r = await uploadBuild({ buildPath: d }, { url: "http://x", token: "t", fetch: failing, onUpload: () => {}, failOnError: false });
+      await expect(uploadBuild({ buildPath: d }, { url: "http://x", token: "t", project: "p", fetch: failing, onUpload: () => {} })).rejects.toThrow(/1\/1 source map upload/);
+      const r = await uploadBuild({ buildPath: d }, { url: "http://x", token: "t", project: "p", fetch: failing, onUpload: () => {}, failOnError: false });
       expect(r[0]?.error).toBe("HTTP 401: upload token required");
       await mkdir(path.join(d, "empty"));
-      await expect(uploadBuild({ buildPath: path.join(d, "empty") }, { url: "http://x", token: "t" })).rejects.toThrow(/sourcemap: true/);
+      await expect(uploadBuild({ buildPath: path.join(d, "empty") }, { url: "http://x", token: "t", project: "p" })).rejects.toThrow(/sourcemap: true/);
     } finally {
       process.env = env;
     }

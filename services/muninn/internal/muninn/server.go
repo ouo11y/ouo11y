@@ -84,6 +84,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+base+"/{replay}", s.api("manifest", s.getReplay))
 	mux.Handle("DELETE "+base+"/{replay}", s.api("delete_replay", s.deleteReplay))
 	mux.Handle("GET "+base+"/{replay}/streams/{stream}/chunks/{seq}", s.api("chunk", s.getChunk))
+	mux.Handle("DELETE /api/v1/projects/{project}", s.counted("delete_project", s.deleteProject))
+	// Debug files (section 13). Only the PUT is ever published (section 13.6).
+	const dbg = "/api/v1/projects/{project}/debug-files/{kind}"
+	mux.Handle("PUT "+dbg+"/{id}", s.counted("debug_upload", s.putDebugFile))
+	mux.Handle("GET "+dbg+"/{id}", s.counted("debug_file", s.debugRead(s.getDebugFile)))
+	mux.Handle("GET "+dbg+"/{id}/meta", s.counted("debug_meta", s.debugRead(s.getDebugMeta)))
+	mux.Handle("GET "+dbg, s.counted("debug_list", s.debugRead(s.listDebugFiles)))
+	// Audit entries (section 14).
+	mux.Handle("PUT /api/v1/audit/{entry}/{status}", s.counted("audit_put", s.putAudit))
+	mux.Handle("GET /api/v1/audit", s.counted("audit_list", s.listAudit))
 	return mux
 }
 
@@ -208,6 +218,9 @@ type countingWriter struct {
 	n      int64
 	status int
 }
+
+// Unwrap lets http.ResponseController reach the connection (upload deadlines).
+func (c *countingWriter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 func (c *countingWriter) WriteHeader(code int) { c.status = code; c.ResponseWriter.WriteHeader(code) }
 func (c *countingWriter) Write(b []byte) (int, error) {
