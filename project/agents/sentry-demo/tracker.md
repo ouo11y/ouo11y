@@ -8,6 +8,7 @@
 | 2026-10-17 | Runtime rollout switch `ouo.rum.mode` (OpenFeature, flagd over OFREP), `ROLLOUT.md` client guide, three cohorts verified on the simulator; #24's navigation wiring and #25's perf harness folded into the modes. [summary](summaries/2026-10-17-rum-mode-rollout.md) |
 | 2026-10-18 | Self-hosted Sentry 26.10 (`sentry-sbx`, 14 GiB) as the bridge's real upstream: 49/49 envelopes byte-identical, all 200, ouo 19/21 (startup console lines without a session); Sentry MCP (user-level `sentry-sbx`, needs https → `sentry.ouo.localhost` on the ouo-env proxy); F4 unmasked replay compared with Sentry's player. [summary](summaries/2026-10-18-sentry-self-hosted.md), [report](reports/sentry-self-hosted-n2-f4.html) |
 | 2026-10-23 | Batch 2: examples per path (N23) with trace-continuity `verify` (N24), mobile vitals end to end (A4), SDK range goldens 8.32.0 / 7.11.0 (N3), client setup notes (N5); all three examples 14/14 on an env, sentry-mobile also against self-hosted Sentry; PRs #43 and batch 2 PR 2; [summary](summaries/2026-10-23-b2-bridge-examples.md) |
+| 2026-11-15 | Production DSN readiness of the bridge: 17-risk audit, mirrors + passthrough (ADR-0028), byte-bounded queues, panic recovery; end to end against self-hosted Sentry with a preview project as mirror (49/49 and 40/40 byte-identical, +3–4 ms p50, 12 000 × 200 under burst and soak with the mirror killed). [summary](summaries/2026-11-15-sentry-mirror-readiness.md), [report](reports/sentry-mirror-readiness.html) |
 
 ## Open
 

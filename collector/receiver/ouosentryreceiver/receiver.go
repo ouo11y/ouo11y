@@ -28,8 +28,10 @@ import (
 	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
 
-// envelopePathRe is the only route: POST /api/{sentry project id}/envelope/.
-var envelopePathRe = regexp.MustCompile(`^/api/([0-9]{1,20})/envelope/?$`)
+// ingestPathRe matches Sentry's ingest routes, /api/{sentry project id}/{endpoint}/.
+// Only `envelope` is translated and mirrored; the others (store, minidump,
+// security, unreal, ...) are forwarded unchanged (spec section 2a).
+var ingestPathRe = regexp.MustCompile(`^/api/([0-9]{1,20})/([a-z][a-z_-]{0,31})/?$`)
 
 // hopHeaders are connection-scoped (RFC 9110 section 7.6.1) and never forwarded.
 var hopHeaders = map[string]bool{
@@ -42,6 +44,7 @@ var hopHeaders = map[string]bool{
 type project struct {
 	ProjectConfig
 	upstream *url.URL // nil when Upstream == "none"
+	mirrors  []*mirror
 }
 
 // job is one accepted envelope waiting for translation.
@@ -71,6 +74,11 @@ type sentryReceiver struct {
 	set      receiver.Settings
 	projects map[string]*project // "<sentry project id>/<public key>"
 	client   *http.Client
+	// passthrough receives what the project table does not match (nil: 403/404).
+	passthrough *url.URL
+	mirrors     *mirrorSet
+	// translateBudget bounds the bytes waiting in queue.
+	translateBudget *byteBudget
 
 	mu         sync.Mutex
 	nextLogs   consumer.Logs
@@ -88,6 +96,8 @@ type sentryReceiver struct {
 	upstreamDur metric.Float64Histogram
 	items       metric.Int64Counter
 	dropped     metric.Int64Counter
+	mirrorReqs  metric.Int64Counter
+	mirrorDur   metric.Float64Histogram
 
 	startOnce, stopOnce sync.Once
 	startErr            error
@@ -103,7 +113,15 @@ type sentryReceiver struct {
 const pendingTick = 5 * time.Second
 
 func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
-	r := &sentryReceiver{cfg: cfg, set: set, projects: map[string]*project{}}
+	r := &sentryReceiver{cfg: cfg, set: set, projects: map[string]*project{}, mirrors: newMirrorSet(cfg.Mirror)}
+	if cfg.PassthroughUpstream != "" {
+		u, err := url.Parse(cfg.PassthroughUpstream)
+		if err != nil {
+			return nil, err
+		}
+		u.Path = strings.TrimRight(u.Path, "/")
+		r.passthrough = u
+	}
 	for _, pc := range cfg.Projects {
 		p := &project{ProjectConfig: pc}
 		if pc.Upstream != UpstreamNone {
@@ -113,6 +131,13 @@ func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 			}
 			u.Path = strings.TrimRight(u.Path, "/")
 			p.upstream = u
+		}
+		for _, mc := range pc.Mirrors {
+			m, err := r.mirrors.add(mc, cfg.Mirror.QueueSize)
+			if err != nil {
+				return nil, err
+			}
+			p.mirrors = append(p.mirrors, m)
 		}
 		for _, k := range pc.PublicKeys {
 			r.projects[pc.SentryProjectID+"/"+k] = p
@@ -144,6 +169,11 @@ func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 		qs = DefaultTranslateQueueSize
 	}
 	r.queue = make(chan job, qs)
+	qb := cfg.TranslateQueueBytes
+	if qb <= 0 {
+		qb = DefaultTranslateQueueBytes
+	}
+	r.translateBudget = &byteBudget{limit: qb}
 	r.state = newSessionState(cfg.State)
 
 	meter := set.MeterProvider.Meter(metadata.ScopeName)
@@ -166,6 +196,26 @@ func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 	if r.dropped, err = meter.Int64Counter("ouo_sentry_translate_dropped_total",
 		metric.WithDescription("Envelopes or items the translator dropped, by reason."),
 		metric.WithUnit("{envelope}")); err != nil {
+		return nil, err
+	}
+	if r.mirrorReqs, err = meter.Int64Counter("ouo_sentry_mirror_requests_total",
+		metric.WithDescription("Envelope copies for mirror upstreams by mirror and outcome (sent, error, dropped, body_not_rewritten)."),
+		metric.WithUnit("{envelope}")); err != nil {
+		return nil, err
+	}
+	if r.mirrorDur, err = meter.Float64Histogram("ouo_sentry_mirror_duration_seconds",
+		metric.WithDescription("Time of one mirror send, building the request to the response headers."),
+		metric.WithUnit("s")); err != nil {
+		return nil, err
+	}
+	if _, err = meter.Int64ObservableGauge("ouo_sentry_queue_bytes",
+		metric.WithDescription("Bytes waiting in the translate and mirror queues."),
+		metric.WithUnit("By"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			o.Observe(r.translateBudget.used.Load(), metric.WithAttributes(attribute.String("queue", "translate")))
+			o.Observe(r.mirrors.budget.used.Load(), metric.WithAttributes(attribute.String("queue", "mirror")))
+			return nil
+		})); err != nil {
 		return nil, err
 	}
 	return r, nil
@@ -226,6 +276,7 @@ func (r *sentryReceiver) start(ctx context.Context, host component.Host) error {
 	for range workers {
 		r.workers.Go(r.work)
 	}
+	r.startMirrors()
 	// Held logs expire on a clock, not only when the next envelope arrives.
 	r.stopTick = make(chan struct{})
 	r.tickWG.Go(func() {
@@ -265,6 +316,7 @@ func (r *sentryReceiver) Shutdown(ctx context.Context) error {
 			}
 			close(r.stopTick)
 			r.tickWG.Wait()
+			r.stopMirrors(ctx)
 			// Logs still waiting for a session go out without one.
 			r.flushPendingLogs(context.Background(), true)
 		}
@@ -275,21 +327,23 @@ func (r *sentryReceiver) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// handle serves POST /api/{id}/envelope/. Every other request is 404 or 405.
+// handle serves the ingest routes /api/{id}/{endpoint}/. Envelopes of a
+// known project are forwarded, mirrored and translated; everything the table
+// does not match goes to passthrough_upstream when set, else 403 / 404.
 func (r *sentryReceiver) handle(w http.ResponseWriter, req *http.Request) {
-	m := envelopePathRe.FindStringSubmatch(req.URL.Path)
+	m := ingestPathRe.FindStringSubmatch(req.URL.Path)
 	if m == nil {
-		writeDetail(w, http.StatusNotFound, "not found: the Sentry bridge serves only POST /api/{project_id}/envelope/")
+		writeDetail(w, http.StatusNotFound, "not found: the Sentry bridge serves only /api/{project_id}/envelope/")
 		return
 	}
-	if req.Method != http.MethodPost {
+	sentryID, endpoint := m[1], m[2]
+	if endpoint == "envelope" && req.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		writeDetail(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	ctx := req.Context()
 	start := time.Now()
-	sentryID := m[1]
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -304,25 +358,47 @@ func (r *sentryReceiver) handle(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	key, err := r.publicKey(req, body)
-	if err != nil {
-		r.count(ctx, "", "rejected", "auth", 0)
-		writeDetail(w, http.StatusForbidden, err.Error())
+	if endpoint != "envelope" {
+		// Other ingest endpoints: forwarded unchanged, never translated.
+		hk, qk := requestKeys(req)
+		if p := r.projects[sentryID+"/"+firstString(hk, qk)]; p != nil && p.upstream != nil {
+			r.forwardOther(w, req, p.upstream, p.OuoProjectID, body, start)
+			return
+		}
+		if r.passthrough != nil {
+			r.forwardOther(w, req, r.passthrough, "", body, start)
+			return
+		}
+		writeDetail(w, http.StatusNotFound, "not found: the Sentry bridge serves only /api/{project_id}/envelope/")
 		return
 	}
-	p := r.projects[sentryID+"/"+key]
+
+	key, err := r.publicKey(req, body)
+	var p *project
+	if err == nil {
+		p = r.projects[sentryID+"/"+key]
+	}
 	if p == nil {
-		// Never forward unknown projects or keys: the bridge is not an open proxy.
+		if r.passthrough != nil {
+			r.forwardOther(w, req, r.passthrough, "", body, start)
+			return
+		}
 		r.count(ctx, "", "rejected", "auth", 0)
-		writeDetail(w, http.StatusForbidden, "unknown project or public key")
+		if err != nil {
+			writeDetail(w, http.StatusForbidden, err.Error())
+		} else {
+			// Never forward unknown projects or keys without passthrough_upstream:
+			// the bridge is not an open proxy.
+			writeDetail(w, http.StatusForbidden, "unknown project or public key")
+		}
 		return
 	}
 
 	if p.upstream == nil {
-		r.answerLocally(w, req, p, body, start)
+		r.answerLocally(w, req, p, sentryID, key, body, start)
 		return
 	}
-	r.forward(w, req, p, body, start)
+	r.forward(w, req, p, sentryID, key, body, start)
 }
 
 // publicKey finds the DSN public key in X-Sentry-Auth, the query string or,
@@ -353,67 +429,99 @@ func (r *sentryReceiver) publicKey(req *http.Request, body []byte) (string, erro
 	return "", errors.New("missing authentication: no X-Sentry-Auth, sentry_key or envelope dsn")
 }
 
-// forward sends the request to the upstream unchanged and copies the answer
-// back unchanged. If the upstream cannot be reached the client connection is
-// aborted, which the SDK treats exactly like Sentry being unreachable (it
-// keeps the envelope and retries), instead of a 5xx it might discard on.
-func (r *sentryReceiver) forward(w http.ResponseWriter, req *http.Request, p *project, body []byte, start time.Time) {
-	ctx := req.Context()
-	target := *p.upstream
-	target.Path = p.upstream.Path + req.URL.Path
-	target.RawPath = ""
-	target.RawQuery = req.URL.RawQuery
-
-	out, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), bytes.NewReader(body))
-	if err != nil {
-		r.count(ctx, p.OuoProjectID, "upstream_error", "request", 0)
-		panic(http.ErrAbortHandler)
-	}
+// forwardHeader is the request's header for an upstream: everything but the
+// hop-by-hop headers, with the client address appended to X-Forwarded-For
+// (Sentry derives the user's IP from it when a proxy sits in front).
+func forwardHeader(req *http.Request) http.Header {
+	h := make(http.Header, len(req.Header)+1)
 	for k, vs := range req.Header {
 		if !hopHeaders[k] && k != "X-Forwarded-For" {
-			out.Header[k] = append([]string(nil), vs...)
+			h[k] = append([]string(nil), vs...)
 		}
 	}
-	// Sentry derives the user's IP from X-Forwarded-For when a proxy or
-	// tunnel sits in front (else every event would carry the bridge's IP).
 	if ip := clientIP(req.RemoteAddr); ip != "" {
 		if prior := req.Header.Values("X-Forwarded-For"); len(prior) > 0 {
-			out.Header.Set("X-Forwarded-For", strings.Join(prior, ", ")+", "+ip)
+			h.Set("X-Forwarded-For", strings.Join(prior, ", ")+", "+ip)
 		} else {
-			out.Header.Set("X-Forwarded-For", ip)
+			h.Set("X-Forwarded-For", ip)
 		}
 	}
-	out.ContentLength = int64(len(body))
+	return h
+}
 
-	resp, err := r.client.Do(out)
-	r.upstreamDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attribute.String("ouo.project.id", p.OuoProjectID)))
+// proxy sends the request to base unchanged (same method, path, query, body
+// and end-to-end headers) and copies the answer back unchanged. An error
+// means nothing was written to w.
+func (r *sentryReceiver) proxy(w http.ResponseWriter, req *http.Request, base *url.URL, header http.Header, body []byte) (int, error) {
+	target := *base
+	target.Path = base.Path + req.URL.Path
+	target.RawPath = ""
+	target.RawQuery = req.URL.RawQuery
+	out, err := http.NewRequestWithContext(req.Context(), req.Method, target.String(), bytes.NewReader(body))
 	if err != nil {
-		r.count(ctx, p.OuoProjectID, "upstream_error", "unreachable", 0)
-		r.set.Logger.Warn("Sentry upstream unreachable; aborting the client connection so the SDK retries",
-			zap.String("upstream", p.upstream.Host), zap.Error(err))
-		panic(http.ErrAbortHandler)
+		return 0, err
+	}
+	out.Header = header
+	out.ContentLength = int64(len(body))
+	resp, err := r.client.Do(out)
+	if err != nil {
+		return 0, err
 	}
 	defer resp.Body.Close()
-
 	for k, vs := range resp.Header {
 		if !hopHeaders[k] {
 			w.Header()[k] = append([]string(nil), vs...)
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	_, copyErr := io.Copy(w, resp.Body)
-
-	r.count(ctx, p.OuoProjectID, "forwarded", "", resp.StatusCode)
-	if copyErr != nil {
-		r.set.Logger.Debug("copying the upstream response to the SDK failed", zap.Error(copyErr))
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		r.set.Logger.Debug("copying the upstream response to the SDK failed", zap.Error(err))
 	}
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	return resp.StatusCode, nil
+}
+
+// abort answers an unreachable upstream by aborting the client connection,
+// which the SDK treats exactly like Sentry being unreachable (it keeps the
+// envelope and retries), instead of a 5xx it might discard on.
+func (r *sentryReceiver) abort(ctx context.Context, projectID string, upstream *url.URL, err error) {
+	r.count(ctx, projectID, "upstream_error", "unreachable", 0)
+	r.set.Logger.Warn("Sentry upstream unreachable; aborting the client connection so the SDK retries",
+		zap.String("upstream", upstream.Host), zap.Error(err))
+	panic(http.ErrAbortHandler)
+}
+
+// forward sends an envelope of a known project to its upstream, then queues
+// the mirror copies (whatever the status) and, on 2xx, the translation.
+func (r *sentryReceiver) forward(w http.ResponseWriter, req *http.Request, p *project, sentryID, key string, body []byte, start time.Time) {
+	ctx := req.Context()
+	header := forwardHeader(req)
+	status, err := r.proxy(w, req, p.upstream, header, body)
+	r.upstreamDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attribute.String("ouo.project.id", p.OuoProjectID)))
+	if err != nil {
+		// No mirror copy either: the SDK retries, the mirror gets the retry.
+		r.abort(ctx, p.OuoProjectID, p.upstream, err)
+	}
+	r.count(ctx, p.OuoProjectID, "forwarded", "", status)
+	r.mirrorEnvelope(ctx, p, req, sentryID, key, header, body)
+	if status >= 200 && status < 300 {
 		r.enqueue(ctx, p, req, body, start)
 	}
 }
 
+// forwardOther forwards a request the bridge does not translate: another
+// ingest endpoint, or (to passthrough_upstream) one the table does not match.
+func (r *sentryReceiver) forwardOther(w http.ResponseWriter, req *http.Request, upstream *url.URL, projectID string, body []byte, start time.Time) {
+	ctx := req.Context()
+	status, err := r.proxy(w, req, upstream, forwardHeader(req), body)
+	r.upstreamDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attribute.String("ouo.project.id", projectID)))
+	if err != nil {
+		r.abort(ctx, projectID, upstream, err)
+	}
+	r.count(ctx, projectID, "passthrough", "", status)
+}
+
 // answerLocally is the cutover mode (`upstream: none`): answer like Sentry.
-func (r *sentryReceiver) answerLocally(w http.ResponseWriter, req *http.Request, p *project, body []byte, start time.Time) {
+func (r *sentryReceiver) answerLocally(w http.ResponseWriter, req *http.Request, p *project, sentryID, key string, body []byte, start time.Time) {
 	id := ""
 	if plain, err := Decompress(body, req.Header.Get("Content-Encoding"), r.translateLimit()); err == nil {
 		line, _, _ := bytes.Cut(plain, []byte("\n"))
@@ -428,6 +536,7 @@ func (r *sentryReceiver) answerLocally(w http.ResponseWriter, req *http.Request,
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
 	r.count(req.Context(), p.OuoProjectID, "accepted_local", "", http.StatusOK)
+	r.mirrorEnvelope(req.Context(), p, req, sentryID, key, forwardHeader(req), body)
 	r.enqueue(req.Context(), p, req, body, start)
 }
 
@@ -444,18 +553,36 @@ func (r *sentryReceiver) enqueue(ctx context.Context, p *project, req *http.Requ
 		r.drop(ctx, p.OuoProjectID, "too_large")
 		return
 	}
+	if !r.translateBudget.take(int64(len(body))) {
+		r.drop(ctx, p.OuoProjectID, "queue_bytes")
+		return
+	}
 	j := job{project: p, encoding: req.Header.Get("Content-Encoding"), body: body, receivedAt: start, clientAddr: clientIP(req.RemoteAddr), origin: requestOrigin(req)}
 	select {
 	case r.queue <- j:
 	default:
+		r.translateBudget.give(int64(len(body)))
 		r.drop(ctx, p.OuoProjectID, "queue_full")
 	}
 }
 
 func (r *sentryReceiver) work() {
 	for j := range r.queue {
-		r.process(j)
+		r.processSafe(j)
+		r.translateBudget.give(int64(len(j.body)))
 	}
+}
+
+// processSafe translates one envelope; a translator panic drops that envelope
+// instead of taking the collector, and with it the forwarding, down.
+func (r *sentryReceiver) processSafe(j job) {
+	defer func() {
+		if v := recover(); v != nil {
+			r.drop(context.Background(), j.project.OuoProjectID, "panic")
+			r.set.Logger.Error("translator panicked; envelope dropped (it was forwarded)", zap.Any("panic", v), zap.Stack("stack"))
+		}
+	}()
+	r.process(j)
 }
 
 // process decodes one envelope and translates it (translate.go).

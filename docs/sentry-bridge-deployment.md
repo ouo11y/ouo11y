@@ -8,6 +8,94 @@ side setup is in [sentry-client-setup.md](sentry-client-setup.md).
 as one replica until that state moves to a shared store (roadmap Phase 11, checklist N4). The
 OTLP and replay receivers have no such limit; only the bridge does.
 
+## Putting a production app behind the bridge
+
+The bridge forwards every envelope to Sentry unchanged and returns Sentry's answer, so the app
+sees no difference while the bridge runs. The risks are in the cases where it does not run, and
+in a project table that does not match. Before switching a production DSN:
+
+1. **Set `passthrough_upstream` to the production Sentry ingest host** (spec section 2a). Without
+   it, an envelope whose key or project is not in the table gets `403`, and Sentry SDKs delete an
+   envelope on any `4xx` but `429`: a typo or a rotated key loses production data. With it, the
+   bridge forwards whatever it does not recognise, untranslated, and Sentry answers.
+2. **Put a fallback in front of the bridge.** When the bridge is down (crash, rollout with
+   `Recreate`, node drain), a load balancer answers `502` / `503`, and a `5xx` may make the SDK
+   drop the envelope; a refused connection makes it cache and retry, but the SDK cache is small
+   (sentry-cocoa and sentry-java keep 30 envelopes by default). Route the DSN host through a proxy
+   that falls back to Sentry directly when the bridge does not answer. Because the bridge is
+   transparent, the fallback changes nothing for Sentry; only the ouo copy misses that window.
+   nginx:
+
+   ```nginx
+   server {
+     listen 443 ssl; server_name sentry-bridge.example.com;   # the DSN host
+     client_max_body_size 100m;                                # body is buffered, so it can be sent again
+     location /api/ {
+       proxy_pass http://ouo-sentry-bridge:4320;
+       proxy_connect_timeout 2s;
+       proxy_read_timeout 35s;                                 # above the bridge's upstream_timeout
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       error_page 502 503 504 = @sentry;                       # only nginx's own errors: the bridge's
+     }                                                         # (Sentry's) 5xx answers pass through
+     location @sentry {
+       proxy_pass https://o123.ingest.sentry.io;               # the production ingest host
+       proxy_ssl_server_name on;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+     }
+   }
+   ```
+
+   The bridge aborts the connection when Sentry itself is unreachable; nginx then tries Sentry
+   directly and, if that fails too, answers `502`, which is what the SDK would get from Sentry's
+   own load balancer. A request whose answer timed out after Sentry stored it may reach Sentry
+   twice; Sentry drops the duplicate by event id.
+
+   If the DSN host is a name you control (recommended), rollback is a DNS or proxy change, not
+   an app release.
+3. **DSN.** Keep the public key and project id; change only the host (and drop any path prefix:
+   the bridge serves `/api/{id}/...` at its root). Mobile SDKs need a valid TLS certificate for that
+   host (iOS ATS refuses plain http). Do not use the SDK `tunnel` option: it posts to an arbitrary
+   path the bridge does not serve. `upstream` must be the exact ingest host of the original DSN
+   (`oNNN.ingest.sentry.io`, `oNNN.ingest.us.sentry.io`, `oNNN.ingest.de.sentry.io` or your
+   self-hosted host): regions differ.
+4. **Client IP.** The bridge appends the device address to `X-Forwarded-For`. Check one event in
+   Sentry after the switch: its user IP and geo must be the device's, not the bridge's. If they are
+   the bridge's, the proxy in front of the bridge must pass the client address on.
+5. **Upstream timeout.** Keep `upstream_timeout` (default 30 s) below the SDK's own request timeout
+   so the SDK gets an aborted connection (and retries) rather than timing out itself.
+6. **Mirrors** (a second Sentry, spec section 2b) are optional and can never change the answer to
+   the SDK. Watch `ouo_sentry_mirror_requests_total{outcome!="sent"}` for what the mirror missed.
+
+What a production cut-over looks like in the collector config:
+
+```yaml
+receivers:
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    upstream_timeout: 30s
+    passthrough_upstream: https://o123.ingest.sentry.io        # same host as `upstream`
+    mirror: { queue_size: 1000, queue_bytes: 268435456, timeout: 10s, workers: 4 }
+    projects:
+      - sentry_project_id: "4504"
+        public_keys: ["<DSN public key>"]
+        upstream: https://o123.ingest.sentry.io
+        ouo_project_id: mobile-store
+        service_name: mobile-store-ios
+        mirrors:
+          - name: preview
+            upstream: https://sentry-preview.example.com
+            sentry_project_id: "2"                              # the preview's project
+            public_key: "<preview DSN public key>"
+```
+
+**Memory.** The bridge holds each request body while it forwards it (store and forward, up to
+`max_request_body_size`, default 100 MiB per request), the translation queue (`translate_queue_bytes`,
+default 256 MiB) and the mirror queues (`mirror.queue_bytes`, default 256 MiB), plus the session
+state. The `memory_limiter` processor protects the pipelines, not the HTTP handler: size the pod
+limit above the two queue budgets plus about 256 MiB, and lower `max_request_body_size` to 20 MiB
+for a mobile-only project (replay segments and attachments are far below it; Sentry's own limit
+for an attachment is 100 MiB, so anything larger is rejected by Sentry anyway).
+
 ## What the bridge keeps in memory
 
 Sentry SDKs do not put a session id on most items. The bridge learns which session an item
@@ -91,6 +179,7 @@ data:
       ouosentry:
         endpoint: 0.0.0.0:4320
         upstream_timeout: 30s
+        passthrough_upstream: https://o123.ingest.sentry.io   # never lose an unmatched envelope
         projects:
           - sentry_project_id: "4504"
             public_keys: ["<DSN public key>"]
@@ -185,7 +274,7 @@ spec:
           livenessProbe: { httpGet: { path: /, port: 13133 } }
           resources:
             requests: { cpu: 250m, memory: 256Mi }
-            limits: { memory: 768Mi }
+            limits: { memory: 1Gi }      # queue budgets (2 x 256 MiB) + state + headroom
           volumeMounts:
             - { name: config, mountPath: /etc/otelcol }
       volumes:

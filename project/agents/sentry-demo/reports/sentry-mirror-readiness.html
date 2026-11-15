@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sentry bridge production readiness</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--ok:#1e8e3e;--warn:#b7791f;--bad:#c0392b;--acc:#2f6fed;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--ok:#4cc26a;--warn:#e0a23a;--bad:#ef6b5b;--acc:#5b8cff}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--ok:#4cc26a;--warn:#e0a23a;--bad:#ef6b5b;--acc:#5b8cff}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
+h1{font-size:1.7rem;margin:0 0 4px}h2{font-size:1.2rem;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:4px}h3{font-size:1rem;margin:18px 0 6px}
+.sub{color:var(--muted);margin:0 0 18px}
+nav{margin:8px 0 20px;font-size:.92rem;display:flex;flex-wrap:wrap;gap:4px 14px}nav a{color:var(--acc);text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card b{display:block;font-size:1.4rem;line-height:1.2}.card span{color:var(--muted);font-size:.84rem}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.9rem;margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:var(--card);padding:1px 4px;border-radius:4px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;font-size:.84rem}
+.ok{color:var(--ok);font-weight:600}.warn{color:var(--warn);font-weight:600}.bad{color:var(--bad);font-weight:600}
+.verdict{border:2px solid var(--warn);border-radius:10px;padding:12px 14px;background:var(--card)}
+ul{padding-left:20px}
+.bar{height:10px;border-radius:3px;background:var(--acc);display:inline-block;vertical-align:middle}
+.bar.d{background:var(--muted)}
+</style>
+</head>
+<body><main>
+<h1>Sentry bridge in front of a production DSN: readiness, mirrors, measurements</h1>
+<p class="sub">2026-11-15, sentry-demo (session sentry-mirror). Receiver <code>collector/receiver/ouosentryreceiver</code> on branch <code>claude/eager-mcnulty-ac5ad3</code> (ADR-0028: mirrors, passthrough). Self-hosted Sentry 26.10.0 (<code>sentry-sbx</code>) as production, a second project on the same Sentry as the "preview". ouo env <code>eager-mcnulty-ac5ad3</code> built from the branch. Apple M5, 32 GB, Docker VM 20 GB, with other sessions' stacks running: host load average between 20 and 200 during the runs, so absolute latencies are noisy; every comparison below is interleaved.</p>
+<nav><a href="#verdict">Verdict</a><a href="#risks">Risk list</a><a href="#fanout">Fan-out design</a><a href="#e2e">End to end</a><a href="#lat">Latency</a><a href="#load">Burst and soak</a><a href="#fail">Failure injection</a><a href="#config">Config</a><a href="#repro">Reproduce</a></nav>
+
+<h2 id="verdict">Verdict</h2>
+<div class="verdict">
+<p><b class="warn">Conditional go.</b> The forwarding path is transparent and robust in every test (byte-identical requests, Sentry's exact answers, mirror failures invisible to the SDK). Switch the production DSN only when all four hold:</p>
+<ol>
+<li>This pull request is merged and a collector image with it is deployed (without it there is no <code>passthrough_upstream</code> and no mirror).</li>
+<li><code>passthrough_upstream</code> is set to the production ingest host, so a key or project the table does not know is forwarded, not answered <code>403</code> (an SDK deletes the envelope on a 403).</li>
+<li>Nothing in front of the bridge turns "bridge down" into a <code>5xx</code>: either a fallback proxy that sends straight to Sentry (<a href="../../../../docs/sentry-bridge-deployment.md#putting-a-production-app-behind-the-bridge">deployment guide</a>), or the SDK reaches the bridge directly (refused connection = cached and retried).</li>
+<li>The DSN host is a name the founder controls, so rollback is a DNS or proxy change, not an app release.</li>
+</ol>
+<p>Then check one event in production Sentry for the device's IP and geo (<code>X-Forwarded-For</code>), and watch <code>ouo_sentry_envelopes_total{outcome="upstream_error"}</code> and the proxy's fallback count for the first hour.</p>
+</div>
+
+<div class="cards">
+<div class="card"><b>49 / 49</b><span>real sentry-cocoa / RN envelopes byte-identical at production Sentry, identical answers (sentrytap compare)</span></div>
+<div class="card"><b>40 / 40</b><span>fresh sentry-go envelopes byte-identical at production; 20 errors stored in each Sentry project and in ouo</span></div>
+<div class="card"><b>+3 to 4 ms</b><span>p50 the bridge adds (local, median of 3 interleaved rounds), same with the mirror healthy, hanging or absent</span></div>
+<div class="card"><b>12 000 / 12 000</b><span>200 answers in a 64-sender burst and a 10-minute soak, mirror killed for 114 s mid-soak</span></div>
+<div class="card"><b>3.2 s</b><span>bridge unavailable during a restart: 57 of 800 requests got a network error (retried by SDKs), none got a 5xx</span></div>
+<div class="card"><b>35 to 177 MiB</b><span>collector memory during soak and bursts</span></div>
+</div>
+
+<h2 id="risks">Risk list</h2>
+<p>Severity is for <b>production Sentry</b> unless the row says "ouo copy". Evidence is code (file), a test, or a measurement below.</p>
+<div class="tw"><table>
+<tr><th>#</th><th>Risk</th><th>Severity</th><th>Evidence</th><th>Mitigation / status</th></tr>
+<tr><td>1</td><td>A load balancer or ingress in front of a down bridge answers <code>502</code>/<code>503</code>; mobile SDKs delete an envelope on any 4xx/5xx except 429 (cache only on network errors, 30 envelopes)</td><td class="bad">high</td><td><a href="../../../kb/vendor-internals/sentry/index.md">kb: SDK reliability</a>; restart measured 3.2 s</td><td>Fallback proxy to Sentry (nginx <code>error_page 502 503 504 = @sentry</code>) in the deployment guide; or expose the bridge directly. Kubernetes <code>Recreate</code> rollouts without it = loss for the seconds the pod is gone</td></tr>
+<tr><td>2</td><td>Unknown DSN key or project (typo, rotated key, a second app on the host) answered <code>403</code> → SDK deletes → production loses data</td><td class="bad">high</td><td><code>receiver.go</code> on <code>main</code>: "never forward unknown projects"</td><td class="ok">Fixed by config: new <code>passthrough_upstream</code> forwards unmatched requests untranslated (tests <code>TestPassthrough</code>; live: unknown key reached Sentry, its answer returned)</td></tr>
+<tr><td>3</td><td>Other ingest endpoints (<code>/store/</code>, <code>/minidump/</code>, <code>/security/</code>, <code>/unreal/</code>) answered <code>404</code> → lost (older SDKs, native crash uploads)</td><td class="warn">medium</td><td><code>envelopePathRe</code> on <code>main</code></td><td class="ok">Fixed: forwarded to the project's upstream or the passthrough, never translated (live: <code>/api/2/store/</code> → 200 from Sentry)</td></tr>
+<tr><td>4</td><td>A translator bug (panic) kills the process → forwarding down</td><td class="warn">medium</td><td>workers had no <code>recover</code></td><td class="ok">Fixed: panic drops that envelope (<code>reason="panic"</code>), test <code>TestTranslatorPanicDoesNotStopTheBridge</code>. Residual: the 5-s pending-log ticker goroutine has no recover</td></tr>
+<tr><td>5</td><td>Memory: translation queue bounded by count only (10 000 × up to 20 MiB); a burst with slow Loki could OOM the pod and stop forwarding</td><td class="warn">medium</td><td><code>enqueue</code> on <code>main</code></td><td class="ok">Fixed: <code>translate_queue_bytes</code> (256 MiB) and <code>mirror.queue_bytes</code> (256 MiB), gauge <code>ouo_sentry_queue_bytes</code>. Residual: concurrent request bodies are not bounded (100 MiB each); <code>memory_limiter</code> does not cover the handler. Lower <code>max_request_body_size</code> to 20 MiB for mobile</td></tr>
+<tr><td>6</td><td>Latency on the hot path</td><td class="warn">low-medium</td><td><a href="#lat">measured</a>: +3–4 ms p50 locally</td><td>In production add one round trip bridge → Sentry ingest: run the bridge in the region of the Sentry ingest host. Store-and-forward: the body is read completely first (large uploads start later at Sentry)</td></tr>
+<tr><td>7</td><td>Throughput: the bridge saturated at about 300 envelopes/s on this laptop (Sentry direct: 450–900/s), collector at 130 % CPU; translation shares the CPU with forwarding</td><td class="warn">medium</td><td><a href="#load">burst</a></td><td>Give the pod 1–2 dedicated CPUs; know the pilot's peak envelope rate (sessions + errors + transactions + replay segments per second) before the switch</td></tr>
+<tr><td>8</td><td>Client IP / geo in Sentry comes from <code>X-Forwarded-For</code> the bridge appends; if Sentry ignored it, every event would carry the bridge's IP</td><td class="warn">low-medium</td><td><code>forwardHeader</code></td><td>Check one event after the switch; a proxy in front must pass the device address on</td></tr>
+<tr><td>9</td><td>SDK offline cache is 30 envelopes: an outage longer than that per device loses the oldest (same as a Sentry outage)</td><td>low</td><td>kb</td><td>Fallback proxy (risk 1) makes bridge outages invisible</td></tr>
+<tr><td>10</td><td>DSN forms: a DSN path prefix (<code>https://k@host/prefix/42</code>) and the <code>tunnel</code> option are not served; the upstream must be the exact regional ingest host (<code>oNNN.ingest.us.sentry.io</code> …)</td><td>low</td><td><code>ingestPathRe</code></td><td>Change only the DSN host; set <code>upstream</code> and <code>passthrough_upstream</code> to the original host</td></tr>
+<tr><td>11</td><td>TLS: mobile SDKs need a valid certificate on the bridge host (iOS ATS)</td><td>low</td><td></td><td>Terminate TLS at the fallback proxy or ingress</td></tr>
+<tr><td>12</td><td>Header fidelity: names are written canonical (<code>x-sentry-auth</code> → <code>X-Sentry-Auth</code>); a chunked upload is sent with a length; hop-by-hop headers dropped</td><td class="ok">none</td><td>sentrytap compare, 0 problems</td><td>HTTP header names are case-insensitive; body bytes identical. <code>br</code>/<code>zstd</code> bodies forwarded unchanged</td></tr>
+<tr><td>13</td><td>Rate limits, 429 + <code>Retry-After</code>, <code>X-Sentry-Rate-Limits</code>, 413: Sentry's answer reaches the SDK unchanged; the bridge's own 413 only above 100 MiB</td><td class="ok">none</td><td><code>TestUpstreamResponsesPassThrough</code></td><td>A real quota-limited production 429 was not observed (self-hosted has no quota)</td></tr>
+<tr><td>14</td><td>ouo copy: <code>ouoratelimit</code> keys clients by address; behind a proxy every device shares one 100/s bucket</td><td class="warn">ouo copy</td><td>2 692 translation drops in a 406/s single-address burst = <code>ouo_ratelimit_rejected_total</code> exactly</td><td>Set <code>client.key_from: x_forwarded_for</code> behind a proxy, or raise the client limit</td></tr>
+<tr><td>15</td><td>ouo copy: session state is in one process; a restart loses held replay segments and mid-session matching; two replicas degrade translation (never forwarding)</td><td class="warn">ouo copy</td><td>spec section 8, N4</td><td>One replica; restarts in quiet hours</td></tr>
+<tr><td>16</td><td>ouo copy: bridged video replay does not reach Muninn (sibling session's finding: <code>config.muninn.yaml</code> has no bridge, and the bridge emits the MVP <code>kind:"video"</code> chunk, not <code>ouo-video/1</code>)</td><td class="warn">ouo copy</td><td>side-session note</td><td>Receiver change, separate task; on the default (rum-api) config replay works</td></tr>
+<tr><td>17</td><td>Mirror completeness: under bursts the preview gets fewer envelopes than production (3 370 copies dropped <code>queue_full</code> over 3 bursts of 3 000); a mirror sees every answered request, also those production answered 429</td><td class="warn">preview only</td><td><a href="#fail">counters</a></td><td>By design; raise <code>mirror.workers</code> / <code>queue_size</code> for a more complete preview; watch <code>ouo_sentry_mirror_requests_total{outcome!="sent"}</code></td></tr>
+</table></div>
+<p>Item types: <code>session</code>, <code>event</code>, <code>transaction</code>, <code>log</code>, <code>replay_video</code>, <code>feedback</code> and <code>user_report</code> are translated; everything else (<code>attachment</code>, <code>client_report</code>, <code>profile</code>, <code>span</code>, <code>check_in</code>, web replay, <code>sessions</code> aggregates …) is forwarded and mirrored only (<a href="../../../kb/vendor-internals/sentry/wire-format/ouo-receiver-gaps.md">kb: receiver gaps</a>). In this run the translator counted 1 797 <code>client_report</code> items as not translated.</p>
+
+<h2 id="fanout">Fan-out design (ADR-0028)</h2>
+<pre>SDK ──► bridge ──► production Sentry ──► answer ──► SDK      (unchanged; the only answer)
+          │  after the answer is written, non-blocking:
+          ├──► mirror queue (per mirror, count + shared byte budget) ──► N workers ──► preview Sentry   (timeout, never retried)
+          └──► translate queue (count + byte budget) ──► Loki / Tempo / replay
+          primary unreachable ──► SDK connection aborted, nothing queued (the SDK's retry is mirrored)
+          table miss ──► passthrough_upstream (production), untranslated, not mirrored</pre>
+<p>What a mirror with its own <code>sentry_project_id</code> / <code>public_key</code> rewrites, and nothing else: the project id in the path; <code>sentry_key</code> in <code>X-Sentry-Auth</code>, <code>Authorization</code> and the query (<code>sentry_secret</code> dropped); the envelope header <code>dsn</code> when present (gzip/deflate re-compressed). Relay answers <code>400 project id header mismatch</code> when the <code>dsn</code> does not match the request (verified on the sandbox), so this rewrite is needed. Mobile SDKs send no <code>dsn</code>: their mirror bodies stay byte-identical.</p>
+
+<h2 id="e2e">End to end against real Sentry</h2>
+<table>
+<tr><th>Run</th><th>Traffic</th><th>Production (project 2)</th><th>Preview mirror (project 9)</th><th>ouo</th></tr>
+<tr><td>Golden replay</td><td>49 recorded requests of <code>@sentry/react-native</code> 8.30.0 / sentry-cocoa 9.30.1 (<code>testdata/golden/ios-rn-8.30.0/selfhosted</code>)</td><td class="ok">49/49 byte-identical, responses identical, 0 problems</td><td class="ok">49/49 body identical, path <code>/api/9/</code>, key rewritten, all other headers equal, 49 × 200</td><td>not checkable: the capture is 4 weeks old and Loki rejects samples that old</td></tr>
+<tr><td>Fresh SDK</td><td>sentry-go 0.31.1: 20 errors + 20 transactions (40 envelopes, with <code>dsn</code> in the envelope header)</td><td class="ok">40/40 byte-identical; 20 errors stored (Sentry MCP)</td><td class="ok">40/40 identical except the rewritten <code>dsn</code>; 20 errors stored</td><td class="ok">20 exceptions in Loki, 20 traces in Tempo</td></tr>
+<tr><td>JS shape</td><td>gzip envelope with <code>dsn</code>, key in the query</td><td class="ok">200, stored</td><td class="ok">query key and <code>dsn</code> rewritten, 200, stored (without the rewrite: 400)</td><td class="ok">in Loki</td></tr>
+<tr><td>Passthrough</td><td>unknown key; <code>/api/2/store/</code></td><td class="ok">forwarded, Sentry's answer returned</td><td>not mirrored (by design)</td><td>not translated</td></tr>
+</table>
+<p>The "preview" is a second project on the same self-hosted Sentry, not a second Sentry install: a second <code>feature-complete</code> self-hosted Sentry needs another 14 GB and the Mac was already swapping. It exercises the real credential rewrite and Relay's checks; it does not exercise a different Sentry version.</p>
+
+<h2 id="lat">Latency (sequential sender, 200 requests per run, golden envelopes)</h2>
+<p>Interleaved: each bridge run directly follows a direct-to-Sentry run under the same host load. Bridge path = host → collector container → Sentry; direct = host → Sentry.</p>
+<div class="tw"><table>
+<tr><th>Round</th><th>Mirror</th><th>direct p50</th><th>bridge p50</th><th>direct p99</th><th>bridge p99</th></tr>
+<tr><td>clean 1–3</td><td>healthy</td><td class="n">1.1–1.5</td><td class="n">3.6–4.1</td><td class="n">3.7–10.1</td><td class="n">9.7–19.7</td></tr>
+<tr><td>A/B 1</td><td>none / hang / healthy</td><td class="n">3.3 / 3.3 / 3.1</td><td class="n">7.0 / 5.6 / 7.1</td><td class="n">27 / 52 / 33</td><td class="n">38 / 28 / 42</td></tr>
+<tr><td>A/B 2</td><td>none / hang / healthy</td><td class="n">1.6 / 3.6 / 2.0</td><td class="n">5.8 / 6.5 / 5.7</td><td class="n">19 / 43 / 19</td><td class="n">75 / 28 / 33</td></tr>
+<tr><td>A/B 3</td><td>none / hang / healthy</td><td class="n">2.8 / 4.3 / 2.1</td><td class="n">4.6 / 13.4 / 5.4</td><td class="n">18 / 48 / 17</td><td class="n">84 / 123 / 54</td></tr>
+</table></div>
+<p>Median added p50 over the three A/B rounds: <b>3.7 ms</b> without mirror, <b>2.9 ms</b> with a hanging mirror, <b>3.7 ms</b> with a healthy mirror (ms). The mirror's state makes no visible difference; p99 differences are host noise (they change sign between rounds). Earlier N2 run (2026-10-18): +5 ms p50.</p>
+
+<h2 id="load">Burst and soak</h2>
+<div class="tw"><table>
+<tr><th>Run</th><th>Requests</th><th>Senders</th><th>Throughput</th><th>p50</th><th>p99</th><th>Answers</th></tr>
+<tr><td>Burst, bridge + mirror</td><td class="n">3 000</td><td class="n">64</td><td class="n">406/s</td><td class="n">108 ms</td><td class="n">716 ms</td><td class="ok">3 000 × 200</td></tr>
+<tr><td>Burst, Sentry direct #1 / #2</td><td class="n">3 000</td><td class="n">64</td><td class="n">909 / 458/s</td><td class="n">46 / 93 ms</td><td class="n">358 / 566 ms</td><td class="ok">all 200</td></tr>
+<tr><td>Burst, bridge no mirror #1 / #2</td><td class="n">3 000</td><td class="n">64</td><td class="n">316 / 284/s</td><td class="n">146 / 162 ms</td><td class="n">852 / 827 ms</td><td class="ok">all 200</td></tr>
+<tr><td>Soak, 10 min at 15/s, mirror killed 114 s</td><td class="n">9 000</td><td class="n">8</td><td class="n">15/s</td><td class="n">4.2 ms</td><td class="n">101 ms</td><td class="ok">9 000 × 200</td></tr>
+</table></div>
+<p>Collector memory sampled every 15 s through soak and bursts: 35 to 88 MiB, 177 MiB at the end of the no-mirror bursts (130 % CPU). Queue peaks (gauge, 15-s samples): translate 18 MB, mirror 17 MB, far below the 256 MiB budgets.</p>
+
+<h2 id="fail">Failure injection</h2>
+<h3>Unit tests (<code>mirror_test.go</code>, run 5× with <code>-race</code>)</h3>
+<ul>
+<li>Three mirrors next to a healthy primary: one hangs, one answers 500, one answers 429. 40 envelopes: every SDK answer 200 with production's body, slowest primary answer under 200 ms while the hanging mirror's timeout is 500 ms; every copy accounted for (sent or dropped); shutdown bounded by its context, byte budget back to 0.</li>
+<li>Byte budget: with room for two bodies, 8 of 10 copies dropped <code>queue_bytes</code>.</li>
+<li>Primary down: SDK connection aborted (no 5xx), mirror gets nothing, nothing translated.</li>
+<li>Credential rewrite: header shape (mobile) keeps the body byte-identical; query + <code>dsn</code> shape (JS) rewritten, items unchanged, production request untouched.</li>
+<li>Passthrough: unknown key, unknown project, no auth, <code>store</code>, <code>minidump</code> (query key), <code>security</code>, <code>OPTIONS</code>.</li>
+<li>Translator panic: envelope dropped (<code>panic</code>), next envelope forwarded and translated.</li>
+</ul>
+<h3>Live</h3>
+<div class="tw"><table>
+<tr><th>Injection</th><th>What the SDK side saw</th><th>Mirror counters (Mimir)</th></tr>
+<tr><td>Mirror upstream killed for 114 s during the soak</td><td class="ok">9 000 / 9 000 × 200, p99 101 ms</td><td>1 713 <code>error/unreachable</code> (= 15/s × 114 s)</td></tr>
+<tr><td>Mirror hangs 60 s per request (A/B)</td><td class="ok">all 200, no added latency</td><td>4 in flight, the rest <code>dropped/queue_full</code></td></tr>
+<tr><td>Bursts of 3 000 at 64 senders, mirror healthy but slow (p99 4.95 s)</td><td class="ok">all 200</td><td>9 955 <code>sent/200</code>, 3 370 <code>dropped/queue_full</code></td></tr>
+<tr><td>Collector restart during 20/s</td><td>57 of 800 network errors (refused/reset) during 3.2 s, 0 × 5xx; an SDK caches and retries these</td><td>—</td></tr>
+</table></div>
+
+<h2 id="config">Collector config for the switch</h2>
+<pre>receivers:
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    max_request_body_size: 20971520                 # 20 MiB: mobile envelopes are far smaller
+    upstream_timeout: 30s
+    passthrough_upstream: https://oNNN.ingest.sentry.io   # the production DSN's host, exactly
+    mirror: { queue_size: 1000, queue_bytes: 268435456, timeout: 10s, workers: 4 }
+    projects:
+      - sentry_project_id: "&lt;prod project id&gt;"
+        public_keys: ["&lt;prod DSN public key&gt;"]
+        upstream: https://oNNN.ingest.sentry.io
+        ouo_project_id: pilot-app
+        service_name: pilot-app-ios                   # one row per Sentry project (iOS, Android)
+        mirrors:
+          - name: preview
+            upstream: https://&lt;sentry preview host&gt;
+            sentry_project_id: "&lt;preview project id&gt;"
+            public_key: "&lt;preview DSN public key&gt;"
+processors:
+  ouoratelimit:
+    client: { rate: 100, burst: 300, key_from: x_forwarded_for }   # behind the fallback proxy</pre>
+<p>Plus the nginx fallback of the deployment guide in front, one replica, 1–2 CPUs, memory limit 1 GiB.</p>
+
+<h2 id="repro">Reproduce</h2>
+<pre># ouo env from the branch, Sentry sandbox up (project/kb-archive/sentry-self-hosted.md)
+deploy/envs/ouo-env up
+# taps: A before the bridge, B before production, M before the preview
+sentrytap -listen 127.0.0.1:4520 -dir caps/A -forward http://127.0.0.1:&lt;bridge port&gt;
+sentrytap -listen 0.0.0.0:4521  -dir caps/B -forward http://127.0.0.1:9000
+sentrytap -listen 0.0.0.0:4522  -dir caps/M -forward http://127.0.0.1:9000
+# collector: upstream http://host.docker.internal:4521, mirror http://host.docker.internal:4522 (project 9, its key)
+sentrytap replay -dir collector/receiver/ouosentryreceiver/testdata/golden/ios-rn-8.30.0/selfhosted -target http://127.0.0.1:4520
+sentrytap compare caps/A caps/B
+# latency / burst / soak
+sentrytap replay -dir &lt;golden&gt; -target http://127.0.0.1:9000 -n 200 -c 1
+sentrytap replay -dir &lt;golden&gt; -target http://127.0.0.1:&lt;bridge port&gt; -n 200 -c 1
+sentrytap replay -dir &lt;golden&gt; -target ... -n 3000 -c 64
+sentrytap replay -dir &lt;golden&gt; -target ... -n 9000 -c 8 -rate 15
+# a hanging mirror
+sentrytap -listen 0.0.0.0:4523 -dir caps/H -sink -delay 60s</pre>
+</main></body>
+</html>
