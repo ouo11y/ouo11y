@@ -119,7 +119,7 @@ tiles and funnels stay empty. Session logs (`| session_id=`) still work.
 
 ### 2.2 Retention and per-project retention
 
-Loki's `retention_period` is your retention for ouo's logs too (JUHI: 336h). Give rum-api the
+Loki's `retention_period` is your retention for ouo's logs too (one pilot runs 336h). Give rum-api the
 same value in `retention.logs` (`LOG_RETENTION`; Helm `retention.logs`; compose
 `OUO_RETENTION_LOGS`). It sets how far back delete-by-user looks for the user's sessions.
 - Shorter than Loki's retention: deletion misses older sessions.
@@ -366,11 +366,11 @@ on top of `compose.images.yaml`.
    - Loki request over `now - 336h` (rum-api `retention.logs`), `processed` about 165 s later
      (the fixture's cancel period is 1m), hidden from queries about 45 s after that.
    - That user's lines went from 16 to 0. Another user's 16 lines and the client's 6 lines were kept.
-6. **Multi-tenant variant** (Loki `auth_enabled: true`, `OUO_LGTM_TENANT_ID=juhi`, logs straight
+6. **Multi-tenant variant** (Loki `auth_enabled: true`, `OUO_LGTM_TENANT_ID=pilot`, logs straight
    to Loki's OTLP):
    - Loki answers 401 without a tenant.
-   - `E2E OK` again. All 106 log records of the run are in tenant `juhi`, none in `fake`.
-   - A delete by user lands in tenant `juhi` and is processed there: that user's lines go
+   - `E2E OK` again. All 106 log records of the run are in tenant `pilot`, none in `fake`.
+   - A delete by user lands in tenant `pilot` and is processed there: that user's lines go
      from 12 to 0, and another user's are kept.
 
 Step 6 also found a bug, now fixed: a deletion answered 502 `deletes in the future are not

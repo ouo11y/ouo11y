@@ -21,7 +21,7 @@ function hermesError(file: string): Error {
 describe("ouo.exception.debug_ids (ADR-0011 section 6)", () => {
   it("names the running OTA bundle under the location the normalised stack uses", () => {
     // hot-updater loads the OTA bundle from the app's files; the snippet registered that path.
-    const file = "/data/user/0/com.juhi.app/files/bundle-store/0193a5c2/index.android.bundle";
+    const file = "/data/user/0/com.example.app/files/bundle-store/0193a5c2/index.android.bundle";
     g.__ouoDebugIds = { [file]: OTA.toUpperCase() };
     const attrs = exceptionAttributes(hermesError(file), "uncaught", true);
     expect(attrs["exception.stacktrace"]).toContain("at chargeCard (app:///index.android.bundle:1:11313) [in app]");
@@ -29,7 +29,7 @@ describe("ouo.exception.debug_ids (ADR-0011 section 6)", () => {
   });
 
   it("covers the embedded iOS bundle and every exception kind", () => {
-    const file = "/private/var/containers/Bundle/Application/8F6B2A1C-0D4E-4C1B-9A55-2B7C3D4E5F60/Juhi.app/main.jsbundle";
+    const file = "/private/var/containers/Bundle/Application/8F6B2A1C-0D4E-4C1B-9A55-2B7C3D4E5F60/Example.app/main.jsbundle";
     g.__ouoDebugIds = { [file]: EMBEDDED };
     for (const kind of ["uncaught", "unhandledrejection", "console", "captured", "sentry"] as const) {
       expect(exceptionAttributes(hermesError(file), kind, false)["ouo.exception.debug_ids"]).toBe(`{"app:///main.jsbundle":"${EMBEDDED}"}`);

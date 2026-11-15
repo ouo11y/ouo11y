@@ -320,7 +320,7 @@ func TestBackendTenantHeadersBasicAuth(t *testing.T) {
 	p := writeFile(t, `
 loki:
   url: http://loki-gateway:80
-  tenant_id: juhi
+  tenant_id: pilot
   delete_url: http://loki-backend:3100
   headers:
     X-Api-Key: ${LOKI_KEY}
@@ -335,7 +335,7 @@ tempo:
 		t.Fatal(err)
 	}
 	lh := c.Loki.RequestHeaders()
-	if lh.Get("X-Scope-OrgID") != "juhi" || lh.Get("X-Api-Key") != "k_secret" || lh.Get("Authorization") != "" || c.Loki.DeleteURL != "http://loki-backend:3100" {
+	if lh.Get("X-Scope-OrgID") != "pilot" || lh.Get("X-Api-Key") != "k_secret" || lh.Get("Authorization") != "" || c.Loki.DeleteURL != "http://loki-backend:3100" {
 		t.Fatalf("loki headers %v, delete url %q", lh, c.Loki.DeleteURL)
 	}
 	th := c.Tempo.RequestHeaders()

@@ -13,7 +13,7 @@ func TestClientSetsHeaders(t *testing.T) {
 
 	base := &http.Client{}
 	h := http.Header{}
-	h.Set("X-Scope-OrgID", "juhi")
+	h.Set("X-Scope-OrgID", "pilot")
 	h.Set("Authorization", "Basic dTpw")
 	c := Client(base, h)
 	if base.Transport != nil {
@@ -24,7 +24,7 @@ func TestClientSetsHeaders(t *testing.T) {
 	if _, err := c.Do(req); err != nil {
 		t.Fatal(err)
 	}
-	if got.Get("X-Scope-OrgID") != "juhi" || got.Get("Authorization") != "Basic dTpw" || len(got.Values("X-Scope-OrgID")) != 1 {
+	if got.Get("X-Scope-OrgID") != "pilot" || got.Get("Authorization") != "Basic dTpw" || len(got.Values("X-Scope-OrgID")) != 1 {
 		t.Fatalf("headers: %v", got)
 	}
 	// The caller's request is untouched (RoundTripper contract).
@@ -36,7 +36,7 @@ func TestClientSetsHeaders(t *testing.T) {
 	if _, err := c.Get(srv.URL); err != nil {
 		t.Fatal(err)
 	}
-	if got.Get("X-Scope-OrgID") != "juhi" {
+	if got.Get("X-Scope-OrgID") != "pilot" {
 		t.Fatalf("headers not copied: %v", got)
 	}
 }

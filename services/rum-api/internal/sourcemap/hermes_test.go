@@ -48,7 +48,7 @@ func TestHermesOTABundles(t *testing.T) {
 	store := newStore(t)
 	ctx := context.Background()
 	for _, v := range []string{"v1", "v2"} {
-		m, err := store.Put(ctx, Upload{ProjectID: "juhi", Release: "1.4.0", File: "/index.android.bundle",
+		m, err := store.Put(ctx, Upload{ProjectID: "pilot", Release: "1.4.0", File: "/index.android.bundle",
 			Map: fixture(t, "hermes/"+v+"/index.android.bundle.hbc.map")})
 		if err != nil {
 			t.Fatal(err)
@@ -61,7 +61,7 @@ func TestHermesOTABundles(t *testing.T) {
 	sym := NewSymbolicator(store, Options{})
 	for _, v := range []string{"v1", "v2"} {
 		b := exp[v]
-		res, err := sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(b),
+		res, err := sym.Symbolicate(ctx, Request{ProjectID: "pilot", Release: "1.4.0", Stacktrace: hermesStack(b),
 			DebugIDs: map[string]string{"app:///index.android.bundle": b.DebugID}})
 		if err != nil {
 			t.Fatal(err)
@@ -94,7 +94,7 @@ func TestHermesOTABundles(t *testing.T) {
 	// Without debug ids the release index serves the last upload for the path:
 	// the earlier OTA bundle's frames land on the wrong lines. That is why the
 	// SDK sends debug ids.
-	res, err := sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"])})
+	res, err := sym.Symbolicate(ctx, Request{ProjectID: "pilot", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"])})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,13 +125,13 @@ func TestHermesUnknownDebugIDDoesNotTakeAnotherBundlesMap(t *testing.T) {
 	store := newStore(t)
 	ctx := context.Background()
 	// The id comes with the request only, as ouo-sourcemaps sends a composed map.
-	m, err := store.Put(ctx, Upload{ProjectID: "juhi", DebugID: exp["v2"].DebugID, Release: "1.4.0", File: "/index.android.bundle",
+	m, err := store.Put(ctx, Upload{ProjectID: "pilot", DebugID: exp["v2"].DebugID, Release: "1.4.0", File: "/index.android.bundle",
 		Map: withoutDebugID(t, "hermes/v2/index.android.bundle.hbc.map")})
 	if err != nil || m.DebugID != exp["v2"].DebugID {
 		t.Fatalf("%+v %v", m, err)
 	}
 	sym := NewSymbolicator(store, Options{})
-	res, err := sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
+	res, err := sym.Symbolicate(ctx, Request{ProjectID: "pilot", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
 		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v1"].DebugID}})
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestHermesUnknownDebugIDDoesNotTakeAnotherBundlesMap(t *testing.T) {
 		}
 	}
 	// v2's own stack still maps, by its id.
-	res, _ = sym.Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v2"]),
+	res, _ = sym.Symbolicate(ctx, Request{ProjectID: "pilot", Release: "1.4.0", Stacktrace: hermesStack(exp["v2"]),
 		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v2"].DebugID}})
 	if res.Status != StatusOK {
 		t.Errorf("v2: %+v", res)
@@ -158,11 +158,11 @@ func TestHermesUnknownDebugIDFallsBackToAnIDlessMap(t *testing.T) {
 	exp := hermesFixture(t)
 	store := newStore(t)
 	ctx := context.Background()
-	if _, err := store.Put(ctx, Upload{ProjectID: "juhi", Release: "1.4.0", File: "/index.android.bundle",
+	if _, err := store.Put(ctx, Upload{ProjectID: "pilot", Release: "1.4.0", File: "/index.android.bundle",
 		Map: withoutDebugID(t, "hermes/v1/index.android.bundle.hbc.map")}); err != nil {
 		t.Fatal(err)
 	}
-	res, err := NewSymbolicator(store, Options{}).Symbolicate(ctx, Request{ProjectID: "juhi", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
+	res, err := NewSymbolicator(store, Options{}).Symbolicate(ctx, Request{ProjectID: "pilot", Release: "1.4.0", Stacktrace: hermesStack(exp["v1"]),
 		DebugIDs: map[string]string{"app:///index.android.bundle": exp["v1"].DebugID}})
 	if err != nil || res.Status != StatusOK {
 		t.Fatalf("%+v %v", res, err)

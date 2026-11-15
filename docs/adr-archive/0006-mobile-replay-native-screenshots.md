@@ -40,7 +40,7 @@ Consequences: a tap's result can show up to 1 s later in the replay, as in Sentr
 
 ## Revision 3 (2026-11-03): never-record screens
 
-Context: directed by the founder on 2026-11-03 at the request of the client JUHI (a care company; its React Native app shows identity checks, signatures and addresses, data concerning health under GDPR Art. 9). Masking already redacts text, images and web views by default, but the layout of a screen is still recorded; some screens must not appear in a replay at all, including third-party native UI such as Stripe Identity. The web side is ADR-0003, revision 2026-11-03.
+Context: directed by the founder on 2026-11-03 at the request of a pilot client (a care company; its React Native app shows identity checks, signatures and addresses, data concerning health under GDPR Art. 9). Masking already redacts text, images and web views by default, but the layout of a screen is still recorded; some screens must not appear in a replay at all, including third-party native UI such as Stripe Identity. The web side is ADR-0003, revision 2026-11-03.
 
 Decision:
 

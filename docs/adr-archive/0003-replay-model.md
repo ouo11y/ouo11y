@@ -1,6 +1,6 @@
 # ADR-0003 One session, one replay, many chunks
 
-Status: accepted (2026-10-06); revision 2026-11-03 (mask all text by default, `ouo-unmask`, never-record routes; directed by the founder on 2026-11-03 at the request of the client JUHI, whose screens show health-related personal data, GDPR Art. 9) at the end
+Status: accepted (2026-10-06); revision 2026-11-03 (mask all text by default, `ouo-unmask`, never-record routes; directed by the founder on 2026-11-03 at the request of a pilot client whose screens show health-related personal data, GDPR Art. 9) at the end
 
 ## Context
 
@@ -26,7 +26,7 @@ The MVP asks whether one session equals one replay or whether a session can cont
 
 ## Revision 2026-11-03: masked by default, never-record routes
 
-Status: accepted (2026-11-03). Directed by the founder on 2026-11-03 at the request of the client JUHI, a care company replacing Sentry with ouo11y: its admin portal and PWA show personal data on every page, including data concerning health (GDPR Art. 9), so "masked by default" and "never record this screen" are hard requirements. The roadmap had planned the option as WB5 with "a default decided in an ADR-0003 revision" (`project/kb-archive/web-sdk-research/roadmap.md`); this is that decision, taken ahead of the rest of WB5.
+Status: accepted (2026-11-03). Directed by the founder on 2026-11-03 at the request of a pilot client, a care company replacing Sentry with ouo11y: its admin portal and PWA show personal data on every page, including data concerning health (GDPR Art. 9), so "masked by default" and "never record this screen" are hard requirements. The roadmap had planned the option as WB5 with "a default decided in an ADR-0003 revision" (`project/kb-archive/web-sdk-research/roadmap.md`); this is that decision, taken ahead of the rest of WB5.
 
 Context: until 0.3 the web SDK masked input values only. Text was recorded unless the page marked it `ouo-mask` or matched `maskTextSelector`, so a page that forgot a class leaked whatever it displayed, and click names (`app.widget.name`) carried button and link text into telemetry. The mobile SDKs already redact all text, images and web views by default (ADR-0006).
 

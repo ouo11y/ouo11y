@@ -18,7 +18,7 @@ token to every proxied request and rum-api's `readAuth` accepts the read token f
   | `POST rum/v1/funnels/*` | Viewer | `POST /v1/funnels/query` is a read with a JSON body; the only POST the plugin makes |
   | `DELETE rum/v1/sessions/*` | Admin | `DELETE /v1/sessions/{id}/replay` |
 
-  **Admin, not Editor:** deleting a replay erases personal data (JUHI: GDPR Art. 9) and cannot
+  **Admin, not Editor:** deleting a replay erases personal data (for a pilot client, GDPR Art. 9 data) and cannot
   be undone. Grafana Editors are usually everyone who builds dashboards. rum-api's other erasure
   endpoints (`/v1/admin/users`, `/v1/admin/projects`) need the admin token. So erasure through
   Grafana goes to org Admins only.

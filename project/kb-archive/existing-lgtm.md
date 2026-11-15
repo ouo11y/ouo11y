@@ -1,6 +1,6 @@
 # ouo on an existing Loki / Tempo / Mimir (shared, single tenant)
 
-Learned while making the "customer's own LGTM" path a supported one (R4, JUHI, 2026-11-04).
+Learned while making the "customer's own LGTM" path a supported one (R4, pilot client, 2026-11-04).
 Operator guide: `docs/operations/existing-lgtm.md`. Reproduce: `tests/e2e/existing-lgtm/run.sh
 [--multitenant]` (Loki 3.7.7, Tempo 3.0.3, Mimir 3.2.1, otelcol-contrib 0.160.0, ouo collector
 0.5.0+ and rum-api from the tree).
