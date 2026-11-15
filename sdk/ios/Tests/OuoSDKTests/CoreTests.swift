@@ -165,7 +165,10 @@ import OuoVitals
         #expect(e.s("ouo.memory.app_bytes") == nil, "not measured at the crash")
         #expect(e.s("network.connection.type") == nil)
         #expect(e.s("service.version") == "1.0.0")
-        #expect(logs.first { $0.name == "session.start" }?.s("session.previous_id") == crashed)
+        // c1 is never closed: its one-second batch (its own `session.start`) can reach the outbox the
+        // two share and be sent by c2, as a dead run's would. This run's start is the one with its id.
+        let start = try #require(logs.first { $0.name == "session.start" && $0.s("session.id") == c2.sessionId })
+        #expect(start.s("session.previous_id") == crashed)
     }
 
     /// C3.2: a termination report is fatal and ends the session with `crash`.

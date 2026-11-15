@@ -53,13 +53,15 @@ import Testing
         })
         c.start(previousReport: nil, background: false, appStart: nil)
         let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
+        // A thread of its own: a global queue's worker can wait seconds for a free thread on a busy
+        // machine. The gate stays shut until the calls return, so the bound only ends a deadlock.
+        Thread {
             c.trackScreen("Home")
             c.event("x", [:])
             c.trackScreen("Cart")
             done.signal()
-        }
-        #expect(done.wait(timeout: .now() + 2) == .success, "the calls returned while the write hangs")
+        }.start()
+        #expect(done.wait(timeout: .now() + 30) == .success, "the calls returned while the write hangs")
         gate.signal()
         gate.signal()
         settle(c)

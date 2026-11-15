@@ -18,3 +18,4 @@ MVP-era knowledge is in [kb-archive](../kb-archive/index.md). It was mostly writ
 | [plugin/](plugin/index.md) | A client's own Grafana plugin on ouo11y data: building a plugin's Go backend, Loki answers as it reads them, how it gets the user's identity-provider tokens (only a datasource with `oauthPassThru`), and where `libs/ouo-go` and `@ouo11y/kit` fit (ADR-0025) |
 | [rum-api-retirement/](rum-api-retirement/index.md) | What `services/rum-api` still held before deletion (debug files, erasure audit log) and where each duty goes (ADR-0026) |
 | [ci/](ci/index.md) | How the GitHub Actions workflows run: every job on GitHub-hosted runners since the repo went public, and why the self-hosted ones no longer serve it |
+| [client-sdk-ios/](client-sdk-ios/index.md) | How `sdk/ios` is built and tested: the parallel races of its Swift Testing suite and the rules that keep it green on 3 cores |
