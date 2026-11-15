@@ -72,7 +72,7 @@ fi
 export OUO_PERF=1 APP_VERSION=1.0.0 BUILD_NUMBER=1
 export SENTRY_DSN="http://publickey0000000000000000000000@$HOST:4720/1"
 export SENTRY_DIRECT_DSN="$SENTRY_DSN"
-export BACKEND_URL="http://$HOST:4781" OUO_OTLP_ENDPOINT="http://$HOST:4718" OUO_REPLAY_ENDPOINT="http://$HOST:4719"
+export BACKEND_URL="http://$HOST:4781" OUO_OTLP_ENDPOINT="http://$HOST:4718"
 # The JS bundle's source map, written by react-native-xcode.sh (size.py attributes bundle bytes per package).
 export SOURCEMAP_FILE="$OUT/main.jsbundle.map"
 

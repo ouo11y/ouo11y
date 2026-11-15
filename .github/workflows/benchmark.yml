@@ -58,10 +58,7 @@ concurrency:
 
 jobs:
   bench:
-    # The PR smoke run (minutes) on the Mac runner; tag and dispatch runs stay GitHub-hosted: hours
-    # of simulator load would land on the founder's Mac, and their numbers need an idle machine
-    # (project/kb-archive/ci-runners.md).
-    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["self-hosted","macOS"]') || 'macos-latest' }}
+    runs-on: macos-latest
     timeout-minutes: 340
     permissions:
       contents: read
@@ -84,8 +81,6 @@ jobs:
           go-version-file: examples/backend/go.mod
       - name: Simulator and tools
         run: |
-          [[ -d /opt/homebrew/bin ]] && echo /opt/homebrew/bin >> "$GITHUB_PATH"   # pod on the Mac runner
-          export PATH="/opt/homebrew/bin:$PATH"
           echo "WORK=$RUNNER_TEMP/bench" >> "$GITHUB_ENV"   # upload-artifact refuses paths with ..
           xcodebuild -version
           pod --version
@@ -135,7 +130,7 @@ jobs:
           python3 -I examples/sentry-mobile/scripts/perf/gate.py --new "$new/result.json" --base "$base/result.json" --md "$WORK/gate.md"
       - name: Shut down the simulator
         if: always() && env.SIM_UDID != ''
-        run: xcrun simctl shutdown "$SIM_UDID" || true   # the Mac runner keeps its simulators between jobs
+        run: xcrun simctl shutdown "$SIM_UDID" || true
       - name: Summary
         if: always()
         run: |
