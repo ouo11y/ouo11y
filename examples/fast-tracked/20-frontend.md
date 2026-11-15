@@ -1,4 +1,4 @@
-# 20. Add ouo11y RUM to your React web app
+# 20. Add ouo RUM to your React web app
 
 Goal: your own React app sends sessions, errors, traced `fetch` calls, Web Vitals and
 rrweb replay to the local ouo stack, and you can see one session end to end in Grafana.
@@ -30,15 +30,14 @@ The SDK does this on its own once `initRUM` has run:
 - `navigation` records on page load and on `pushState` / `replaceState` / `popstate`
   (React Router goes through `pushState`, nothing router specific is needed).
 - `web_vital` records for TTFB, FCP, LCP, CLS, INP.
-- rrweb replay: a chunk is uploaded every 5 s or at 256 KB, gzip, to the collector's
-  replay receiver `POST /v1/replay/chunks` (port 4319); on `pagehide` the rest goes out with
-  `keepalive`. Inputs are masked by default.
+- rrweb replay: chunks go out as OTLP log records (`ouo.replay.chunk`, scope `ouo.replay`) on
+  `POST /v1/logs`; the collector routes them to Muninn, the replay store. Inputs are masked by
+  default.
 - One edge for everything (ADR-0007): spans and log records go to the OpenTelemetry
-  Collector `POST /v1/traces` and `/v1/logs` (port 4318), replay to its replay receiver
-  (port 4319), every request with `Authorization: Basic base64(projectId:projectToken)`.
+  Collector `POST /v1/traces` and `/v1/logs` (port 4318), replay included, every request with `Authorization: Basic base64(projectId:projectToken)`.
   The collector checks the credential, the page origin (CORS), size and rate, stamps
-  `ouo.project.id`, and forwards to Tempo, Loki and (replay) rum-api. The browser never
-  talks to rum-api.
+  `ouo.project.id`, and forwards to Tempo, Loki and (replay) Muninn. The browser never
+  talks to Muninn.
 
 You still have to do these yourself:
 
@@ -126,7 +125,6 @@ The SDK needs one URL and one pair of credentials. All three come from the stack
 | Option | Local default | What is behind it |
 |---|---|---|
 | `endpoint` | `http://localhost:4318` | The collector's OTLP/HTTP receiver. The SDK posts to `/v1/traces` and `/v1/logs`. |
-| `replayEndpoint` | derived: `http://localhost:4319` | The collector's replay receiver (`/v1/replay/chunks`). When `endpoint` uses port 4318 the SDK assumes 4319 on the same host; otherwise it uses `endpoint` itself (a proxy such as Caddy routing `/v1/replay/*`, section 7 of the ADR). Set it only when neither applies. |
 | `projectId` | `demo` | The project id, used as the HTTP Basic username. |
 | `projectToken` | `pt_dev_demo_0000000000000000` | The project's public token, the HTTP Basic password. The collector answers `401` without the right pair. |
 
@@ -138,18 +136,18 @@ project that telemetry is written into, under the collector's origin, size and r
 provisioned with the development values above (`deploy/compose/.env.example`,
 `OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN`, hashed into the collector's htpasswd file); for
 anything other than the local stack, use the values from your project's configuration. Do not
-put a rum-api **read** token in the browser; that one is secret and only Grafana uses it.
+put a Muninn token in the browser; those are secret and server side.
 
-Default host ports are in `deploy/compose/.env.example`: Grafana 3000, collector 4318 (OTLP)
-and 4319 (replay), demo backend 8081, Loki 3100, Tempo 3200. rum-api is internal: nothing in
+Default host ports are in `deploy/compose/.env.example`: Grafana 3000, collector 4318 (OTLP,
+replay included), demo backend 8081, Loki 3100, Tempo 3200. Muninn is internal: nothing in
 the browser needs its port. If you created `deploy/compose/.env` to move ports, use those
 values instead everywhere below: for the demo app, copy `examples/ouo-web/.env.example` to
 `examples/ouo-web/.env` (gitignored) and change `VITE_OTLP_ENDPOINT` and `VITE_BACKEND_URL`.
 
-CORS is handled by the collector (both receivers share the `confighttp` settings): the local
+CORS is handled by the collector's OTLP receiver: the local
 config allows `http://localhost:*` and `http://127.0.0.1:*`, and its preflight answer lists
-`Authorization`, `Content-Type`, `Content-Encoding`, `traceparent`, `baggage` and the replay
-headers (ADR-0007 section 4). So Vite on 5173, 5174, 3001 or any other `localhost` port works
+`Authorization`, `Content-Type`, `Content-Encoding`, `traceparent` and `baggage`
+(ADR-0007 section 4). So Vite on 5173, 5174, 3001 or any other `localhost` port works
 without touching the stack. A CORS error in the console with no `POST` following the
 `OPTIONS` means your page's origin is not in the collector's `allowed_origins` (or
 `Authorization` is missing from its allowed headers); a `401` on the `POST` means the id or
@@ -159,7 +157,7 @@ The demo reads its endpoint and credentials from Vite env variables. Copy this t
 your app (ref: `examples/ouo-web/.env.example`, adjusted to the stock ports):
 
 ```bash
-# Collector OTLP/HTTP base URL. The SDK posts to /v1/{traces,logs} and derives :4319/v1/replay/chunks.
+# Collector OTLP/HTTP base URL. The SDK posts to /v1/{traces,logs}, replay included.
 VITE_OTLP_ENDPOINT=http://localhost:4318
 # HTTP Basic project credentials (Authorization: Basic base64(id:token)). Development values of the local stack.
 VITE_OUO_PROJECT_ID=demo
@@ -195,7 +193,6 @@ const env = import.meta.env;
 
 export const config = {
   // The collector is the only host the SDK talks to (ADR-0007): OTLP to ${otlpEndpoint}/v1/{traces,logs},
-  // replay chunks to the replay receiver, which the SDK derives as port 4319 when the endpoint is on 4318.
   otlpEndpoint: env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318",
   // HTTP Basic project credentials. The token is public, not a secret: it ships in the bundle and only
   // names the project. These are the development values the local stack is provisioned with.
@@ -282,10 +279,9 @@ Names, defaults and meanings are taken from `sdk/browser/src/types.ts` and
 | Option | Default | What it does |
 |---|---|---|
 | `endpoint` | required | Collector OTLP/HTTP base. Spans go to `<endpoint>/v1/traces`, log records to `<endpoint>/v1/logs`, batched (logs every 1 s, spans every 2 s, 64 per batch) and force-flushed when the tab is hidden or unloaded. |
-| `replayEndpoint` | derived | Replay receiver base; chunks go to `<replayEndpoint>/v1/replay/chunks`. Default: `endpoint` with port 4319 when `endpoint` uses port 4318, otherwise `endpoint` itself. You do not need to set it for the local stack. |
 | `projectId` | required | Project id, the Basic auth username. Throws at init when missing, empty or containing `:`. |
 | `projectToken` | required | Public project token, the Basic auth password. Sent with the id as `Authorization: Basic ...` on every request above. Throws at init when missing or empty. |
-| `service.name` | required | `service.name` resource attribute. This is the `service=` filter in rum-api and the `service_name` label in Loki. |
+| `service.name` | required | `service.name` resource attribute. This is the `service_name` label in Loki. |
 | `service.version` | required | `service.version`, also copied onto every span and log record. Health percentages are grouped by it. |
 | `service.environment` | required | `deployment.environment.name`. |
 | `tracing.propagateTo` | `[]` | Origins (RegExp or exact string) that get `traceparent` and `baggage`. Same-origin requests always get them. Put your backend origin here. |
@@ -323,8 +319,7 @@ rum.replay.pause(); rum.replay.resume(); rum.replay.isRecording();
 await rum.flush();                                      // send everything now instead of on the batch timer
 ```
 
-Set the user as soon as you know it. rum-api uses the latest non-empty `user.id` seen in
-the session, so a `setUser` after the session started is fine. The demo stores the id in
+Set the user as soon as you know it: records after `setUser` carry the new `user.id`. The demo stores the id in
 `localStorage` and also sends it as `x-user-id` so the backend and the browser agree
 (`examples/ouo-web/src/api.ts`); copy that file if your backend wants the same.
 
@@ -372,67 +367,13 @@ SID=paste-your-session-id-here
 ```
 
 What you should see in the browser before touching the stack: with `VITE_RUM_DEBUG=1` the
-console shows `[ouo] @ouo11y/browser@0.2.0 initialised` with `endpoint`, `replayEndpoint`, the
-derived `traces`, `logs` and `replay` URLs, `projectId`, session and user (the token is never
+console shows `[ouo] @ouo11y/browser@0.2.0 initialised` with `endpoint`, the
+derived `traces` and `logs` URLs, `projectId`, session and user (the token is never
 logged). The network tab shows `POST http://localhost:4318/v1/logs` and
 `POST http://localhost:4318/v1/traces` (status 200, request header
-`Authorization: Basic ...`) and `POST http://localhost:4319/v1/replay/chunks` (status 202,
-`content-encoding: gzip`, headers `Authorization`, `x-ouo-session-id` and `x-ouo-seq`
-counting up from 0). Each one is preceded by an `OPTIONS` preflight the first time, then
+`Authorization: Basic ...`); replay chunks ride on the `/v1/logs` requests. Each one is preceded by an `OPTIONS` preflight the first time, then
 cached. If you see `401`, the id or token in `.env` does not match the collector's htpasswd;
 a CORS error with no `POST` means your origin is not in the collector's `allowed_origins`.
-
-### rum-api
-
-rum-api is internal (ADR-0007): the browser never calls it, and its read API is locked with
-the stack's read token (`OUO_READ_TOKEN`, `rt_dev_0000000000000000` on the local stack; the
-Grafana plugin injects it server side). On the local Docker stack it is still reachable from
-this host on port 8080 for the checks below. Export the read token once:
-
-```bash
-RT='Authorization: Bearer rt_dev_0000000000000000'
-```
-
-Sessions started in the last hour:
-
-```bash
-curl -s -H "$RT" 'http://localhost:8080/v1/sessions?from=now-1h' | jq '.sessions[] | {session_id, user_id, status, state, event_count, trace_count, has_replay}'
-```
-
-What you should see: one record for your session with `platform: "web"`, your
-`service_name` and `service_version`, `status: "healthy"` (no errors yet),
-`state: "active"`, `has_replay: true`, `replay_kind: "rrweb"`.
-
-One session with its timeline and traces:
-
-```bash
-curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID" | jq '.timeline[] | {ts, type, name}'
-```
-
-What you should see: `session.start`, `navigation` (kind `load`), `web_vital` lines (TTFB
-at least; FCP, LCP, CLS, INP arrive as the page is used), `navigation` (kind `push`) for the
-product page, and your custom event (`add_to_cart` in the demo, `type: "custom"`).
-
-```bash
-curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID" | jq '.traces[] | {trace_id, root_name, root_service, span_count, has_error}'
-```
-
-What you should see: one trace per `fetch` (`GET`, `POST`) with `root_service` equal to
-your `service.name` and `span_count` greater than 1 when the backend joined the trace.
-
-The replay meta and its events:
-
-```bash
-curl -s -H "$RT" "http://localhost:8080/v1/sessions/$SID/replay" | jq '{kind, chunk_count, first_seq, last_seq, bytes}'
-```
-
-```bash
-curl -s -H "$RT" --compressed "http://localhost:8080/v1/sessions/$SID/replay/events" | head -c 300
-```
-
-What you should see: `kind: "rrweb"`, `chunk_count` of at least 1 and growing every 5 s
-while the tab is open, and a JSON array whose first events have `type` 4 (meta) and 2 (full
-snapshot).
 
 ### Loki (session events)
 
@@ -469,18 +410,7 @@ span under the browser span; both carry `session.id` and `user.id` attributes.
 
 ### Grafana
 
-Open http://localhost:3000 (admin / testing567). The ouo11y RUM app plugin is at:
-
-- Overview, `http://localhost:3000/a/ouo11y-rum-app/overview`: healthy / errored / crashed
-  percentages per platform and app version, from `GET /v1/stats/health`.
-- Sessions, `http://localhost:3000/a/ouo11y-rum-app/sessions`: the session list with status,
-  user, event and trace counts, replay duration; filters for platform, status, version,
-  user. Click your session.
-- Session detail, `http://localhost:3000/a/ouo11y-rum-app/sessions/<id>`: the timeline, the
-  traces with "open in Explore" links, and the rrweb player pinned at the top playing the
-  chunks you just uploaded with inputs masked.
-
-Explore also works on its own: Tempo with `{ span.session.id = "<id>" }`, Loki with
+Open http://localhost:3000 (admin / testing567) and use Explore: Tempo with `{ span.session.id = "<id>" }`, Loki with
 `{service_name="web-store"} | session_id="<id>"`, and "Logs for this span" from a Tempo
 span jumps to Loki filtered on the same `session_id`.
 
@@ -536,8 +466,7 @@ Where to look when you want to know what a signal contains.
   fetch / XHR / document-load instrumentations, installs error capture, navigation and
   Web Vitals, starts the replay recorder, and flushes on `visibilitychange: hidden` and
   `pagehide`. Returns the `RUM` object.
-- `ingest.ts`: `deriveIngestUrls` (collector base to `/v1/{traces,logs}`, replay base
-  derived 4318 to 4319 or explicit, `/v1/replay/chunks`), `basicAuthorization` (UTF-8 safe
+- `ingest.ts`: `deriveIngestUrls` (collector base to `/v1/{traces,logs}`), `basicAuthorization` (UTF-8 safe
   base64 of `id:token`) and the credential validation. Pure, exported, unit-tested in
   `test/ingest.test.ts`.
 - `types.ts`: every option and the `RUM` interface, with defaults in the doc comments.
@@ -566,9 +495,8 @@ Where to look when you want to know what a signal contains.
   `ouo-mask` classes, full snapshot every 5 min, pause / resume, sampling.
 - `replay/chunker.ts`: buffers rrweb events, cuts a chunk every 5 s or at 256 KB,
   sequential upload queue with 3 retries and a 2 MB cap.
-- `replay/uploader.ts`: gzip with `CompressionStream`, `POST /v1/replay/chunks` with
-  `Authorization: Basic`, `x-ouo-session-id` / `x-ouo-seq`, `keepalive` on unload (same
-  headers on both paths).
+- `replay/`: the chunks leave as OTLP log records on `/v1/logs` with `Authorization: Basic`,
+  `keepalive` on unload.
 - `logger.ts`, `version.ts`: the `[ouo]` debug logger and the SDK version string.
 
 More detail: `sdk/browser/README.md`, `project/kb-archive/otel-browser-sdk.md`, `project/kb-archive/rrweb-chunking.md`.

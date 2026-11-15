@@ -5,6 +5,8 @@ Compose path (laptop and the VM install under `deploy/vm/`) and the Helm path. V
 and tag names are in `docs/releasing.md`; this document assumes the images and packages of
 the target release already exist.
 
+> **rum-api, the plugin and the `grafana` image removed (2026-11-15).** An install upgrading past that change drops the rum-api service, its replay volume and the plugin; replays are in Muninn from then on (no migration of rum-api replays, ADR-0019). Section 4 (replay chunk `schema_version` guard) and the rum-api/grafana rows below are the MVP record. Muninn's own upgrade notes follow `docs/releasing.md` section 2.
+
 Status: rehearsed (section 8) on 2026-10-23 (a VM install of 0.2.0 from its released images
 upgraded to 0.3.0 with replays of all three kinds, and `helm upgrade` from chart 0.1.0 to
 0.1.1 on kind) and on 2026-11-01 (compose with the released images, from rum-api 0.5.0,

@@ -10,7 +10,7 @@ fullnameOverride: ""
 # then:
 # imagePullSecrets:
 #   - name: <secret>
-# Applied to every pod the chart runs (collector, rum-api, Grafana, bundled LGTM).
+# Applied to every pod the chart runs (collector, Grafana, bundled LGTM).
 imagePullSecrets: []
 commonLabels: {}
 
@@ -30,46 +30,41 @@ projects: []
 #  - id: web-store
 #    token: pt_live_9f3c...
 
-# Shared secret between the collector's replay exporter and rum-api
-# (OUO_INGEST_TOKEN on both): rum-api accepts POST /v1/replay/chunks only with
-# `Authorization: Bearer <ingestToken>` and X-Ouo-Project-Id. Empty disables the
-# check (rum-api is ClusterIP only, so this is defence in depth).
-ingestToken: ""
-
-# Read token (OUO_READ_TOKEN): required by rum-api on GET/DELETE /v1/*; the Grafana
-# plugin sends it from secureJsonData through the plugin route proxy. Empty disables
-# read authentication (development only).
-readToken: ""
-
-# Admin token (OUO_ADMIN_TOKEN): bearer of rum-api's operator API /v1/admin/* (delete by
-# user / project, audit log, retention sweep; docs/operations/data-lifecycle.md). Nothing
-# but an operator holds it. Empty disables the admin API (404). With
-# rumApi.existingSecret, put it under the key `admin-token`.
-adminToken: ""
+# -----------------------------------------------------------------------------
+# Muninn, the replay store (ADR-0019, docs/specs/muninn.md). This chart does not deploy
+# Muninn: run it next to the chart (services/muninn) and point the collector at it. The
+# collector sends replay chunks (OTLP logs, scope ouo.replay) to <endpoint>/otlp/v1/logs
+# with `Authorization: Bearer <ingestToken>` and `X-Scope-OrgID: <tenant>`.
+# -----------------------------------------------------------------------------
+muninn:
+  # Muninn base URL as seen from the collector pod, e.g. http://muninn.muninn.svc:3400.
+  # Required while collector.enabled.
+  endpoint: ""
+  # Muninn's auth.ingest_token. Rendered into the Secret <release>-collector-muninn
+  # (key `ingest-token`) unless existingSecret is set.
+  ingestToken: ""
+  # Pre-created Secret with key `ingest-token`. When set, ingestToken is ignored.
+  existingSecret: ""
+  # X-Scope-OrgID sent to Muninn: one tenant per collector (COL-9).
+  tenant: anonymous
 
 # -----------------------------------------------------------------------------
 # Retention per signal (roadmap 8b, docs/operations/data-lifecycle.md): this one entry
 # renders Loki's retention_period, Tempo's block_retention, Mimir's
-# compactor_blocks_retention_period (bundled LGTM) and rum-api's replay retention (its
-# sweeper and, with rumApi.storage.s3.lifecycleRules, the bucket lifecycle rules). Go
-# durations in hours; Loki needs at least 24h. With lgtm.mode external, set the same
-# values in your Loki / Tempo / Mimir charts (the doc lists the keys); rum-api still
-# uses `logs` to bound delete-by-user and `replays` for replays.
+# compactor_blocks_retention_period (bundled LGTM). Replay retention is Muninn's own
+# config. Go durations in hours; Loki needs at least 24h. With lgtm.mode external, set
+# the same values in your Loki / Tempo / Mimir charts (the doc lists the keys).
 # -----------------------------------------------------------------------------
 retention:
   logs: 720h
   traces: 336h
   metrics: 2160h
-  replays: 720h
-  # How often rum-api's sweeper deletes expired replays (0s disables it).
-  sweepInterval: 1h
   # Per-project overrides keyed by project id: `logs` becomes a Loki retention_stream on
-  # the ouo_project_id label (bundled Loki), `replays` rum-api's projects.<id> retention.
+  # the ouo_project_id label (bundled Loki).
   # Tempo and Mimir are single-tenant here: traces and metrics have no per-project TTL.
   projects: {}
   #  ttltest:
   #    logs: 24h
-  #    replays: 24h
   # Bundled Loki's deletion timings: a delete request can be cancelled for
   # deleteCancelPeriod before the compactor applies it; deleted chunks go after
   # retentionDeleteDelay.
@@ -79,141 +74,14 @@ retention:
     retentionDeleteDelay: 2h
 
 # -----------------------------------------------------------------------------
-# rum-api: session API, replay store, internal replay sink. ClusterIP only, never
-# an Ingress (ADR-0007 section 5): only the collector and Grafana talk to it.
-# -----------------------------------------------------------------------------
-rumApi:
-  image:
-    repository: ghcr.io/ouo11y/rum-api
-    tag: "0.6.0"
-    pullPolicy: IfNotPresent
-  replicas: 1
-  # Name of a pre-created Secret with keys `ingest-token`, `read-token` and, optionally,
-  # `admin-token`. When set, `ingestToken`, `readToken` and `adminToken` are ignored.
-  existingSecret: ""
-  config:
-    # Browser-facing Grafana URL used in trace deep links. Empty: derived from
-    # grafana.ingress when enabled, otherwise http://localhost:3000 (port-forward).
-    grafanaUrl: ""
-    tempoDatasourceUid: tempo
-    lokiDatasourceUid: loki
-    sessionInactivity: 30m
-    sessionMaxDuration: 4h
-  # rum-api reads a YAML config file like Loki and Tempo: the chart renders it into a
-  # ConfigMap (<release>-rum-api-config, mounted at /etc/rum-api/config.yaml) from
-  # rumApi.config and rumApi.storage. structuredConfig is merged over it last: any key
-  # of services/rum-api/config.example.yaml, e.g.
-  #   structuredConfig: { limits: { max_video_chunk_bytes: 16777216 }, tempo: { concurrency: 16 } }
-  # Secrets never go here: tokens and S3 keys reach the pod as environment variables
-  # from Secrets (they override the file).
-  structuredConfig: {}
-  # Replay store (storage.backend). filesystem: the PVC below at /data. s3: an S3
-  # compatible bucket (AWS S3, MinIO, Ceph RGW, ...); no PVC, any number of replicas.
-  # The bucket must exist; rum-api never creates it.
-  storage:
-    backend: filesystem
-    s3:
-      # host[:port] without scheme. Empty: s3.<region>.amazonaws.com.
-      endpoint: ""
-      bucket: ""
-      region: us-east-1
-      # Optional key prefix inside the bucket (environment or tenant).
-      prefix: ""
-      # true: plain HTTP (in-cluster MinIO without TLS).
-      insecure: false
-      insecureSkipVerify: false
-      # true for MinIO and most S3 compatibles (bucket in the path).
-      forcePathStyle: false
-      # Static keys, rendered into the rum-api Secret (s3-access-key-id,
-      # s3-secret-access-key). Leave both empty and set existingSecret, or use pod
-      # identity (EKS IRSA via serviceAccountName) and the AWS credential chain.
-      accessKeyId: ""
-      secretAccessKey: ""
-      # Pre-created Secret with keys `access-key-id` and `secret-access-key`.
-      existingSecret: ""
-      # true: rum-api writes the bucket's ouo-replays-* lifecycle rules (expiration per
-      # retention in use, by the ouo-retention object tag) at start-up. Needs
-      # s3:Get/PutLifecycleConfiguration and s3:PutObjectTagging; false: provision the
-      # rules yourself (docs/operations/data-lifecycle.md has the AWS JSON).
-      lifecycleRules: false
-  # Server-side per-project replay sampling cap: the replay sink drops chunks of sessions
-  # outside it, with the SDKs' deterministic rule (docs/operations/data-lifecycle.md).
-  sampling: {}
-  #  web-store:
-  #    sessionRate: 1
-  #    replayRate: 0.25
-  #    replayOnErrorRate: 1   # error-triggered replays (absent: 1, no cap)
-  # ServiceAccount for the pod (pod identity / IRSA for the s3 backend). Empty: default.
-  serviceAccountName: ""
-  otel:
-    # rum-api's own telemetry goes to the chart's collector through its internal,
-    # unauthenticated OTLP/HTTP receiver (OTEL_SDK_DISABLED when false).
-    enabled: true
-    environment: production
-    # Telemetry goes to the collector's 4318 with the Basic credential of this project
-    # (OTEL_EXPORTER_OTLP_HEADERS, rendered into the rum-api Secret key `otlp-headers`).
-    # Empty: the first entry of `projects`. Every OTLP client needs a credential,
-    # in-cluster ones included (ADR-0007; gRPC 4317 is authenticated too).
-    project: ""
-    # Override when collector.enabled=false (another OTLP/HTTP endpoint).
-    endpoint: ""
-  # Extra environment variables (list of core/v1 EnvVar), e.g. MAX_FRAME_CHUNK_BYTES.
-  # They override the config file. Source map and dSYM upload tokens go here as
-  # OUO_UPLOAD_TOKENS from a Secret (README "Source maps and dSYMs: upload tokens").
-  extraEnv: []
-  persistence:
-    # Replay chunks with storage.backend filesystem (/data); ignored with s3. With more
-    # than one replica the volume must be ReadWriteMany; prefer the s3 backend instead.
-    enabled: true
-    existingClaim: ""
-    storageClass: ""
-    accessModes: [ReadWriteOnce]
-    size: 20Gi
-    annotations: {}
-  service:
-    # Always ClusterIP; there is no type or Ingress option on purpose.
-    port: 8080
-    annotations: {}
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits: {}
-  podAnnotations: {}
-  podLabels: {}
-  podSecurityContext:
-    # distroless nonroot
-    runAsNonRoot: true
-    runAsUser: 65532
-    runAsGroup: 65532
-    fsGroup: 65532
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    capabilities:
-      drop: [ALL]
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  priorityClassName: ""
-  livenessProbe:
-    httpGet: { path: /healthz, port: http }
-    initialDelaySeconds: 5
-    periodSeconds: 10
-  readinessProbe:
-    httpGet: { path: /readyz, port: http }
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    failureThreshold: 12
-
-# -----------------------------------------------------------------------------
 # ouo collector: the custom OpenTelemetry Collector distribution (collector/,
 # image ouo/collector) and the only public ingest (ADR-0007 sections 1, 4, 7).
 #   4318  OTLP/HTTP   public, Basic auth (project id : project token), CORS
-#   4319  replay      public, Basic auth, CORS, POST /v1/replay/chunks (ouoreplay receiver)
+#   4320  Sentry      public, Sentry DSN key auth (ouosentry receiver, ADR-0008)
 #   4317  OTLP gRPC   cluster-internal only, same Basic auth (backend services)
 #   13133 health, 8888 self-metrics: cluster-internal only
-# Service <release>-collector carries 4318 and 4319 (type below, Ingress optional);
+# Replay chunks arrive on 4318 as OTLP logs (scope ouo.replay) and go to Muninn.
+# Service <release>-collector carries 4318 and 4320 (type below, Ingress optional);
 # Service <release>-collector-internal (always ClusterIP) carries 4317, 13133 and 8888.
 # -----------------------------------------------------------------------------
 collector:
@@ -226,7 +94,7 @@ collector:
   # Pre-created Secret with key `projects.htpasswd` (htpasswd lines, {SHA} or apr1,
   # never bcrypt). When set, `projects` is not rendered into a Secret.
   existingProjectsSecret: ""
-  # CORS allowed origins for browser SDKs on both public receivers (OUO_ALLOWED_ORIGINS):
+  # CORS allowed origins for browser SDKs on the OTLP/HTTP receiver (OUO_ALLOWED_ORIGINS):
   # the union of all projects' origins. `*` wildcards work (https://*.example.com).
   # Empty: the reference default http://localhost:*,http://127.0.0.1:* (mobile and
   # server clients send no Origin and are unaffected either way).
@@ -236,7 +104,27 @@ collector:
   limits:
     # max_request_body_size per receiver (bytes).
     otlpMaxBodyBytes: 4194304
-    replayMaxBodyBytes: 8388608
+  # Persistent queue of the Muninn exporter (file_storage, fsync on every enqueue): the
+  # SDK's 2xx means "on disk". Full queue: 503 to the SDK. The directory is an emptyDir
+  # unless persistence is enabled; with a PVC keep collector.replicas at 1 (ReadWriteOnce).
+  replayQueue:
+    sizeBytes: 2147483648
+    persistence:
+      enabled: false
+      existingClaim: ""
+      storageClass: ""
+      accessModes: [ReadWriteOnce]
+      size: 4Gi
+  # Sentry SDK bridge (ADR-0008, docs/specs/sentry-bridge.md) on 4320: apps change only
+  # their DSN host. Its video replay chunks are dropped (debug exporter) until Muninn takes them.
+  sentry:
+    projectId: "1"
+    publicKey: publickey0000000000000000000000
+    # Sentry ingest base URL the bridge forwards to, or "none".
+    upstream: none
+    # ouo project the bridged events are written to.
+    ouoProjectId: demo
+    serviceName: sentry-demo
   rateLimit:
     # ouoratelimit processor: token buckets per authenticated project and per client address.
     project:
@@ -259,12 +147,12 @@ collector:
   # Full collector config as a string; replaces the generated one when set.
   configOverride: ""
   service:
-    # Public Service with ports 4318 (otlp-http) and 4319 (replay). ClusterIP with an
+    # Public Service with ports 4318 (otlp-http) and 4320 (sentry). ClusterIP with an
     # Ingress, or LoadBalancer when the cluster hands out addresses.
     type: ClusterIP
     annotations: {}
   ingress:
-    # Routes /v1/replay/* to 4319 and everything else to 4318 on one host.
+    # Routes /api/* (Sentry envelopes) to 4320 and everything else to 4318 on one host.
     enabled: false
     className: ""
     annotations: {}
@@ -298,14 +186,13 @@ collector:
   affinity: {}
 
 # -----------------------------------------------------------------------------
-# Grafana with the ouo11y RUM app plugin baked into the image
-# (deploy/images/grafana/Dockerfile).
+# Grafana (stock grafana/grafana image) with the LGTM datasources provisioned.
 # -----------------------------------------------------------------------------
 grafana:
   enabled: true
   image:
-    repository: ghcr.io/ouo11y/grafana
-    tag: "0.6.0"
+    repository: grafana/grafana
+    tag: "13.2.5"
     pullPolicy: IfNotPresent
   replicas: 1
   adminUser: admin
@@ -321,13 +208,6 @@ grafana:
   env: {}
   # Extra environment variables (list of core/v1 EnvVar).
   extraEnv: []
-  plugin:
-    # rum-api URL the plugin route proxy calls. Empty: in-cluster rum-api Service.
-    rumApiUrl: ""
-    # Plugin feature toggles to turn on (plugins/ouo11y-rum-app/README.md), e.g.
-    # [sessionTimelinePanel]. Passed to Grafana as OUO_FEATURE_TOGGLES_ENABLE and provisioned
-    # into the plugin's jsonData.featureToggles.
-    featureToggles: []
   datasources:
     # Provision Loki, Tempo and Mimir datasources (uids loki, tempo, mimir).
     enabled: true
@@ -401,13 +281,9 @@ lgtm:
     lokiOtlpUrl: ""
     mimirOtlpUrl: ""
     mimirPrometheusUrl: ""
-    # Tenant id sent by the collector, rum-api and Grafana when the external stack has
+    # Tenant id sent by the collector and Grafana when the external stack has
     # multitenancy enabled (X-Scope-OrgID). Empty: no header (single-tenant stack).
     tenantId: ""
-    # Base URL of POST /loki/api/v1/delete (Loki's compactor / backend target) when the
-    # gateway at lokiUrl does not route it there; rum-api's delete-by-user / -project
-    # posts there. Empty: lokiUrl. docs/operations/existing-lgtm.md.
-    lokiDeleteUrl: ""
   bundled:
     loki:
       image:

@@ -5,7 +5,7 @@
 # Understands both heading styles in this repo:
 #   ## 0.3.0 (2026-10-18)                       hand-written (Keep a Changelog)
 #   ## 0.2.0 - unreleased
-#   ## 0.7.0 (plugin ID `ouo11y-rum-app`, ...)
+#   ## 0.7.0 (breaking: ...)
 #   ## [0.4.0](https://github.com/...) (2026-11-02)   written by release-please
 # Prints nothing (exit 0) when the file or the section does not exist.
 set -eu

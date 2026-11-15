@@ -3,8 +3,8 @@
 `ouo-collector` is a custom OpenTelemetry Collector distribution, built with the
 [OpenTelemetry Collector Builder (ocb)](https://github.com/open-telemetry/opentelemetry-collector/tree/main/cmd/builder).
 It is the only internet-facing ingest of ouo (ADR-0007): browsers, phones and backends send
-OTLP and replay chunks to it with a project credential, and apps that use the Sentry SDKs send
-their envelopes to it unchanged (ADR-0008). rum-api, Loki, Tempo and Mimir stay
+OTLP (replay chunks included, ADR-0019) to it with a project credential, and apps that use the Sentry SDKs send
+their envelopes to it unchanged (ADR-0008). Muninn, Loki, Tempo and Mimir stay
 internal.
 
 ## What is in the distribution
@@ -15,10 +15,10 @@ versions as `otel/opentelemetry-collector-contrib:0.160.0`.
 | Kind | Components |
 |---|---|
 | Extensions | `basicauth`, `health_check`, **`ouoauth`**, **`ouoratelimit`** |
-| Receivers | `otlp`, **`ouoreplay`**, **`ouosentry`** |
+| Receivers | `otlp`, **`ouosentry`** |
 | Processors | `memory_limiter`, `batch`, `attributes`, `resource`, `transform`, **`ouoratelimit`** |
-| Exporters | `otlp_grpc`, `otlp_http`, `debug`, **`ouoreplay`** |
-| Connectors | `routing` (sends the Sentry bridge's replay chunks to the replay pipeline) |
+| Exporters | `otlp_grpc`, `otlp_http`, `debug` |
+| Connectors | `routing` (sends replay chunks to Muninn and drops the Sentry bridge's video chunks) |
 | Config providers | `env`, `file`, `yaml` |
 
 The components in bold are ours, one Go module each:
@@ -27,12 +27,10 @@ The components in bold are ours, one Go module each:
 collector/
   builder.yaml                          ocb manifest (dist name ouo-collector, output ./dist)
   Dockerfile, .dockerignore             image ouo/collector (ghcr.io/ouo11y/collector)
-  receiver/ouoreplayreceiver/           POST /v1/replay/chunks (rrweb, frames, video) -> one log record per chunk
   receiver/ouosentryreceiver/           POST /api/{id}/envelope/ -> forward to Sentry unchanged, then
                                         sessions, errors, spans, logs, replay breadcrumbs and video
                                         replay chunks (ADR-0008)
   tools/sentrytap/                      records Sentry SDK traffic, fakes Sentry, proves byte-identical forwarding
-  exporter/ouoreplayexporter/           log record -> rum-api POST /v1/replay/chunks
   processor/ouoratelimitprocessor/      token buckets per project and per client; its
     ouoratelimitextension/              sub-package is the receiver middleware sharing them
   extension/ouoauthextension/           wraps basicauth, counts rejected requests
@@ -41,7 +39,7 @@ collector/
 The reference configuration is `deploy/compose/collector/config.yaml`; the development
 project registry is `deploy/compose/collector/projects.htpasswd` (`demo` /
 `pt_dev_demo_0000000000000000` for apps, `internal` / `pt_dev_internal_00000000000000` for
-rum-api's and the demo backend's own telemetry; local use only).
+Muninn's and the demo backend's own telemetry; local use only).
 
 ## Build
 
@@ -56,14 +54,14 @@ cd collector && builder --config builder.yaml          # -> collector/dist/ouo-c
 docker build -t ouo/collector:dev collector
 
 # Component tests
-for m in receiver/ouoreplayreceiver receiver/ouosentryreceiver exporter/ouoreplayexporter processor/ouoratelimitprocessor extension/ouoauthextension tools/sentrytap; do
+for m in receiver/ouosentryreceiver processor/ouoratelimitprocessor extension/ouoauthextension tools/sentrytap; do
   (cd collector/$m && go vet ./... && go test -race ./...)
 done
 ```
 
 The image is distroless (`gcr.io/distroless/static-debian12:nonroot`), entrypoint
 `/ouo-collector`, default command `--config=/etc/otelcol/config.yaml`, ports 4317 4318
-4319 4320 13133. Mount the config and the htpasswd file into `/etc/otelcol/`.
+4320 13133. Mount the config and the htpasswd file into `/etc/otelcol/`.
 
 ## Adding the components to another distribution
 
@@ -71,16 +69,13 @@ Each component is an ordinary collector module. In your own ocb manifest:
 
 ```yaml
 receivers:
-  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver v0.0.0
+  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver v0.0.0
 processors:
   - gomod: github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor v0.0.0
-exporters:
-  - gomod: github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter v0.0.0
 replaces:
   # until the modules are tagged, point at a checkout (paths relative to output_path)
-  - github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver => /path/to/ouo/collector/receiver/ouoreplayreceiver
+  - github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver => /path/to/ouo/collector/receiver/ouosentryreceiver
   - github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor => /path/to/ouo/collector/processor/ouoratelimitprocessor
-  - github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter => /path/to/ouo/collector/exporter/ouoreplayexporter
 ```
 
 They are built against collector 0.160.0 / 1.66.0; a distribution on another collector
@@ -106,65 +101,6 @@ public (checklist N20), the release can push `collector/<kind>/<name>/vX.Y.Z` ta
 
 ## Configuration reference
 
-### `ouoreplay` receiver
-
-```yaml
-receivers:
-  ouoreplay:
-    endpoint: 0.0.0.0:4319              # default 0.0.0.0:4319
-    max_request_body_size: 8388608      # default 8 MiB; applies to the body before and after gzip
-    max_rrweb_chunk_bytes: 4194304      # default 4 MiB; larger bodies only when kind is "frames"
-    include_metadata: true
-    auth: { authenticator: basicauth/server }
-    cors:
-      allowed_origins: [http://localhost:*]
-      allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
-    # every other confighttp server key works too: tls, read_timeout, compression_algorithms, ...
-```
-
-`POST /v1/replay/chunks`, body gzip (`Content-Encoding: gzip`) or plain JSON. The chunk is
-validated with the rules of rum-api (`services/rum-api/internal/replay/parse.go`): rrweb
-chunks `{session_id, seq, events, ...}` and `kind: "frames"` chunks
-(`docs/specs/mobile-replay.md`). The project id is `client.Info.Auth` attribute `username`
-set by `basicauth`.
-
-| Status | When |
-|---|---|
-| 202 `{"accepted":1, "session_id", "kind", "seq", "events", "frames", "touches", "bytes"}` | queued for the exporter |
-| 400 | invalid chunk, bad gzip |
-| 401 + `WWW-Authenticate` | no or wrong credential (from `basicauth`; the handler also refuses a request without an authenticated project) |
-| 403 | the authenticated project id does not match `^[a-z0-9][a-z0-9._-]{0,63}$` (rum-api would refuse it) |
-| 405 | not POST |
-| 413 | body above `max_request_body_size`, or an rrweb chunk above `max_rrweb_chunk_bytes` |
-| 429 + `Retry-After` | `ouoratelimit` rejected it (gRPC ResourceExhausted with RetryInfo) |
-| 503 + `Retry-After: 1` | other retryable pipeline error (memory limiter, full sending queue) |
-| 500 | permanent pipeline error |
-
-Each chunk becomes one log record: body = the decompressed chunk JSON as bytes, timestamp =
-`started_at`, attributes `ouo.project.id`, `session.id`, `ouo.replay.seq` (int),
-`ouo.replay.kind` (`rrweb` or `frames`), `ouo.replay.encoding` (`json`); resource
-`service.name=ouo-replay`, `ouo.project.id`. Self-metric `ouo_replay_chunks_total{ouo_project_id,
-ouo_replay_kind, outcome=accepted|rejected|throttled|failed, reason}`.
-
-### `ouoreplay` exporter
-
-```yaml
-exporters:
-  ouoreplay:
-    endpoint: http://rum-api:8080       # default; rum-api base URL, /v1/replay/chunks is appended
-    ingest_token: ${env:OUO_INGEST_TOKEN}   # optional, sent as Authorization: Bearer
-    timeout: 30s                        # default 30s (confighttp client timeout per request)
-    compression: gzip                   # default gzip
-    sending_queue: { enabled: true, queue_size: 1000 }   # exporterhelper defaults otherwise
-    retry_on_failure: { enabled: true, max_elapsed_time: 5m }
-```
-
-One `POST` per log record with `Content-Type: application/json`, `X-Ouo-Project-Id`
-(record attribute, else resource attribute `ouo.project.id`), `X-Ouo-Session-Id`,
-`X-Ouo-Seq`. 2xx is success; 4xx is permanent (dropped, logged); 429 and 503 are retried
-honouring `Retry-After`; other 5xx and network errors are retried. In a batch, the records
-after a retryable failure are the only ones retried.
-
 ### `ouoratelimit` processor
 
 ```yaml
@@ -181,9 +117,9 @@ peer); `key_from: x_forwarded_for` keys on the first `X-Forwarded-For` hop and n
 `include_metadata: true` on the receiver; use it only behind a proxy that sets the header
 (Caddy in `deploy/vm`), otherwise clients pick their own key. All instances with the same
 component id share one set of buckets, so the limits are per request across traces, logs,
-metrics and replay. Over the limit it returns gRPC `ResourceExhausted` with `RetryInfo`
+metrics and logs. Over the limit it returns gRPC `ResourceExhausted` with `RetryInfo`
 (whole seconds, at least 1): the OTLP receiver answers HTTP 429 + `Retry-After` (gRPC
-`RESOURCE_EXHAUSTED`), the replay receiver 429 + `Retry-After`. Self-metric
+`RESOURCE_EXHAUSTED`). Self-metric
 `ouo_ratelimit_rejected_total{key_kind=project|client}`.
 
 Place it after `memory_limiter` and before `batch` (batch drops the client context).
@@ -195,7 +131,7 @@ calling the pipeline, so the processor never sees empty requests. The `ouorateli
 processor's buckets before the receiver decodes it, answers 429 + `Retry-After` (OTLP
 `Status` body in the request's encoding; gRPC `RESOURCE_EXHAUSTED` + `RetryInfo`), and marks
 the request so the processor does not charge it again. Receivers without the middleware
-(`ouoreplay`, `ouosentry`) are still charged by the processor.
+(`ouosentry`) are still charged by the processor.
 
 ```yaml
 extensions:
@@ -222,7 +158,7 @@ extensions:
   ouoauth:
     authenticator: basicauth/server
 receivers:
-  otlp: { protocols: { http: { auth: { authenticator: ouoauth } } } }   # same for grpc, ouoreplay
+  otlp: { protocols: { http: { auth: { authenticator: ouoauth } } } }   # same for grpc
 service:
   extensions: [basicauth/server, ouoauth, ...]
 ```
@@ -256,8 +192,7 @@ request bytes to the project's upstream Sentry, and returns Sentry's status, hea
 (`X-Sentry-Rate-Limits`, `Retry-After`) and body unchanged. When Sentry cannot be reached it
 aborts the connection, so the SDK keeps the envelope and retries exactly as if Sentry were down.
 Envelopes Sentry accepted are translated off the request path into session events, exceptions
-and spans (logs and traces pipelines) and `kind: "video"` replay chunks (routed to the replay
-pipeline). `upstream: none` answers locally instead (cutover). Mapping:
+and spans (logs and traces pipelines) and `kind: "video"` replay chunks (dropped: they have no store since rum-api was removed). `upstream: none` answers locally instead (cutover). Mapping:
 `docs/specs/sentry-bridge.md`; protocol notes: `project/kb-archive/sentry-envelope-format.md`.
 
 ```yaml

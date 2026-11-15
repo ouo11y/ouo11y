@@ -200,7 +200,7 @@ envelopes to both replicas and each replica sees only part of every session:
 | Replay | Segments arriving at the replica that does not know the `replay_id` are held 10 minutes and then dropped (`ouo_sentry_translate_dropped_total{reason="replay_unresolved"}`): the replay has gaps. Masking of later segments falls back to the SDK default |
 | Error counts | Each replica counts the exceptions it emitted for a session; when the other replica's error event is missing from its count, it adds a synthetic `sentry.unsampled_error`, so errored sessions show too many errors |
 | `session.previous_id`, startup console logs | Lost when the previous session or the session start was seen by the other replica |
-| Session start and end | Still correct (rum-api keeps the last `session.end`); a duplicate is possible |
+| Session start and end | Still correct (readers keep the last `session.end`); a duplicate is possible |
 
 Client-address affinity (sticky routing on the client IP) helps only while a device keeps its
 address. Phones move between Wi-Fi and cellular and sit behind carrier NAT, so do not rely on
@@ -231,13 +231,14 @@ replica** next to the chart, so the main collector (OTLP and replay) can still s
   the same time (a `RollingUpdate` would, for as long as both are up);
 - no HorizontalPodAutoscaler and no `kubectl scale`;
 - the same image as the chart's collector (`ghcr.io/ouo11y/collector`, the bridge is built in);
-- it exports straight to the chart's Tempo, Loki and rum-api Services (the main collector
+- it exports straight to the chart's Tempo and Loki Services (the main collector
   wants a Basic project credential, which the bridge does not have), with the bridge's own
   `ouoratelimit` and `resource/project` processors.
 
 The manifests below assume the release `ouo` in namespace `ouo` with the bundled LGTM stack
-(Services `ouo-tempo`, `ouo-loki`, `ouo-mimir`, `ouo-rum-api`) and the rum-api Secret `ouo-rum-api`
-(key `ingest-token`); adjust the names with `kubectl get svc,secret -n ouo`. Replace the
+(Services `ouo-tempo`, `ouo-loki`, `ouo-mimir`); adjust the names with `kubectl get svc -n ouo`.
+The bridge's video replay chunks have no store since rum-api was removed (2026-11-15): they go
+to the `debug` exporter, as in `deploy/compose/collector/config.yaml`. Replace the
 project table with your Sentry project id, DSN public key, upstream and ouo project.
 
 ```yaml
@@ -289,11 +290,7 @@ data:
     exporters:
       otlp_grpc/tempo: { endpoint: "ouo-tempo:4317", tls: { insecure: true } }
       otlp_http/loki: { endpoint: "http://ouo-loki:3100/otlp", tls: { insecure: true } }
-      ouoreplay:
-        endpoint: http://ouo-rum-api:8080
-        ingest_token: ${env:OUO_INGEST_TOKEN}
-        sending_queue: { enabled: true, queue_size: 1000 }
-        retry_on_failure: { enabled: true, max_elapsed_time: 5m }
+      debug: { verbosity: basic }
     service:
       extensions: [health_check]
       telemetry:
@@ -319,8 +316,8 @@ data:
           exporters: [otlp_http/loki]
         logs/replay:
           receivers: [routing/sentry]
-          processors: [memory_limiter, ouoratelimit]
-          exporters: [ouoreplay]
+          processors: [memory_limiter]
+          exporters: [debug]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -341,9 +338,6 @@ spec:
         - name: bridge
           image: ghcr.io/ouo11y/collector:0.5.0    # same tag as the chart's collector
           args: ["--config=/etc/otelcol/config.yaml"]
-          env:
-            - name: OUO_INGEST_TOKEN
-              valueFrom: { secretKeyRef: { name: ouo-rum-api, key: ingest-token } }
           ports:
             - { name: sentry, containerPort: 4320 }
           readinessProbe: { httpGet: { path: /, port: 13133 } }
@@ -374,5 +368,5 @@ TLS on 443). The image is public; add the chart's `imagePullSecrets` only when y
 Upgrade the bridge image together with the chart's collector.
 
 Check it: `kubectl -n ouo get deploy ouo-sentry-bridge` shows `1/1`, and after the app sent a
-session, `ouo_sentry_envelopes_total{outcome="forwarded"}` grows in Mimir and the session
-appears in the ouo plugin.
+session, `ouo_sentry_envelopes_total{outcome="forwarded"}` grows in Mimir and the session's
+events are in Loki.

@@ -14,7 +14,7 @@ import (
 
 // Timeline events derived from the breadcrumbs of replay recordings (spec
 // section 9a). Each breadcrumb is in exactly one segment, so every one becomes
-// one record; retried segments produce identical records, which rum-api
+// one record; retried segments produce identical records, which readers
 // de-duplicates.
 const (
 	eventHTTPRequest   = "http.request"

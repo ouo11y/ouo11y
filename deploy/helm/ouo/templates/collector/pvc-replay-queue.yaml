@@ -1,0 +1,21 @@
+{{- $p := .Values.collector.replayQueue.persistence }}
+{{- if and .Values.collector.enabled $p.enabled (not $p.existingClaim) }}
+# Disk queue of the collector's Muninn exporter (file_storage/replay).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ouo.collector.fullname" . }}-replay-queue
+  labels:
+    {{- include "ouo.labels" (dict "root" . "component" "collector") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- toYaml $p.accessModes | nindent 4 }}
+  {{- with $p.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.size }}
+{{- end }}

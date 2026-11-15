@@ -13,8 +13,8 @@ import { getRUM } from "../src/instance";
 import { MemoryAsyncStorage } from "../src/session/storage";
 
 describe("resolveEndpoints (ADR-0007 section 6)", () => {
-  // Replay chunks are OTLP log records now (ADR-0021 decision 5): there is no replay endpoint,
-  // no port 4319 and no `/v1/replay/chunks` any more.
+  // Replay chunks are OTLP log records now (ADR-0021 decision 5): there is no separate replay
+  // endpoint.
   it("derives the OTLP routes from the collector base URL; replay chunks use the logs route", () => {
     expect(resolveEndpoints({ endpoint: "https://otel.example.com" })).toEqual({
       endpoint: "https://otel.example.com",

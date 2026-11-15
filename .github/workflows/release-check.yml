@@ -9,9 +9,9 @@
 #   compat  .github/scripts/compat-check.mjs: every manifest version has a line in the matrix,
 #           bounds point at existing versions, replay schema_version matches the code, chart
 #           defaults point at tagged images.
-#   e2e     deploy/compose stack (collector, rum-api, Grafana with the plugin, Loki, Tempo,
-#           Mimir) built from this commit, then deploy/scripts/e2e.sh: the newest lines of
-#           collector, rum-api and plugin together. ~10 minutes; only runs for the paths above.
+#   e2e     deploy/compose stack (collector, Muninn, MinIO, Grafana, Loki, Tempo, Mimir)
+#           built from this commit, then deploy/scripts/smoke.sh: the newest lines of the
+#           collector and Muninn together. ~10 minutes; only runs for the paths above.
 name: release-check
 
 on:
@@ -67,34 +67,19 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
-          cache: npm
-      - name: Build the Grafana plugin (mounted into Grafana by compose.yaml)
-        run: |
-          npm ci
-          npm run build -w plugins/ouo11y-rum-app
-          rm -rf node_modules plugins/*/node_modules sdk/*/node_modules examples/*/node_modules
       - name: Stack URLs (compose's default ports)
         run: .github/scripts/stack-env.sh | tee -a "$GITHUB_ENV"
       - name: Start the stack
         run: |
-          # rum-api runs as nonroot; give it a writable replay directory.
-          mkdir -p deploy/data/rum-api && chmod 0777 deploy/data/rum-api
-          $COMPOSE up -d --build grafana loki tempo mimir otel-collector rum-api
+          $COMPOSE up -d --build grafana loki tempo mimir otel-collector minio muninn-init muninn
           $COMPOSE ps
-      - name: deploy/scripts/e2e.sh
+      - name: Wait for the stack, then deploy/scripts/smoke.sh
         env:
           OUO_READY_TIMEOUT: '240'
-        run: deploy/scripts/e2e.sh --out e2e-result.json
+        run: deploy/scripts/wait-ready.sh && deploy/scripts/smoke.sh
       - name: Stack logs on failure
         if: failure()
         run: $COMPOSE logs --no-color --tail 200
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: e2e-result
-          path: e2e-result.json
-          if-no-files-found: ignore
-          retention-days: 14
       - name: Stop the stack
         if: always()
         run: $COMPOSE down -v

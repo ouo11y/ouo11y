@@ -91,6 +91,8 @@ Event names and attribute names follow OTel semantic conventions where they exis
 
 ## Server-side session record
 
+> rum-api, the MVP Grafana plugin and the `ouoreplay` receiver/exporter were removed on 2026-11-15; the fold below is now done on read by `ouo-go` (`libs/ouo-go`, [ADR-0025](../adr/0025-generic-libs-clients-own-plugin-and-access.md)). The record shape stays the reference.
+
 rum-api folds all signals with the same `session.id` into:
 
 ```json

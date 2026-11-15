@@ -325,7 +325,7 @@ initRUM({
 - Replay records only in sessions inside the session sample, and only with replay consent.
 
 Each decision is a deterministic hash of the session id (`sampled(id, rate, salt)`, exported), the
-same rule rum-api uses for a per-project server-side cap, so a cap below the app's rate keeps a
+same rule any server-side cap must use, so a cap below the app's rate keeps a
 subset of the app's sample. Details: `docs/operations/data-lifecycle.md`, section 5.
 
 ## API
@@ -681,7 +681,7 @@ works the same way.
 emits an OTel log record named `log`: body and `message` = the message (`message` truncated to
 1 KiB), OTel severity number and text, the attributes, the session attributes and the active
 (or given) span's trace id and span id. The Sentry bridge maps `Sentry.logger.*` to the same
-record, so rum-api's session logs show both alike. Logs are not session activity.
+record, so both read alike in Loki. Logs are not session activity.
 
 ## Timeline (taps, app lifecycle, requests)
 

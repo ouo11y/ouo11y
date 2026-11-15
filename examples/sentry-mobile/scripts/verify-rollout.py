@@ -5,7 +5,7 @@ Run after scripts/rollout-journey.sh, with the window it printed:
 
   scripts/verify-rollout.py --mode parallel --start 2026-10-17T12:30:00Z --end 2026-10-17T12:31:30Z \
       --sentry-capture <sentrytap dir standing in for sentry.io> \
-      [--loki http://localhost:3111] [--tempo http://localhost:3211] [--rum http://localhost:8099]
+      [--loki http://localhost:3111] [--tempo http://localhost:3211]
 
 What each cohort must produce inside the window:
 
@@ -14,12 +14,11 @@ What each cohort must produce inside the window:
               the bridge (X-Forwarded-For set)
     parallel  envelopes tagged ouo.rum.mode=parallel, sent directly (no X-Forwarded-For)
     ouo       nothing at all
-  ouo (Loki, Tempo, rum-api)
-    sentry    records and spans only from the bridge (service sentry-demo), all ouo.rum.mode=sentry;
-              a video replay
+  ouo (Loki, Tempo)
+    sentry    records and spans only from the bridge (service sentry-demo), all ouo.rum.mode=sentry
     parallel  records and spans only from the ouo SDK (service sentry-demo-ouo), all
-              ouo.rum.mode=parallel; no bridge data (no double counting); no ouo replay
-    ouo       records and spans only from the ouo SDK, all ouo.rum.mode=ouo; a frames replay;
+              ouo.rum.mode=parallel; no bridge data (no double counting)
+    ouo       records and spans only from the ouo SDK, all ouo.rum.mode=ouo;
               the unhandled rejection recorded by ouo
 
 Exit 0 when every check passes. Standard library only.
@@ -86,8 +85,6 @@ def main():
     ap.add_argument("--sentry-capture", required=True)
     ap.add_argument("--loki", default="http://localhost:3111")
     ap.add_argument("--tempo", default="http://localhost:3211")
-    ap.add_argument("--rum", default="http://localhost:8099")
-    ap.add_argument("--read-token", default="rt_dev_0000000000000000")
     a = ap.parse_args()
     m = a.mode
     t0, t1 = epoch(a.start) - 2, epoch(a.end) + 2
@@ -149,19 +146,6 @@ def main():
     other = traceql('{ resource.service.name =~ "%s|%s" && resource.ouo.rum.mode != "%s" }' % (BRIDGE_SERVICE, OUO_SERVICE, m))
     check(f"Tempo has {svc} spans with ouo.rum.mode={m}", len(mine) > 0, f"{len(mine)} traces")
     check("Tempo has no app spans of another cohort in the window", len(other) == 0, f"{len(other)} traces")
-
-    # ---- ouo: rum-api sessions and replays -------------------------------------------------
-    q = urllib.parse.urlencode({"from": int(t0), "to": int(t1 + 60), "limit": 1000})
-    sessions = [s for s in get(f"{a.rum}/v1/sessions?{q}", a.read_token)["sessions"]
-                if s["service_name"] in (BRIDGE_SERVICE, OUO_SERVICE) and t0 <= epoch(s["started_at"]) <= t1]
-    seen = collections.Counter((s["service_name"], s.get("replay_kind")) for s in sessions)
-    detail = ", ".join(f"{k[0]} replay={k[1]} {n}" for k, n in seen.items())
-    check(f"rum-api lists the cohort's session under {svc} only", sessions and all(s["service_name"] == svc for s in sessions), detail)
-    replay_kind = {"sentry": "video", "parallel": None, "ouo": "frames"}[m]
-    if replay_kind:
-        check(f"the session has an ouo replay of kind {replay_kind}", any(s.get("replay_kind") == replay_kind for s in sessions), detail)
-    else:
-        check("no ouo replay (ouo replay is off next to Sentry)", not any(s.get("has_replay") for s in sessions), detail)
 
     print(f"{sum(checks)}/{len(checks)} checks passed")
     sys.exit(0 if all(checks) else 1)

@@ -400,7 +400,7 @@ Delete by user or by time range is composed by the caller (`ouo-erase` or a clie
 | `retention.sweep_interval` | 1 h | |
 | `server.http_listen_port` | 3400 | |
 
-Configuration follows the stack's convention: a YAML file (`-config.file`) with environment expansion, as Loki, Tempo and rum-api do.
+Configuration follows the stack's convention: a YAML file (`-config.file`) with environment expansion, as Loki and Tempo do (and rum-api did).
 
 ## 11. Self-telemetry
 

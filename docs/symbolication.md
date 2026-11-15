@@ -13,7 +13,7 @@ Web and JavaScript stacks use source maps instead: [sourcemaps.md](sourcemaps.md
 
 - Every binary Xcode links gets a new build UUID (`LC_UUID`), and its dSYM carries the same UUID. The crash report lists the UUID of each binary a frame points into (`ouo.crash.images`), so a frame finds its dSYM without a release name.
 - `ouo-sourcemaps upload-dsym` splits the dSYM's DWARF file into its architectures and uploads each one to Muninn under its UUID, with the project's upload token, next to the project's source maps.
-- When the session is read, the plugin backend translates each frame with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/native.go). The record in Loki keeps the raw addresses. A dSYM uploaded after the crash still applies.
+- When the session is read, a client's plugin backend translates each frame with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/native.go). The record in Loki keeps the raw addresses. A dSYM uploaded after the crash still applies.
 - Frames in system libraries (`libsystem_kernel`, `UIKitCore`, `dyld`) have no dSYM from you and stay as addresses. That is expected: the frames that matter are in your app.
 
 ## Setup

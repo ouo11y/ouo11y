@@ -3,12 +3,14 @@
 How long ouo keeps each signal, how an operator deletes one user's or one project's data,
 where every deletion is recorded, and how much is collected in the first place (roadmap 8b).
 
+> **rum-api removed (2026-11-15).** Replays live in Muninn ([spec](../specs/muninn.md) section 9: retention per project, sweeper, S3 lifecycle tag), deletion and audit go through `ouo-erase` (section 3, [ADR-0026](../adr/0026-debug-files-and-erasure-without-rum-api.md)). The rum-api routes, sweeper, filesystem layout and hash-chain audit described below in sections 2 to 4 and 7 are the MVP record, kept for operators of older installs; they no longer exist on `main`.
+
 | Signal | Store | Default retention | Enforced by | Per project | Delete by user / project |
 |---|---|---|---|---|---|
-| Logs and RUM events | Loki | 720h (30 d) | Loki compactor (`retention_period`) | yes (`retention_stream` on `ouo_project_id`) | Loki delete API, sent by rum-api |
-| Traces | Tempo | 336h (14 d) | Tempo backend scheduler + worker (`block_retention`) | no (single tenant) | `tempo-cli redact` with the trace ids rum-api lists (user); retention only (project) |
+| Logs and RUM events | Loki | 720h (30 d) | Loki compactor (`retention_period`) | yes (`retention_stream` on `ouo_project_id`) | Loki delete API, sent by `ouo-erase` |
+| Traces | Tempo | 336h (14 d) | Tempo backend scheduler + worker (`block_retention`) | no (single tenant) | `tempo-cli redact` with the trace ids `ouo-erase` lists (user); retention only (project) |
 | Metrics | Mimir | 2160h (90 d) | Mimir compactor (`compactor_blocks_retention_period`) | no (single tenant) | not needed: metrics carry no user id; a project's series age out |
-| Replays | rum-api (filesystem or S3) | 720h (30 d) | rum-api sweeper; S3 lifecycle rules | yes (`projects.<id>.retention.replays`) | rum-api, immediately |
+| Replays | Muninn (S3 or a directory) | 720h (30 d) | Muninn sweeper; S3 lifecycle tag | yes (per project) | `ouo-erase`, immediately |
 
 Retention is counted from the data's own time for Loki, Tempo and Mimir, and from a
 session's last stored chunk for replays. Loki removes expired chunks from storage at

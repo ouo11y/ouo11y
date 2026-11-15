@@ -25,16 +25,16 @@ deploy/envs/ouo-env env <env>            # exports for deploy/scripts/{wait-read
 deploy/envs/ouo-env proxy up|down        # the shared proxy (up is implicit in `up`)
 ```
 
-- `up main` fetches origin and checks out `origin/main` in the main worktree (`--ref <ref>` for another ref), builds the plugin there when the commit changed, then builds the images. `--images` runs the released GHCR images instead (`compose.images.yaml`, public images, no login). Refresh main after every merge with `deploy/envs/ouo-env up main`.
-- `up <env> --muninn` adds `deploy/compose/compose.muninn.yaml`: Muninn (the replay store, ADR-0019) on MinIO, and the collector on `collector/config.muninn.yaml`, where replay chunks are OTLP log records on `/v1/logs` routed to Muninn through a disk queue. The flag is kept in the env's state for later `up`s. Muninn is at `http://muninn.<env>.ouo.localhost`; `ouo-env env <env>` also exports `OUO_MUNINN_URL` and `OUO_COMPOSE_PROJECT` for `tests/e2e/muninn/run.mjs`.
+- `up main` fetches origin and checks out `origin/main` in the main worktree (`--ref <ref>` for another ref), then builds the images. `--images` runs the released GHCR images instead (`compose.images.yaml`, public images, no login). Refresh main after every merge with `deploy/envs/ouo-env up main`.
+- Every env runs Muninn (the replay store, ADR-0019) on MinIO; replay chunks are OTLP log records on `/v1/logs` the collector routes to Muninn through a disk queue. Muninn is at `http://muninn.<env>.ouo.localhost`; `ouo-env env <env>` exports `OUO_MUNINN_URL` and `OUO_COMPOSE_PROJECT` for `tests/e2e/muninn/run.mjs`.
 - `up <env>` for any other env builds from the checkout the script lives in (`--src <dir>` for another one) and records the branch, its PR (via `gh`), `OUO_SESSION` / `--session`, the creation time and the port block as Docker labels (`ouo.env`, `ouo.branch`, `ouo.pr`, `ouo.session`, `ouo.created`, `ouo.block`) and in `~/.local/state/ouo-env/<env>.json` (override with `OUO_ENV_STATE`).
 - `gc` never touches `main` or `sbx`, and keeps an env when `gh` cannot answer. Volumes are kept unless `--purge`.
 - Smoke-test an env: `eval "$(deploy/envs/ouo-env env sbx)" && deploy/scripts/smoke.sh`.
 
 ## Hostnames
 
-Through the proxy on port 80: `grafana`, `rum-api`, `otlp` (4318), `replay` (4319), `sentry-bridge`
-(4320, the collector's Sentry bridge), `collector` (health), `backend`, `loki`, `tempo`, `mimir`, each as
+Through the proxy on port 80: `grafana`, `otlp` (4318), `sentry-bridge`
+(4320, the collector's Sentry bridge), `collector` (health), `backend`, `loki`, `tempo`, `mimir`, `muninn`, each as
 `http://<name>.<env>.ouo.localhost` (main: `http://<name>.ouo.localhost`). Traefik's dashboard is
 http://traefik.ouo.localhost.
 
@@ -64,11 +64,13 @@ edit (`.local` would be mDNS on macOS and slow). The collector's CORS allows `ht
 
 Only what an SDK on a simulator or phone needs is published on the host, per env block:
 
-| Env | OTLP/HTTP | replay | Sentry bridge | demo backend |
-|---|---|---|---|---|
-| `main` (block 0) | 4318 | 4319 | 4320 | 8082 (8081 is Metro's) |
-| `sbx` (block 1) | 20010 | 20011 | 20012 | 20013 |
-| ephemeral block n ≥ 2 | 20000+10n | +1 | +2 | +3 |
+| Env | OTLP/HTTP | Sentry bridge | demo backend |
+|---|---|---|---|
+| `main` (block 0) | 4318 | 4320 | 8082 (8081 is Metro's) |
+| `sbx` (block 1) | 20010 | 20012 | 20013 |
+| ephemeral block n ≥ 2 | 20000+10n | +2 | +3 |
+
+Offset +1 (the removed replay port 4319) stays unused so existing envs keep their ports.
 
 `ouo-env ls` shows each env's OTLP port; the block is kept for the env's lifetime (state file).
 
@@ -82,9 +84,8 @@ Only what an SDK on a simulator or phone needs is published on the host, per env
 
 ## Migrating an existing stack into an env (one-off)
 
-`up <env> --copy-from <compose project> [--copy-rum-api-data <dir>]` seeds a **new** env with the
-named volumes (`grafana-data`, `loki-data`, `tempo-data`, `mimir-data`) of an older compose project,
-and optionally the bind-mounted rum-api replay directory (`deploy/data/rum-api` of that checkout).
+`up <env> --copy-from <compose project>` seeds a **new** env with the named volumes
+(`grafana-data`, `loki-data`, `tempo-data`, `mimir-data`, `minio-data`) of an older compose project.
 Stop the old stack first (`docker compose -p <project> stop`) so the stores are consistent; when the
 env works, remove the old stack with `docker compose -p <project> down` (no `-v`).
 
@@ -100,6 +101,6 @@ env works, remove the old stack with `docker compose -p <project> down` (no `-v`
 - Isolation: env services join only their own compose network (`ouo-<env>_default`); `ouo-env up`
   attaches the proxy container to it, and `down` detaches it. Never put env services on a shared
   network: compose aliases every container by its bare service name on each network it joins, so
-  two envs on one network resolve each other's `loki`, `tempo`, `rum-api` at random (seen
+  two envs on one network resolve each other's `loki`, `tempo`, `muninn` at random (seen
   2026-10-24).
 - Knowledge and quirks: `project/kb-archive/ouo-env.md`.

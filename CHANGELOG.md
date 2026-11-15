@@ -33,9 +33,9 @@ Each package's own changelog has the details under Unreleased.
 | `@ouo11y/browser` (was `@ouo/browser`) | 0.3.1 (npm, 2026-11-01) | [sdk/browser/CHANGELOG.md](sdk/browser/CHANGELOG.md) | `browser-v` |
 | `@ouo11y/react-native` (was `@ouo/react-native`) | 0.3.0 (npm, 2026-11-01) | [sdk/react-native/CHANGELOG.md](sdk/react-native/CHANGELOG.md) | `react-native-v` |
 | Swift package `ouo11y-ios` (`OuoSDK`, `OuoReplay`, ...) | 0.3.0 (tagged 2026-10-31; the mirror push waits for its deploy key) | [sdk/ios/CHANGELOG.md](sdk/ios/CHANGELOG.md) | `ios-v` |
-| `ouo11y-rum-app` (Grafana plugin, was `ouo-rum-app`) | 0.10.0 (released 2026-10-31; inside the grafana image 0.6.0) | [plugins/ouo11y-rum-app/CHANGELOG.md](plugins/ouo11y-rum-app/CHANGELOG.md) | `plugin-v` |
-| `rum-api` | 0.6.0 (released 2026-10-31) | [services/rum-api/CHANGELOG.md](services/rum-api/CHANGELOG.md) | `rum-api-v` |
-| `grafana` image | 0.6.0 (released 2026-10-31, Grafana 13.2.5, plugin 0.10.0 inside) | [deploy/images/grafana/CHANGELOG.md](deploy/images/grafana/CHANGELOG.md) | `grafana-v` |
+| `ouo11y-rum-app` (Grafana plugin, was `ouo-rum-app`) | 0.10.0 (released 2026-10-31; inside the grafana image 0.6.0) | removed 2026-11-15; history at tag `plugin-v*` | `plugin-v` |
+| `rum-api` | 0.6.0 (released 2026-10-31) | removed 2026-11-15; history at tag `rum-api-v*` | `rum-api-v` |
+| `grafana` image | 0.6.0 (released 2026-10-31, Grafana 13.2.5, plugin 0.10.0 inside) | removed 2026-11-15; history at tag `grafana-v*` | `grafana-v` |
 | `collector` image (ouo-collector) | 0.5.0 (released 2026-10-31) | [collector/CHANGELOG.md](collector/CHANGELOG.md) | `collector-v` |
 | Helm chart `ouo` | 0.2.0 (released 2026-10-31; GitHub "Latest") | [deploy/helm/ouo/CHANGELOG.md](deploy/helm/ouo/CHANGELOG.md) | `chart-v` |
 
