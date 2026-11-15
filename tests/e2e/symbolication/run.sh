@@ -56,12 +56,13 @@ log "out $OUT, env $ENV_NAME, targets ${TARGETS[*]}"
 (cd "$ROOT/libs/ouo-go" && go build -o "$OUT/ouo-symbolicate" ./cmd/ouo-symbolicate)
 needs_sim() { [[ -n $SIM ]] || SIM="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=[x for v in json.load(sys.stdin)["devices"].values() for x in v]; print(d[0]["udid"] if d else "")')"; [[ -n $SIM ]] || { echo "no booted simulator: pass --sim" >&2; exit 2; }; }
 
-# resolve <service> <contains> <name>: polls Loki (the report can take a few seconds) and writes $OUT/<name>.json.
+# resolve <service> <contains> <name>: polls Loki (the report can take a few seconds) for records since
+# START (this target's start, so a previous run never matches) and writes $OUT/<name>.json.
 resolve() {
   local i
   for i in $(seq 1 20); do
     if "$OUT/ouo-symbolicate" --loki "$OUO_LOKI_URL" --muninn "$OUO_MUNINN_URL" --project demo \
-        --service "$1" --contains "$2" --since "${SINCE}s" > "$OUT/$3.json" 2>"$OUT/$3.err"; then return 0; fi
+        --service "$1" --contains "$2" --since "$(( $(date +%s) - START + 2 ))s" > "$OUT/$3.json" 2>"$OUT/$3.err"; then return 0; fi
     sleep 3
   done
   cat "$OUT/$3.err" >&2; return 1
@@ -98,9 +99,8 @@ native_ios() {
   xcrun simctl uninstall "$SIM" "$id" 2>/dev/null || true
   xcrun simctl install "$SIM" "$app"
   launch() { SIMCTL_CHILD_OUO_ACTION=$1 SIMCTL_CHILD_OUO_OTLP="$OUO_OTLP_URL" SIMCTL_CHILD_OUO_REPLAY="$OUO_REPLAY_URL" xcrun simctl launch "$SIM" "$id" >/dev/null; }
-  SINCE=$(( $(date +%s) )); log "native iOS: crash, then the launch that reports it"
+  START=$(date +%s); log "native iOS: crash, then the launch that reports it"
   launch crash; sleep 7; launch idle; sleep 8; xcrun simctl terminate "$SIM" "$id" 2>/dev/null || true
-  SINCE=$(( $(date +%s) - SINCE + 2 ))  # only records of this run
   resolve ouo-ios-example SIGSEGV native-ios || { FAILED+=(native-ios); return; }
   # Swift names stay mangled (symbolicate does not demangle): crashForSymbolication() is $s10OuoExample21crashForSymbolicationyyF.
   check native-ios crashForSymbolication Journey.swift 167
@@ -125,12 +125,11 @@ rn_ios() {
     --url "$OUO_MUNINN_URL" --token "$OUO_UPLOAD_TOKEN" --project demo --release 1.0.0 >"$OUT/rn-ios-upload.log"
   xcrun simctl uninstall "$SIM" "$id" 2>/dev/null || true
   xcrun simctl install "$SIM" "$app"
-  SINCE=$(( $(date +%s) ))
+  START=$(date +%s)
   xcrun simctl launch "$SIM" "$id" >/dev/null; sleep 8
   log "RN iOS: js-crash, then the launch that reports anything left"
   printf 'action/js-crash\n' > "$(xcrun simctl get_app_container "$SIM" "$id" data)/Documents/journey-command"
   sleep 6; xcrun simctl launch "$SIM" "$id" >/dev/null 2>&1 || true; sleep 8; xcrun simctl terminate "$SIM" "$id" 2>/dev/null || true
-  SINCE=$(( $(date +%s) - SINCE + 2 ))  # only records of this run
   resolve mobile-store "ouo symbolication e2e" rn-ios || { FAILED+=(rn-ios); return; }
   rn_check rn-ios
 }
@@ -147,12 +146,11 @@ rn_android() {
   "${CLI[@]}" upload --bundle "$gen/assets/react/release/index.android.bundle" --sourcemap "$gen/sourcemaps/react/release/index.android.bundle.map" \
     --url "$OUO_MUNINN_URL" --token "$OUO_UPLOAD_TOKEN" --project demo --release 1.0.0 >"$OUT/rn-android-upload.log"
   "$ADB" -s "$SERIAL" install -r "$APP_DIR/android/app/build/outputs/apk/release/app-release.apk" >/dev/null
-  SINCE=$(( $(date +%s) ))
+  START=$(date +%s)
   "$ADB" -s "$SERIAL" shell am start -n "$id/.MainActivity" >/dev/null; sleep 10
   log "RN Android: js-crash, then the launch that reports anything left"
   "$ADB" -s "$SERIAL" shell am broadcast -a dev.ouo.mobilestore.JOURNEY --es cmd action/js-crash >/dev/null
   sleep 6; "$ADB" -s "$SERIAL" shell am start -n "$id/.MainActivity" >/dev/null; sleep 10; "$ADB" -s "$SERIAL" shell am force-stop "$id"
-  SINCE=$(( $(date +%s) - SINCE + 2 ))  # only records of this run
   resolve mobile-store "ouo symbolication e2e" rn-android || { FAILED+=(rn-android); return; }
   rn_check rn-android
 }
