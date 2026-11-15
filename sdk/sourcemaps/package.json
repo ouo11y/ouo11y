@@ -9,6 +9,9 @@
     "directory": "sdk/sourcemaps"
   },
   "homepage": "https://github.com/ouo11y/ouo11y/tree/main/sdk/sourcemaps#readme",
+  "bugs": {
+    "url": "https://github.com/ouo11y/ouo11y/issues"
+  },
   "keywords": [
     "opentelemetry",
     "rum",
@@ -47,6 +50,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {

@@ -1,6 +1,6 @@
 # ADR-0026 Debug files upload straight to Muninn; erasure is an operator CLI; rum-api has nothing left
 
-Status: **proposed** (2026-11-14). The founder chose the upload path in discussion on 2026-11-14 and asked for the build; the erasure part (section 5) was built on the defaults of section 7. Amends the proposed ADR-0022 of pull request [#186](https://github.com/ouo11y/ouo11y/pull/186) (storage, lookup and resolution kept; its upload path, section 4 and decision D2, replaced). Amends "all ingest goes through the Collector" (ADR-0019 section 7) by one route, see section 3.
+Status: **proposed** (2026-11-14). The founder chose the upload path in discussion on 2026-11-14 and asked for the build; the erasure part (section 5) was built on the defaults of section 7. Decides debug-file storage (section 2), upload (section 3), lookup and resolution (section 4) on its own; an earlier draft (pull request #186, closed unmerged) is not part of the record. Amends "all ingest goes through the Collector" (ADR-0019 section 7) by one route, see section 3.
 
 ## 1. Context
 
@@ -15,7 +15,7 @@ ADR-0019's table left both open ("Decided in Step 9").
 
 | Duty | Store | Writer | Reader / runner |
 |---|---|---|---|
-| Debug files | Muninn, write-once objects keyed by tenant, project, kind, debug id, with release + path pointers (ADR-0022 section 3) | The client's CI, `ouo-sourcemaps upload` / `upload-dsym`, **straight to Muninn's public upload route** | `ouo-go/symbolicate`, on read, in the client's plugin backend |
+| Debug files | Muninn, write-once objects keyed by tenant, project, kind, debug id, with release + path pointers | The client's CI, `ouo-sourcemaps upload` / `upload-dsym`, **straight to Muninn's public upload route** | `ouo-go/symbolicate`, on read, in the client's plugin backend |
 | Erasure | Muninn `audit/` prefix, create-only objects | `ouo-erase`, a Go CLI the client's operator runs | The same CLI (`ouo-erase audit`) |
 
 No new service. No Collector component for uploads. rum-api is deleted once both exist.
@@ -37,9 +37,9 @@ Content-Encoding: gzip
 
 **The amended edge rule:** telemetry (logs, traces, metrics, replay chunks) still enters only through the Collector. The one exception is this write-only, token-protected file route, because a debug file is a build artefact, not telemetry, and its uploader needs a synchronous answer the Collector cannot give.
 
-Rejected: a Collector extension that passes the file on (ADR-0022 D2). It works, but adds a custom component, a second token check and a second hop, to forward a request that has exactly one destination.
+Rejected: a Collector extension that passes the file on (the closed draft's choice). It works, but adds a custom component, a second token check and a second hop, to forward a request that has exactly one destination.
 
-## 4. Lookup and resolution: as ADR-0022
+## 4. Lookup and resolution
 
 - By debug id; a frame without one uses `service.version` + URL path only when exactly one build was uploaded for them, otherwise `ambiguous` and the frame stays as recorded.
 - `ouo-go/symbolicate` resolves on read with an LRU of parsed maps; a miss is remembered 60 seconds, so a late upload applies. The record in Loki stays as the SDK sent it. Nothing resolves at ingest.

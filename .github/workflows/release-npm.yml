@@ -1,8 +1,9 @@
-# Publishes @ouo11y/browser, @ouo11y/react-native or @ouo11y/kit to npmjs.org (public)
+# Publishes @ouo11y/browser, @ouo11y/react-native, @ouo11y/kit or @ouo11y/sourcemaps to npmjs.org (public)
 # when the founder pushes a tag.
 #   browser-v0.2.0        -> sdk/browser        -> @ouo11y/browser@0.2.0
 #   react-native-v0.2.0   -> sdk/react-native   -> @ouo11y/react-native@0.2.0
 #   kit-v0.1.0            -> libs/ouo-kit       -> @ouo11y/kit@0.1.0
+#   sourcemaps-v0.1.0     -> sdk/sourcemaps     -> @ouo11y/sourcemaps@0.1.0 (CLI ouo-sourcemaps)
 # The tag version must equal the workspace package.json version (the release PR bumps it).
 #
 # Every run builds, tests, packs the tarball, writes a CycloneDX SBOM (`npm sbom`) and
@@ -17,7 +18,7 @@
 #
 # Dry run (publishes nothing, `npm publish --dry-run`):
 #   - Actions > release-npm > Run workflow with the tag to rehearse;
-#   - every pull request that changes this file (rehearses kit-v<libs/ouo-kit/package.json version>).
+#   - every pull request that changes this file (rehearses sourcemaps-v<sdk/sourcemaps/package.json version>).
 # A dry run of a version that is already published skips `npm publish --dry-run`, which npm
 # refuses for it; a real run fails.
 # Both also check, with the same token, that the registry answers for @ouo11y and that the
@@ -30,6 +31,7 @@ on:
       - 'browser-v*'
       - 'react-native-v*'
       - 'kit-v*'
+      - 'sourcemaps-v*'
   pull_request:
     paths:
       - .github/workflows/release-npm.yml
@@ -74,13 +76,14 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             push)              tag="$GITHUB_REF_NAME" ;;
             workflow_dispatch) tag="$INPUT_TAG" ;;
-            # A pull request rehearses @ouo11y/kit, the newest package (it also checks the kit-v* mapping).
-            *)                 tag="kit-v$(node -p "require('./libs/ouo-kit/package.json').version")" ;;
+            # A pull request rehearses @ouo11y/sourcemaps, the newest package (it also checks the sourcemaps-v* mapping).
+            *)                 tag="sourcemaps-v$(node -p "require('./sdk/sourcemaps/package.json').version")" ;;
           esac
           case "$tag" in
             browser-v*)      ws=sdk/browser;      version="${tag#browser-v}" ;;
             react-native-v*) ws=sdk/react-native; version="${tag#react-native-v}" ;;
             kit-v*)          ws=libs/ouo-kit;     version="${tag#kit-v}" ;;
+            sourcemaps-v*)   ws=sdk/sourcemaps;   version="${tag#sourcemaps-v}" ;;
             *) echo "::error::unexpected tag $tag"; exit 1 ;;
           esac
           name=$(node -p "require('./$ws/package.json').name")
