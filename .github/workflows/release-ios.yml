@@ -62,7 +62,8 @@ jobs:
       - run: swift --version
       - working-directory: sdk/ios
         run: swift build
-      - run: sh sdk/ios/test.sh
+      # Serial: in parallel on the hosted 3-core Mac, timing races in the suite fail (follow-up to fix).
+      - run: sh sdk/ios/test.sh --no-parallel
 
   mirror:
     name: subtree split and push

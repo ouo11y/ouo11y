@@ -441,7 +441,8 @@ jobs:
         working-directory: sdk/ios
         run: swift build
       - name: OuoReplayCore tests
-        run: sh sdk/ios/test.sh
+        # Serial: in parallel on the hosted 3-core Mac, timing races in the suite fail (follow-up to fix).
+        run: sh sdk/ios/test.sh --no-parallel
       # The macOS build above compiles the UIKit code to stubs; this compiles it for iOS.
       - name: iOS simulator build (every target, with the UIKit code and the Objective-C smoke)
         working-directory: sdk/ios
