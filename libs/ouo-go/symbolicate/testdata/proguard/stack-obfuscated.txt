@@ -1,0 +1,4 @@
+java.lang.IllegalStateException: negative price -1
+	at a.b.run(r8-map-id-97ca67fff79478e71a4e763f9428da83130e13579e0a8a8ccad202f9016fc293:80)
+	at android.os.Handler.handleCallback(Handler.java:959)
+	at android.os.Handler.dispatchMessage(Handler.java:100)

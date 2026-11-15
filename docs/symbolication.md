@@ -72,5 +72,30 @@ dSYMs follow the source-map rules: kept for `debug_files.retention.default` in M
 
 ## Limits
 
-- iOS (Mach-O) only. Android R8 / ProGuard mappings come with the Android SDK (W9).
+- Android JVM stacks use R8 mappings instead: [Android: R8 / ProGuard](#android-r8--proguard). Android NDK (C/C++) frames are not symbolicated yet.
 - Only the crashed thread has frames (an `OuoCrash` limit).
+
+## Android: R8 / ProGuard
+
+A release Android build minified by R8 crashes as `at a.b.run(SourceFile:80)`. Each build gets a mapping id ([ADR-0027](adr/0027-r8-mappings-and-retrace.md)): the SDK sends it as `ouo.exception.mapping_id` with the crash, CI uploads the build's `mapping.txt` under it, and `ouo-go/symbolicate` retraces the frames on read, inlined methods included, as R8's own `retrace` prints them:
+
+```
+at dev.ouo.sample.Prices.check(MainActivity.kt:44)
+at dev.ouo.sample.Prices.sum(MainActivity.kt:39)
+at dev.ouo.sample.Checkout.pay(MainActivity.kt:27)
+```
+
+1. In the app module, after the Android plugin (React Native; a native app applies `sdk/android/gradle/ouo-mapping.gradle` from wherever it vendors `sdk/android`):
+
+   ```kotlin
+   apply(from = "../../node_modules/@ouo11y/react-native/android/vendor/ouo-mapping.gradle")
+   ```
+
+   Every variant with `isMinifyEnabled = true` gets a fresh UUID per build, in the APK as the asset `ouo-debug-meta.properties` and in `build/outputs/ouo/<variant>/mapping-id.txt`.
+2. In CI, after the release build:
+
+   ```bash
+   npx ouo-sourcemaps upload-proguard app/build/outputs/mapping/release/mapping.txt --id-file app/build/outputs/ouo/release/mapping-id.txt --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --project my-app
+   ```
+
+Every build has its own id, so upload the mapping of the very build you ship (a rebuild of the same commit needs its own upload). A frame stays as recorded when the crash has no mapping id (a debug build, the Gradle line missing) or no mapping was uploaded under it; platform frames (`android.os.*`) are never in the mapping. Outlined code and fields are not retraced.

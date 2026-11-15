@@ -1,7 +1,7 @@
 // Package symbolicate resolves a recorded stack to original files, lines and functions
 // with the debug files a client's CI uploaded to Muninn (ADR-0026, Muninn spec section
-// 13): JavaScript source maps, Hermes maps included, and dSYM slices for native iOS
-// frames. It replaces rum-api's internal/sourcemap; the parsing and naming rules are
+// 13): JavaScript source maps, Hermes maps included, dSYM slices for native iOS
+// frames, and R8 / ProGuard mappings for Android JVM frames (ADR-0027). It replaces rum-api's internal/sourcemap; the parsing and naming rules are
 // rum-api's, the lookup is ADR-0022's:
 //
 //   - a frame whose script URL has a debug id in the exception's ouo.exception.debug_ids
@@ -94,6 +94,10 @@ type Exception struct {
 	// resolved through dSYMs; Stacktrace is then the Apple-style text it rewrites.
 	Frames []NativeFrame
 	Images []NativeImage
+	// JVMFrames and MappingID are an Android exception (ouo.crash.frames with JVM frames,
+	// ouo.exception.mapping_id), retraced with the R8 mapping of that id (ADR-0027).
+	JVMFrames []JVMFrame
+	MappingID string
 }
 
 // Source is where debug files come from. *ouogo.Muninn is one.
@@ -326,11 +330,14 @@ type parsedLine struct {
 	failed    bool
 }
 
-// Resolve resolves every frame of e it can: a native crash (e.Frames set) through
-// ResolveNative, otherwise e.Stacktrace as a JavaScript stack. An error is returned only
+// Resolve resolves every frame of e it can: an Android exception (e.JVMFrames set)
+// through ResolveJVM, a native crash (e.Frames set) through ResolveNative, otherwise e.Stacktrace as a JavaScript stack. An error is returned only
 // when every lookup failed (Muninn down); a frame whose file could not be read while
 // others could is FrameUnavailable. Lines that are not frames are kept.
 func (r *Resolver) Resolve(ctx context.Context, e Exception) (Result, error) {
+	if len(e.JVMFrames) > 0 {
+		return r.ResolveJVM(ctx, e)
+	}
 	if len(e.Frames) > 0 {
 		return r.ResolveNative(ctx, e)
 	}

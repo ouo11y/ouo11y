@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { artifactOf, composeHermesMaps, deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact, type InjectResult, type UploadOptions } from "./index.js";
+import { artifactOf, composeHermesMaps, deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, uploadProguard, type Artifact, type InjectResult, type UploadOptions } from "./index.js";
 
 const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to Muninn (ADR-0011, ADR-0026)
 
@@ -38,6 +38,11 @@ const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and 
       a file) into its architecture slices and PUTs each to
       <muninn>/api/v1/projects/<id>/debug-files/dsym/<LC_UUID>, so native iOS crashes get
       function names, files and lines.
+
+  ouo-sourcemaps upload-proguard <mapping.txt> (--id <uuid> | --id-file <mapping-id.txt>) --url <muninn> --token <upload token> --project <id> [--release] [--dry-run]
+      PUTs an R8 / ProGuard mapping to <muninn>/api/v1/projects/<id>/debug-files/proguard/<mapping id>,
+      the id gradle/ouo-mapping.gradle wrote into the APK (build/outputs/ouo/<variant>/mapping-id.txt),
+      so Android stacks are retraced.
 `;
 
 function fail(msg: string): never {
@@ -86,6 +91,8 @@ async function main(): Promise<number> {
       sourcemap: { type: "string", multiple: true },
       "react-native": { type: "boolean" },
       output: { type: "string", short: "o" },
+      id: { type: "string" },
+      "id-file": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -99,6 +106,24 @@ async function main(): Promise<number> {
   if (cmd === "upload-dsym") {
     if (dirs.length === 0) fail("no path given\n\n" + usage);
     return uploadDSYMs(dirs, uploadOptions(values, dryRun), dryRun);
+  }
+
+  if (cmd === "upload-proguard") {
+    const [mapping] = dirs;
+    if (!mapping || dirs.length > 1) fail("upload-proguard takes one mapping.txt\n\n" + usage);
+    if (!values.id && !values["id-file"]) fail("--id or --id-file is required");
+    const o = uploadOptions(values, dryRun);
+    if (dryRun) {
+      process.stdout.write(`would upload ${mapping} -> ${o.url}\n`);
+      return 0;
+    }
+    const r = await uploadProguard(mapping, { ...(values.id ? { mappingId: values.id } : {}), ...(values["id-file"] ? { idFile: values["id-file"] } : {}) }, o);
+    if (r.error) {
+      process.stderr.write(`failed   ${mapping}: ${r.error}\n`);
+      return 1;
+    }
+    process.stdout.write(`uploaded ${r.mappingId}  ${mapping}${r.status === 200 ? "  (already stored)" : ""}\n`);
+    return 0;
   }
 
   if (cmd === "compose") {

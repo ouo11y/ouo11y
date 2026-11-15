@@ -1,0 +1,1723 @@
+# compiler: R8
+# compiler_version: 8.12.14
+# min_api: 24
+# common_typos_disable
+# {"id":"com.android.tools.r8.mapping","version":"2.2"}
+# pg_map_id: 97ca67fff79478e71a4e763f9428da83130e13579e0a8a8ccad202f9016fc293
+# pg_map_hash: SHA-256 97ca67fff79478e71a4e763f9428da83130e13579e0a8a8ccad202f9016fc293
+dev.ouo.sample.Cart -> R8$$REMOVED$$CLASS$$0:
+# {"id":"sourceFile","fileName":"MainActivity.kt"}
+dev.ouo.sample.Checkout -> R8$$REMOVED$$CLASS$$1:
+# {"id":"sourceFile","fileName":"MainActivity.kt"}
+dev.ouo.sample.MainActivity -> dev.ouo.sample.MainActivity:
+# {"id":"sourceFile","fileName":"MainActivity.kt"}
+    int $r8$clinit -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:4:void <init>():12:12 -> <init>
+    1:3:void onCreate(android.os.Bundle):14:14 -> onCreate
+    4:5:void onCreate(android.os.Bundle):15:15 -> onCreate
+    6:6:void dev.ouo.signals.Signals.init(android.content.Context):0:0 -> onCreate
+    6:6:void onCreate(android.os.Bundle):15 -> onCreate
+    7:16:void dev.ouo.signals.Signals.init(android.content.Context):86:86 -> onCreate
+    7:16:void onCreate(android.os.Bundle):15 -> onCreate
+    17:18:void dev.ouo.signals.Signals.init(android.content.Context):87:87 -> onCreate
+    17:18:void onCreate(android.os.Bundle):15 -> onCreate
+    19:30:void dev.ouo.signals.Signals.init(android.content.Context):88:88 -> onCreate
+    19:30:void onCreate(android.os.Bundle):15 -> onCreate
+    31:50:void dev.ouo.signals.Signals.init(android.content.Context):89:89 -> onCreate
+    31:50:void onCreate(android.os.Bundle):15 -> onCreate
+    51:80:void dev.ouo.signals.Signals.init(android.content.Context):90:90 -> onCreate
+    51:80:void onCreate(android.os.Bundle):15 -> onCreate
+    81:88:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):46:46 -> onCreate
+    81:88:void dev.ouo.signals.Signals.init(android.content.Context):90 -> onCreate
+    81:88:void onCreate(android.os.Bundle):15 -> onCreate
+    89:100:void dev.ouo.signals.Signals.init(android.content.Context):90:90 -> onCreate
+    89:100:void onCreate(android.os.Bundle):15 -> onCreate
+    101:106:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> onCreate
+    101:106:void dev.ouo.signals.Signals.init(android.content.Context):90 -> onCreate
+    101:106:void onCreate(android.os.Bundle):15 -> onCreate
+    107:112:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> onCreate
+    107:112:void dev.ouo.signals.Signals.init(android.content.Context):90 -> onCreate
+    107:112:void onCreate(android.os.Bundle):15 -> onCreate
+    113:120:void dev.ouo.signals.Signals.init(android.content.Context):90:90 -> onCreate
+    113:120:void onCreate(android.os.Bundle):15 -> onCreate
+    121:131:void dev.ouo.signals.Signals.init(android.content.Context):91:91 -> onCreate
+    121:131:void onCreate(android.os.Bundle):15 -> onCreate
+    132:151:void dev.ouo.signals.Signals.init(android.content.Context):92:92 -> onCreate
+    132:151:void onCreate(android.os.Bundle):15 -> onCreate
+    152:157:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> onCreate
+    152:157:void dev.ouo.signals.Signals.init(android.content.Context):92 -> onCreate
+    152:157:void onCreate(android.os.Bundle):15 -> onCreate
+    158:163:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> onCreate
+    158:163:void dev.ouo.signals.Signals.init(android.content.Context):92 -> onCreate
+    158:163:void onCreate(android.os.Bundle):15 -> onCreate
+    164:166:void dev.ouo.signals.Signals.init(android.content.Context):92:92 -> onCreate
+    164:166:void onCreate(android.os.Bundle):15 -> onCreate
+    167:169:void dev.ouo.signals.Signals.init(android.content.Context):93:93 -> onCreate
+    167:169:void onCreate(android.os.Bundle):15 -> onCreate
+    170:193:void dev.ouo.signals.Signals.init(android.content.Context):94:94 -> onCreate
+    170:193:void onCreate(android.os.Bundle):15 -> onCreate
+    194:199:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> onCreate
+    194:199:void dev.ouo.signals.Signals.init(android.content.Context):94 -> onCreate
+    194:199:void onCreate(android.os.Bundle):15 -> onCreate
+    200:205:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> onCreate
+    200:205:void dev.ouo.signals.Signals.init(android.content.Context):94 -> onCreate
+    200:205:void onCreate(android.os.Bundle):15 -> onCreate
+    206:215:void dev.ouo.signals.Signals.init(android.content.Context):94:94 -> onCreate
+    206:215:void onCreate(android.os.Bundle):15 -> onCreate
+    216:217:void <init>():12:12 -> onCreate
+    216:217:int dev.ouo.signals.core.RunState.getPid():12 -> onCreate
+    216:217:void dev.ouo.signals.Signals.init(android.content.Context):96 -> onCreate
+    216:217:void onCreate(android.os.Bundle):15 -> onCreate
+    218:250:void dev.ouo.signals.Signals.init(android.content.Context):96:96 -> onCreate
+    218:250:void onCreate(android.os.Bundle):15 -> onCreate
+    251:253:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> onCreate
+    251:253:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    251:253:void onCreate(android.os.Bundle):15 -> onCreate
+    254:255:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193:193 -> onCreate
+    254:255:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    254:255:void onCreate(android.os.Bundle):15 -> onCreate
+    256:260:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.init$lambda$8(dev.ouo.signals.core.RunState):0:0 -> onCreate
+    256:260:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> onCreate
+    256:260:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    256:260:void onCreate(android.os.Bundle):15 -> onCreate
+    261:269:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.init$lambda$8(dev.ouo.signals.core.RunState):97:97 -> onCreate
+    261:269:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> onCreate
+    261:269:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    261:269:void onCreate(android.os.Bundle):15 -> onCreate
+    270:271:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):194:194 -> onCreate
+    270:271:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    270:271:void onCreate(android.os.Bundle):15 -> onCreate
+    272:275:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):195:195 -> onCreate
+    272:275:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    272:275:void onCreate(android.os.Bundle):15 -> onCreate
+    276:285:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):196:196 -> onCreate
+    276:285:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    276:285:void onCreate(android.os.Bundle):15 -> onCreate
+    286:286:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> onCreate
+    286:286:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    286:286:void onCreate(android.os.Bundle):15 -> onCreate
+    287:290:void dev.ouo.signals.Signals.init(android.content.Context):98:98 -> onCreate
+    287:290:void onCreate(android.os.Bundle):15 -> onCreate
+    291:295:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):388:388 -> onCreate
+    291:295:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    291:295:void onCreate(android.os.Bundle):15 -> onCreate
+    296:298:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):389:389 -> onCreate
+    296:298:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    296:298:void onCreate(android.os.Bundle):15 -> onCreate
+    299:312:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):390:390 -> onCreate
+    299:312:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    299:312:void onCreate(android.os.Bundle):15 -> onCreate
+    313:318:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):391:391 -> onCreate
+    313:318:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    313:318:void onCreate(android.os.Bundle):15 -> onCreate
+    319:324:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> onCreate
+    319:324:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):387 -> onCreate
+    319:324:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    319:324:void onCreate(android.os.Bundle):15 -> onCreate
+    325:326:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):392:392 -> onCreate
+    325:326:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    325:326:void onCreate(android.os.Bundle):15 -> onCreate
+    327:331:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> onCreate
+    327:331:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):392 -> onCreate
+    327:331:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    327:331:void onCreate(android.os.Bundle):15 -> onCreate
+    332:337:boolean dev.ouo.signals.Signals.isVisible(android.content.Context):392:392 -> onCreate
+    332:337:void dev.ouo.signals.Signals.init(android.content.Context):98 -> onCreate
+    332:337:void onCreate(android.os.Bundle):15 -> onCreate
+    338:339:void dev.ouo.signals.Signals.init(android.content.Context):98:98 -> onCreate
+    338:339:void onCreate(android.os.Bundle):15 -> onCreate
+    340:348:void dev.ouo.signals.Signals.init(android.content.Context):99:99 -> onCreate
+    340:348:void onCreate(android.os.Bundle):15 -> onCreate
+    349:357:void dev.ouo.signals.Signals.init(android.content.Context):100:100 -> onCreate
+    349:357:void onCreate(android.os.Bundle):15 -> onCreate
+    358:358:void dev.ouo.signals.Signals.init(android.content.Context):101:101 -> onCreate
+    358:358:void onCreate(android.os.Bundle):15 -> onCreate
+    359:362:void onCreate(android.os.Bundle):16:16 -> onCreate
+    363:366:java.lang.String dev.ouo.signals.Signals.mappingId():107:107 -> onCreate
+    363:366:void onCreate(android.os.Bundle):16 -> onCreate
+    367:377:void onCreate(android.os.Bundle):16:16 -> onCreate
+    378:378:java.lang.String dev.ouo.signals.Signals.takePendingReport():0:0 -> onCreate
+    378:378:void onCreate(android.os.Bundle):17 -> onCreate
+    379:385:java.lang.String dev.ouo.signals.Signals.takePendingReport():111:111 -> onCreate
+    379:385:void onCreate(android.os.Bundle):17 -> onCreate
+    386:396:void onCreate(android.os.Bundle):17:17 -> onCreate
+    397:405:kotlin.Unit onCreate$lambda$1(java.lang.String):18:18 -> onCreate
+    397:405:void onCreate(android.os.Bundle):18 -> onCreate
+    406:406:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):0:0 -> onCreate
+    406:406:void onCreate(android.os.Bundle):18 -> onCreate
+    407:414:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):120:120 -> onCreate
+    407:414:void onCreate(android.os.Bundle):18 -> onCreate
+    415:417:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> onCreate
+    415:417:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    415:417:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    415:417:void onCreate(android.os.Bundle):18 -> onCreate
+    418:419:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193:193 -> onCreate
+    418:419:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    418:419:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    418:419:void onCreate(android.os.Bundle):18 -> onCreate
+    420:429:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.setSession$lambda$12(java.lang.String,long,dev.ouo.signals.core.RunState):0:0 -> onCreate
+    420:429:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> onCreate
+    420:429:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    420:429:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    420:429:void onCreate(android.os.Bundle):18 -> onCreate
+    430:433:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.setSession$lambda$12(java.lang.String,long,dev.ouo.signals.core.RunState):140:140 -> onCreate
+    430:433:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> onCreate
+    430:433:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    430:433:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    430:433:void onCreate(android.os.Bundle):18 -> onCreate
+    434:435:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):194:194 -> onCreate
+    434:435:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    434:435:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    434:435:void onCreate(android.os.Bundle):18 -> onCreate
+    436:439:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):195:195 -> onCreate
+    436:439:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    436:439:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    436:439:void onCreate(android.os.Bundle):18 -> onCreate
+    440:449:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):196:196 -> onCreate
+    440:449:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    440:449:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    440:449:void onCreate(android.os.Bundle):18 -> onCreate
+    450:455:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> onCreate
+    450:455:void dev.ouo.signals.Signals.setSession(java.lang.String,long):140 -> onCreate
+    450:455:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):121 -> onCreate
+    450:455:void onCreate(android.os.Bundle):18 -> onCreate
+    456:457:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):122:122 -> onCreate
+    456:457:void onCreate(android.os.Bundle):18 -> onCreate
+    458:463:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):123:123 -> onCreate
+    458:463:void onCreate(android.os.Bundle):18 -> onCreate
+    464:465:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):124:124 -> onCreate
+    464:465:void onCreate(android.os.Bundle):18 -> onCreate
+    466:469:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):125:125 -> onCreate
+    466:469:void onCreate(android.os.Bundle):18 -> onCreate
+    470:477:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):126:126 -> onCreate
+    470:477:void onCreate(android.os.Bundle):18 -> onCreate
+    478:482:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):133:133 -> onCreate
+    478:482:void onCreate(android.os.Bundle):18 -> onCreate
+    483:483:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):134:134 -> onCreate
+    483:483:void onCreate(android.os.Bundle):18 -> onCreate
+    484:495:void onCreate(android.os.Bundle):19:19 -> onCreate
+    496:514:void onCreate$lambda$2():20:20 -> onCreate
+    496:514:void onCreate(android.os.Bundle):20 -> onCreate
+    515:518:boolean dev.ouo.signals.Signals.install(java.lang.String,long,kotlin.jvm.functions.Function1):134:134 -> onCreate
+    515:518:void onCreate(android.os.Bundle):18 -> onCreate
+    519:520:java.lang.String dev.ouo.signals.Signals.takePendingReport():111:111 -> onCreate
+    519:520:void onCreate(android.os.Bundle):17 -> onCreate
+    521:526:void dev.ouo.signals.Signals.init(android.content.Context):100:100 -> onCreate
+    521:526:void onCreate(android.os.Bundle):15 -> onCreate
+    527:532:void dev.ouo.signals.Signals.init(android.content.Context):99:99 -> onCreate
+    527:532:void onCreate(android.os.Bundle):15 -> onCreate
+    533:539:void dev.ouo.signals.Signals.init(android.content.Context):98:98 -> onCreate
+    533:539:void onCreate(android.os.Bundle):15 -> onCreate
+    540:541:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> onCreate
+    540:541:void dev.ouo.signals.Signals.init(android.content.Context):97 -> onCreate
+    540:541:void onCreate(android.os.Bundle):15 -> onCreate
+    542:547:void dev.ouo.signals.Signals.init(android.content.Context):91:91 -> onCreate
+    542:547:void onCreate(android.os.Bundle):15 -> onCreate
+    548:553:void dev.ouo.signals.Signals.init(android.content.Context):89:89 -> onCreate
+    548:553:void onCreate(android.os.Bundle):15 -> onCreate
+    554:562:void kotlin.jvm.internal.Intrinsics.throwJavaNpe(java.lang.String):50:50 -> onCreate
+    554:562:void kotlin.jvm.internal.Intrinsics.checkNotNull(java.lang.Object,java.lang.String):31 -> onCreate
+    554:562:void dev.ouo.signals.Signals.init(android.content.Context):88 -> onCreate
+    554:562:void onCreate(android.os.Bundle):15 -> onCreate
+    563:564:void dev.ouo.signals.Signals.init(android.content.Context):101:101 -> onCreate
+    563:564:void onCreate(android.os.Bundle):15 -> onCreate
+dev.ouo.sample.MainActivity$$ExternalSyntheticLambda0 -> a.a:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    int a.MainActivity$$ExternalSyntheticLambda0.$r8$classId -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:void a.MainActivity$$ExternalSyntheticLambda0.<init>(int):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    11:13:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.memoryWarning$lambda$19(dev.ouo.signals.core.RunState):0:0 -> a
+    11:13:java.lang.Object a.MainActivity$$ExternalSyntheticLambda0.invoke(java.lang.Object):0 -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    14:32:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.memoryWarning$lambda$19(dev.ouo.signals.core.RunState):230:230 -> a
+    14:32:java.lang.Object a.MainActivity$$ExternalSyntheticLambda0.invoke(java.lang.Object):0 -> a
+    33:36:java.lang.Object a.MainActivity$$ExternalSyntheticLambda0.invoke(java.lang.Object):0:0 -> a
+    37:39:kotlin.Unit dev.ouo.sample.MainActivity.onCreate$lambda$1(java.lang.String):0:0 -> a
+    37:39:java.lang.Object a.MainActivity$$ExternalSyntheticLambda0.invoke(java.lang.Object):0 -> a
+    40:42:java.lang.Object a.MainActivity$$ExternalSyntheticLambda0.invoke(java.lang.Object):0:0 -> a
+dev.ouo.sample.MainActivity$$ExternalSyntheticLambda1 -> a.b:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    int a.MainActivity$$ExternalSyntheticLambda1.$r8$classId -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:void a.MainActivity$$ExternalSyntheticLambda1.<init>(int):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    6:12:void dev.ouo.signals.Signals.pong$lambda$20():238:238 -> run
+    6:12:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+      # {"id":"com.android.tools.r8.synthesized"}
+    13:15:void dev.ouo.signals.Signals.pong$lambda$20():239:239 -> run
+    13:15:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+    16:18:void a.MainActivity$$ExternalSyntheticLambda1.run():0:0 -> run
+    19:31:void dev.ouo.sample.MainActivity.onCreate$lambda$2():20:20 -> run
+    19:31:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+    32:35:java.util.List kotlin.collections.ArraysUtilJVM.asList(java.lang.Object[]):13:13 -> run
+    32:35:java.util.List kotlin.collections.ArraysKt___ArraysJvmKt.asList(java.lang.Object[]):133 -> run
+    32:35:java.util.List kotlin.collections.CollectionsKt__CollectionsKt.listOf(java.lang.Object[]):78 -> run
+    32:35:void dev.ouo.sample.MainActivity.onCreate$lambda$2():20 -> run
+    32:35:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+    36:40:java.util.List kotlin.collections.ArraysKt___ArraysJvmKt.asList(java.lang.Object[]):133:133 -> run
+    36:40:java.util.List kotlin.collections.CollectionsKt__CollectionsKt.listOf(java.lang.Object[]):78 -> run
+    36:40:void dev.ouo.sample.MainActivity.onCreate$lambda$2():20 -> run
+    36:40:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+    41:63:int dev.ouo.sample.Prices.sum(java.util.List):39:39 -> run
+    41:63:int dev.ouo.sample.Cart.total():33 -> run
+    41:63:int dev.ouo.sample.Checkout.pay():27 -> run
+    41:63:void dev.ouo.sample.MainActivity.onCreate$lambda$2():20 -> run
+    41:63:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+    64:84:int dev.ouo.sample.Prices.check(int):44:44 -> run
+    64:84:int dev.ouo.sample.Prices.sum(java.util.List):39 -> run
+    64:84:int dev.ouo.sample.Cart.total():33 -> run
+    64:84:int dev.ouo.sample.Checkout.pay():27 -> run
+    64:84:void dev.ouo.sample.MainActivity.onCreate$lambda$2():20 -> run
+    64:84:void a.MainActivity$$ExternalSyntheticLambda1.run():0 -> run
+dev.ouo.sample.Prices -> R8$$REMOVED$$CLASS$$2:
+# {"id":"sourceFile","fileName":"MainActivity.kt"}
+dev.ouo.signals.Signals -> b.k:
+# {"id":"sourceFile","fileName":"Signals.kt"}
+    dev.ouo.signals.Signals$lifecycle$1 lifecycle -> A
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lb/f;"}
+    dev.ouo.signals.Signals INSTANCE -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lb/k;"}
+    android.os.Handler main -> b
+    java.util.concurrent.ExecutorService io -> c
+    android.app.Application app -> d
+    java.io.File dir -> e
+    boolean initialized -> f
+    java.lang.String pending -> g
+    dev.ouo.signals.core.RunState run -> h
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lc/i;"}
+    boolean installed -> i
+    kotlin.jvm.functions.Function1 onHang -> j
+      # {"id":"com.android.tools.r8.residualsignature","signature":"La/a;"}
+    dev.ouo.signals.core.FrameCounter frames -> k
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lc/b;"}
+    java.util.Set started -> l
+    boolean foreground -> m
+    java.lang.Object wake -> n
+    long leftForegroundAt -> o
+    java.util.List hangFrames -> p
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ljava/lang/Object;"}
+    java.lang.String mappingId -> q
+    java.lang.Object runLock -> r
+    dev.ouo.signals.Signals$memory$1 memory -> s
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lb/g;"}
+    long lastAnswer -> t
+    boolean pinged -> u
+    java.lang.Runnable pong -> v
+      # {"id":"com.android.tools.r8.residualsignature","signature":"La/b;"}
+    dev.ouo.signals.Signals$watchdog$1 watchdog -> w
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lb/j;"}
+    kotlin.Lazy frameThread$delegate -> x
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ld/d;"}
+    kotlin.Lazy frameHandler$delegate -> y
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ld/d;"}
+    java.util.HashMap frameListeners -> z
+    3:5:void <init>():46:46 -> <clinit>
+    3:5:void <clinit>():0 -> <clinit>
+    6:7:void <clinit>():0:0 -> <clinit>
+    8:18:void <clinit>():48:48 -> <clinit>
+    19:29:void <clinit>():49:49 -> <clinit>
+    30:40:void <clinit>():58:58 -> <clinit>
+    41:42:void <clinit>():62:62 -> <clinit>
+    43:50:void dev.ouo.signals.core.FrameCounter.<init>():10:10 -> <clinit>
+    43:50:void <clinit>():62 -> <clinit>
+    51:52:void dev.ouo.signals.core.FrameCounter.<init>():15:15 -> <clinit>
+    51:52:void <clinit>():62 -> <clinit>
+    53:54:void <clinit>():62:62 -> <clinit>
+    55:65:void <clinit>():64:64 -> <clinit>
+    66:72:void <clinit>():73:73 -> <clinit>
+    73:76:void <clinit>():77:77 -> <clinit>
+    77:83:void <clinit>():184:184 -> <clinit>
+    84:85:void <clinit>():216:216 -> <clinit>
+    86:88:void dev.ouo.signals.Signals$memory$1.<init>():216:216 -> <clinit>
+    86:88:void <clinit>():216 -> <clinit>
+    89:90:void <clinit>():216:216 -> <clinit>
+    91:96:void <clinit>():235:235 -> <clinit>
+    97:104:void <clinit>():237:237 -> <clinit>
+    105:111:void <clinit>():242:242 -> <clinit>
+    112:117:void <clinit>():320:320 -> <clinit>
+    118:122:kotlin.Lazy kotlin.LazyKt__LazyJVMKt.lazy(kotlin.jvm.functions.Function0):23:23 -> <clinit>
+    118:122:void <clinit>():320 -> <clinit>
+    123:124:void <clinit>():320:320 -> <clinit>
+    125:130:void <clinit>():321:321 -> <clinit>
+    131:135:kotlin.Lazy kotlin.LazyKt__LazyJVMKt.lazy(kotlin.jvm.functions.Function0):23:23 -> <clinit>
+    131:135:void <clinit>():321 -> <clinit>
+    136:137:void <clinit>():321:321 -> <clinit>
+    138:144:void <clinit>():322:322 -> <clinit>
+    145:146:void <clinit>():324:324 -> <clinit>
+    147:149:void dev.ouo.signals.Signals$lifecycle$1.<init>():324:324 -> <clinit>
+    147:149:void <clinit>():324 -> <clinit>
+    150:152:void <clinit>():324:324 -> <clinit>
+    1:7:void setForeground(boolean):347:347 -> a
+    1:7:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Z)V"}
+    8:13:void setForeground(boolean):348:348 -> a
+    8:13:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+    14:16:void setForeground(boolean):349:349 -> a
+    14:16:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+    17:18:void setForeground(boolean):350:350 -> a
+    17:18:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+    19:21:void setForeground(boolean):351:351 -> a
+    19:21:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+    22:26:void setForeground(boolean):349:349 -> a
+    22:26:void access$setForeground(dev.ouo.signals.Signals,boolean):46 -> a
+    4:11:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):207:207 -> b
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/Integer;)Lc/a;"}
+    12:29:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):209:209 -> b
+    30:50:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):210:210 -> b
+    51:63:java.lang.Object kotlin.collections.CollectionsKt___CollectionsKt.firstOrNull(java.util.List):288:288 -> b
+    51:63:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):210 -> b
+    64:69:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):210:210 -> b
+    70:100:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):211:211 -> b
+    101:104:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):210:210 -> b
+    105:113:void kotlin.jvm.internal.Intrinsics.throwJavaNpe(java.lang.String):50:50 -> b
+    105:113:void kotlin.jvm.internal.Intrinsics.checkNotNull(java.lang.Object,java.lang.String):31 -> b
+    105:113:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):209 -> b
+    114:117:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):209:209 -> b
+    118:122:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> b
+    118:122:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):208 -> b
+    123:128:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> b
+    123:128:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):213 -> b
+    129:131:dev.ouo.signals.core.Exit lastExit(java.lang.Integer):213:213 -> b
+    1:3:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):192:192 -> c
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Li/a;)Lc/i;"}
+    4:11:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):193:193 -> c
+    12:13:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):194:194 -> c
+    14:17:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):195:195 -> c
+    18:27:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):196:196 -> c
+    28:32:dev.ouo.signals.core.RunState updateRun(kotlin.jvm.functions.Function1):192:192 -> c
+    1:2:void writeCrash(java.lang.Thread,java.lang.Throwable):163:163 -> d
+    3:15:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):89:89 -> d
+    3:15:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    16:26:java.util.List kotlin.collections.CollectionsKt__CollectionsKt.mutableListOf(java.lang.Object[]):118:118 -> d
+    16:26:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):89 -> d
+    16:26:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    27:41:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):90:90 -> d
+    27:41:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    42:81:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):93:93 -> d
+    42:81:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    82:88:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):94:94 -> d
+    82:88:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    89:96:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97:97 -> d
+    89:96:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    97:101:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):109:109 -> d
+    97:101:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    102:117:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):110:110 -> d
+    102:117:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    118:123:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97:97 -> d
+    118:123:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    124:127:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):110:110 -> d
+    124:127:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    128:132:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624:3624 -> d
+    128:132:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    128:132:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    128:132:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    133:135:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3602:3602 -> d
+    133:135:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    133:135:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    133:135:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    133:135:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    136:152:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3604:3604 -> d
+    136:152:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    136:152:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    136:152:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    136:152:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    153:161:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3605:3605 -> d
+    153:161:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    153:161:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    153:161:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    153:161:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    162:171:void kotlin.text.StringsKt__AppendableKt.appendElement(java.lang.Appendable,java.lang.Object,kotlin.jvm.functions.Function1):85:85 -> d
+    162:171:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3607 -> d
+    162:171:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    162:171:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    162:171:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    162:171:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    172:185:void kotlin.text.StringsKt__AppendableKt.appendElement(java.lang.Appendable,java.lang.Object,kotlin.jvm.functions.Function1):86:86 -> d
+    172:185:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3607 -> d
+    172:185:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    172:185:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    172:185:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    172:185:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    186:193:void kotlin.text.StringsKt__AppendableKt.appendElement(java.lang.Appendable,java.lang.Object,kotlin.jvm.functions.Function1):87:87 -> d
+    186:193:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3607 -> d
+    186:193:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    186:193:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    186:193:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    186:193:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    194:196:java.lang.Appendable kotlin.collections.CollectionsKt___CollectionsKt.joinTo(java.lang.Iterable,java.lang.Appendable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3611:3611 -> d
+    194:196:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624 -> d
+    194:196:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    194:196:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    194:196:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    197:200:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1):3624:3624 -> d
+    197:200:java.lang.String kotlin.collections.CollectionsKt___CollectionsKt.joinToString$default(java.lang.Iterable,java.lang.CharSequence,java.lang.CharSequence,java.lang.CharSequence,int,java.lang.CharSequence,kotlin.jvm.functions.Function1,int,java.lang.Object):3623 -> d
+    197:200:kotlin.Pair dev.ouo.signals.core.Report$Companion.describe(java.lang.Throwable):97 -> d
+    197:200:void writeCrash(java.lang.Thread,java.lang.Throwable):163 -> d
+    201:202:void writeCrash(java.lang.Thread,java.lang.Throwable):164:164 -> d
+    203:206:void writeCrash(java.lang.Thread,java.lang.Throwable):167:167 -> d
+    207:208:java.lang.String dev.ouo.signals.core.RunState.getSessionId():13:13 -> d
+    207:208:void writeCrash(java.lang.Thread,java.lang.Throwable):168 -> d
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    209:210:long dev.ouo.signals.core.RunState.getSessionStartedMs():14:14 -> d
+    209:210:void writeCrash(java.lang.Thread,java.lang.Throwable):169 -> d
+    211:229:void writeCrash(java.lang.Thread,java.lang.Throwable):169:169 -> d
+    230:247:void writeCrash(java.lang.Thread,java.lang.Throwable):172:172 -> d
+    248:262:void writeCrash(java.lang.Thread,java.lang.Throwable):173:173 -> d
+    263:264:void writeCrash(java.lang.Thread,java.lang.Throwable):174:174 -> d
+    265:278:void writeCrash(java.lang.Thread,java.lang.Throwable):165:165 -> d
+    279:291:void writeCrash(java.lang.Thread,java.lang.Throwable):177:177 -> d
+    292:298:void writeCrash(java.lang.Thread,java.lang.Throwable):178:178 -> d
+    299:317:void writeCrash(java.lang.Thread,java.lang.Throwable):179:179 -> d
+    318:321:void writeCrash(java.lang.Thread,java.lang.Throwable):177:177 -> d
+dev.ouo.signals.Signals$$ExternalSyntheticApiModelOutline0 -> b.a:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    1:5:int b.Signals$$ExternalSyntheticApiModelOutline0.m(android.app.ApplicationExitInfo):0:0 -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:5:long b.Signals$$ExternalSyntheticApiModelOutline0.m(android.app.ApplicationExitInfo):0:0 -> b
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:3:android.app.ApplicationExitInfo b.Signals$$ExternalSyntheticApiModelOutline0.m(java.lang.Object):0:0 -> c
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:java.util.List b.Signals$$ExternalSyntheticApiModelOutline0.m(android.app.ActivityManager,java.lang.String,int):0:0 -> d
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:5:int b.Signals$$ExternalSyntheticApiModelOutline0.m$1(android.app.ApplicationExitInfo):0:0 -> e
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:5:int b.Signals$$ExternalSyntheticApiModelOutline0.m$2(android.app.ApplicationExitInfo):0:0 -> f
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:5:int b.Signals$$ExternalSyntheticApiModelOutline0.m$3(android.app.ApplicationExitInfo):0:0 -> g
+      # {"id":"com.android.tools.r8.synthesized"}
+dev.ouo.signals.Signals$$ExternalSyntheticLambda11 -> b.b:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    1:1:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):365:365 -> onFrameMetricsAvailable
+    2:3:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):367:368 -> onFrameMetricsAvailable
+    4:5:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):370:371 -> onFrameMetricsAvailable
+    6:6:void dev.ouo.signals.core.FrameCounter.frame(double,double):0:0 -> onFrameMetricsAvailable
+    6:6:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):371 -> onFrameMetricsAvailable
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    7:11:void dev.ouo.signals.core.FrameCounter.frame(double,double):21:25 -> onFrameMetricsAvailable
+    7:11:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):371 -> onFrameMetricsAvailable
+    12:12:void dev.ouo.signals.core.FrameCounter.frame(double,double):20:20 -> onFrameMetricsAvailable
+    12:12:void dev.ouo.signals.Signals.attachFrames$lambda$27(android.view.Window,android.view.FrameMetrics,int):371 -> onFrameMetricsAvailable
+dev.ouo.signals.Signals$$ExternalSyntheticLambda13 -> b.c:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    java.lang.Thread$UncaughtExceptionHandler dev.ouo.signals.Signals$$InternalSyntheticLambda$3$f71050f8722d2895b13414e68a5123b8eab1abd7baa50b6ce42e93a2272d23be$0.f$0 -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:void b.Signals$$ExternalSyntheticLambda13.<init>(java.lang.Thread$UncaughtExceptionHandler):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:11:void dev.ouo.signals.Signals.install$lambda$11(java.lang.Thread$UncaughtExceptionHandler,java.lang.Thread,java.lang.Throwable):127:127 -> uncaughtException
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/Thread;Ljava/lang/Throwable;)V"}
+    12:19:void dev.ouo.signals.Signals.install$lambda$11(java.lang.Thread$UncaughtExceptionHandler,java.lang.Thread,java.lang.Throwable):128:128 -> uncaughtException
+    20:28:void dev.ouo.signals.Signals.install$lambda$11(java.lang.Thread$UncaughtExceptionHandler,java.lang.Thread,java.lang.Throwable):129:129 -> uncaughtException
+    29:32:void dev.ouo.signals.Signals.install$lambda$11(java.lang.Thread$UncaughtExceptionHandler,java.lang.Thread,java.lang.Throwable):130:130 -> uncaughtException
+dev.ouo.signals.Signals$$ExternalSyntheticLambda14 -> b.d:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    java.lang.String dev.ouo.signals.Signals$$InternalSyntheticLambda$4$104a25b603ad1fe38e133c94a498e645c0bf5cbea649955cb1ca275864979f32$0.f$0 -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:void b.Signals$$ExternalSyntheticLambda14.<init>(java.lang.String):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    3:16:void dev.ouo.signals.Signals.updateRun$lambda$16$lambda$15(java.lang.String):198:198 -> run
+      # {"id":"com.android.tools.r8.residualsignature","signature":"()V"}
+    17:19:void dev.ouo.signals.Signals.updateRun$lambda$16$lambda$15(java.lang.String):199:199 -> run
+    20:38:void dev.ouo.signals.Signals.updateRun$lambda$16$lambda$15(java.lang.String):200:200 -> run
+    39:43:void dev.ouo.signals.Signals.updateRun$lambda$16$lambda$15(java.lang.String):198:198 -> run
+dev.ouo.signals.Signals$$ExternalSyntheticLambda7 -> b.e:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    1:12:java.lang.Thread dev.ouo.signals.Signals.io$lambda$1(java.lang.Runnable):49:49 -> newThread
+dev.ouo.signals.Signals$lifecycle$1 -> b.f:
+# {"id":"sourceFile","fileName":"Signals.kt"}
+    1:6:void b.Signals$lifecycle$1.onActivityCreated(android.app.Activity,android.os.Bundle):0:0 -> onActivityCreated
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:6:void b.Signals$lifecycle$1.onActivityDestroyed(android.app.Activity):0:0 -> onActivityDestroyed
+      # {"id":"com.android.tools.r8.synthesized"}
+    6:7:void onActivityPaused(android.app.Activity):337:337 -> onActivityPaused
+    8:14:void dev.ouo.signals.Signals.detachFrames(android.app.Activity):380:380 -> onActivityPaused
+    8:14:void dev.ouo.signals.Signals.access$detachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityPaused
+    8:14:void onActivityPaused(android.app.Activity):337 -> onActivityPaused
+    15:28:void dev.ouo.signals.Signals.detachFrames(android.app.Activity):381:381 -> onActivityPaused
+    15:28:void dev.ouo.signals.Signals.access$detachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityPaused
+    15:28:void onActivityPaused(android.app.Activity):337 -> onActivityPaused
+    6:7:void onActivityResumed(android.app.Activity):335:335 -> onActivityResumed
+    8:14:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):362:362 -> onActivityResumed
+    8:14:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    8:14:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    15:23:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):363:363 -> onActivityResumed
+    15:23:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    15:23:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    24:28:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):364:364 -> onActivityResumed
+    24:28:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    24:28:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    29:36:android.os.Handler dev.ouo.signals.Signals.getFrameHandler():321:321 -> onActivityResumed
+    29:36:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):374 -> onActivityResumed
+    29:36:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    29:36:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    37:39:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):374:374 -> onActivityResumed
+    37:39:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    37:39:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    40:42:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):375:375 -> onActivityResumed
+    40:42:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    40:42:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    43:46:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):376:376 -> onActivityResumed
+    43:46:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    43:46:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    47:52:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> onActivityResumed
+    47:52:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):373 -> onActivityResumed
+    47:52:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    47:52:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    53:65:java.lang.Throwable kotlin.Result.exceptionOrNull-impl(java.lang.Object):64:64 -> onActivityResumed
+    53:65:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):376 -> onActivityResumed
+    53:65:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    53:65:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    66:85:void dev.ouo.signals.Signals.attachFrames(android.app.Activity):376:376 -> onActivityResumed
+    66:85:void dev.ouo.signals.Signals.access$attachFrames(dev.ouo.signals.Signals,android.app.Activity):46 -> onActivityResumed
+    66:85:void onActivityResumed(android.app.Activity):335 -> onActivityResumed
+    1:11:void b.Signals$lifecycle$1.onActivitySaveInstanceState(android.app.Activity,android.os.Bundle):0:0 -> onActivitySaveInstanceState
+      # {"id":"com.android.tools.r8.synthesized"}
+    6:7:java.util.Set dev.ouo.signals.Signals.access$getStarted$p():46:46 -> onActivityStarted
+    6:7:void onActivityStarted(android.app.Activity):326 -> onActivityStarted
+    8:11:void onActivityStarted(android.app.Activity):326:326 -> onActivityStarted
+    12:15:void onActivityStarted(android.app.Activity):327:327 -> onActivityStarted
+    6:7:java.util.Set dev.ouo.signals.Signals.access$getStarted$p():46:46 -> onActivityStopped
+    6:7:void onActivityStopped(android.app.Activity):331 -> onActivityStopped
+    8:10:void onActivityStopped(android.app.Activity):331:331 -> onActivityStopped
+    11:20:void onActivityStopped(android.app.Activity):332:332 -> onActivityStopped
+dev.ouo.signals.Signals$memory$1 -> b.g:
+# {"id":"sourceFile","fileName":"Signals.kt"}
+    1:6:void b.Signals$memory$1.onConfigurationChanged(android.content.res.Configuration):0:0 -> onConfigurationChanged
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:14:void dev.ouo.signals.Signals.memoryWarning():230:230 -> onLowMemory
+    1:14:void dev.ouo.signals.Signals.access$memoryWarning(dev.ouo.signals.Signals):46 -> onLowMemory
+    1:14:void onLowMemory():224 -> onLowMemory
+    10:23:void dev.ouo.signals.Signals.memoryWarning():230:230 -> onTrimMemory
+    10:23:void dev.ouo.signals.Signals.access$memoryWarning(dev.ouo.signals.Signals):46 -> onTrimMemory
+    10:23:void onTrimMemory(int):221 -> onTrimMemory
+dev.ouo.signals.Signals$watchdog$1 -> b.j:
+# {"id":"sourceFile","fileName":"Signals.kt"}
+    dev.ouo.signals.core.HangDetector detector -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lc/f;"}
+    long startedAtEpoch -> b
+    double framesAtStart -> c
+    1:6:void <init>():242:242 -> <init>
+    7:9:void <init>():244:244 -> <init>
+    10:11:void <init>():247:247 -> <init>
+    12:16:void dev.ouo.signals.core.HangDetector.<init>(long,long):16:16 -> <init>
+    12:16:void dev.ouo.signals.core.HangDetector.<init>(long,long,int,kotlin.jvm.internal.DefaultConstructorMarker):16 -> <init>
+    12:16:void <init>():247 -> <init>
+    17:18:void dev.ouo.signals.core.HangDetector.<init>(long,long):28:28 -> <init>
+    17:18:void dev.ouo.signals.core.HangDetector.<init>(long,long,int,kotlin.jvm.internal.DefaultConstructorMarker):16 -> <init>
+    17:18:void <init>():247 -> <init>
+    19:21:void <init>():247:247 -> <init>
+    5:6:dev.ouo.signals.core.FrameCounter dev.ouo.signals.Signals.access$getFrames$p():46:46 -> a
+    5:6:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):300 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lc/c;)V"}
+    7:39:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):300:300 -> a
+    40:41:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301:301 -> a
+    42:44:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> a
+    42:44:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    42:44:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    45:46:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193:193 -> a
+    45:46:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    45:46:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    47:51:dev.ouo.signals.core.RunState ended$lambda$3(dev.ouo.signals.core.RunState):0:0 -> a
+    47:51:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> a
+    47:51:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    47:51:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    52:63:dev.ouo.signals.core.RunState ended$lambda$3(dev.ouo.signals.core.RunState):301:301 -> a
+    52:63:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> a
+    52:63:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    52:63:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    64:65:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):194:194 -> a
+    64:65:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    64:65:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    66:69:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):195:195 -> a
+    66:69:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    66:69:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    70:79:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):196:196 -> a
+    70:79:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    70:79:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    80:80:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> a
+    80:80:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    80:80:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    81:82:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):303:303 -> a
+    83:84:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):304:304 -> a
+    85:86:java.lang.String dev.ouo.signals.core.RunState.getSessionId():13:13 -> a
+    85:86:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):305 -> a
+    87:88:long dev.ouo.signals.core.RunState.getSessionStartedMs():14:14 -> a
+    87:88:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):306 -> a
+    89:102:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):306:306 -> a
+    103:104:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):307:307 -> a
+    105:106:java.util.List dev.ouo.signals.Signals.access$getHangFrames$p():46:46 -> a
+    105:106:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):308 -> a
+    107:108:long dev.ouo.signals.core.HangDetector$Event$Ended.getDurationMs():23:23 -> a
+    107:108:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):309 -> a
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    109:111:long dev.ouo.signals.core.HangDetector$Event$Ended.getDurationMs():23:23 -> a
+    109:111:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):309 -> a
+    112:117:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):309:309 -> a
+    118:121:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):310:310 -> a
+    122:123:java.lang.String dev.ouo.signals.Signals.access$getMappingId$p():46:46 -> a
+    122:123:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):311 -> a
+    124:135:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):302:302 -> a
+    136:139:kotlin.jvm.functions.Function1 dev.ouo.signals.Signals.access$getOnHang$p():46:46 -> a
+    136:139:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):313 -> a
+    140:141:android.os.Handler dev.ouo.signals.Signals.access$getMain$p():46:46 -> a
+    140:141:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):314 -> a
+    142:151:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):314:314 -> a
+    152:153:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> a
+    152:153:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> a
+    152:153:void ended(dev.ouo.signals.core.HangDetector$Event$Ended):301 -> a
+    1:2:void stop(long,boolean):295:295 -> b
+    3:5:long dev.ouo.signals.Signals.access$getLastAnswer$p():46:46 -> b
+    3:5:void stop(long,boolean):295 -> b
+    6:7:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):69:69 -> b
+    6:7:void stop(long,boolean):295 -> b
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    8:15:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):70:70 -> b
+    8:15:void stop(long,boolean):295 -> b
+    16:22:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):71:71 -> b
+    16:22:void stop(long,boolean):295 -> b
+    23:29:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):72:72 -> b
+    23:29:void stop(long,boolean):295 -> b
+    30:31:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):73:73 -> b
+    30:31:void stop(long,boolean):295 -> b
+    32:41:dev.ouo.signals.core.HangDetector$Event$Ended dev.ouo.signals.core.HangDetector.interrupt(long,long):74:74 -> b
+    32:41:void stop(long,boolean):295 -> b
+    42:47:void stop(long,boolean):296:296 -> b
+    48:50:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> b
+    48:50:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    48:50:void stop(long,boolean):296 -> b
+    51:52:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193:193 -> b
+    51:52:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    51:52:void stop(long,boolean):296 -> b
+    53:57:dev.ouo.signals.core.RunState stop$lambda$2(dev.ouo.signals.core.RunState):0:0 -> b
+    53:57:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> b
+    53:57:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    53:57:void stop(long,boolean):296 -> b
+    58:69:dev.ouo.signals.core.RunState stop$lambda$2(dev.ouo.signals.core.RunState):296:296 -> b
+    58:69:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):193 -> b
+    58:69:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    58:69:void stop(long,boolean):296 -> b
+    70:71:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):194:194 -> b
+    70:71:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    70:71:void stop(long,boolean):296 -> b
+    72:75:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):195:195 -> b
+    72:75:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    72:75:void stop(long,boolean):296 -> b
+    76:85:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):196:196 -> b
+    76:85:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    76:85:void stop(long,boolean):296 -> b
+    86:91:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.updateRun(kotlin.jvm.functions.Function1):192:192 -> b
+    86:91:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46 -> b
+    86:91:void stop(long,boolean):296 -> b
+    1:6:void run():254:254 -> run
+    7:8:void dev.ouo.signals.Signals.access$setLastAnswer$p(long):46:46 -> run
+    7:8:void run():254 -> run
+    9:13:boolean dev.ouo.signals.Signals.access$getForeground$p():46:46 -> run
+    9:13:void run():258 -> run
+    14:15:long dev.ouo.signals.Signals.access$getLeftForegroundAt$p():46:46 -> run
+    14:15:void run():259 -> run
+    16:18:void run():259:259 -> run
+    19:20:java.lang.Object dev.ouo.signals.Signals.access$getWake$p():46:46 -> run
+    19:20:void run():260 -> run
+    21:21:void run():260:260 -> run
+    22:25:boolean dev.ouo.signals.Signals.access$getForeground$p():46:46 -> run
+    22:25:void run():260 -> run
+    26:27:java.lang.Object dev.ouo.signals.Signals.access$getWake$p():46:46 -> run
+    26:27:void run():260 -> run
+    28:34:void run():260:260 -> run
+    35:40:void run():261:261 -> run
+    41:43:void dev.ouo.signals.Signals.access$setLastAnswer$p(long):46:46 -> run
+    41:43:void run():261 -> run
+    44:47:void run():260:260 -> run
+    48:50:void run():263:263 -> run
+    51:56:void run():268:268 -> run
+    57:64:void run():269:269 -> run
+    65:70:void run():270:270 -> run
+    71:73:void dev.ouo.signals.Signals.access$setLastAnswer$p(long):46:46 -> run
+    71:73:void run():270 -> run
+    74:77:boolean dev.ouo.signals.Signals.access$getPinged$p():46:46 -> run
+    74:77:void run():273 -> run
+    78:79:void run():274:274 -> run
+    80:81:void dev.ouo.signals.Signals.access$setPinged$p(boolean):46:46 -> run
+    80:81:void run():274 -> run
+    82:83:android.os.Handler dev.ouo.signals.Signals.access$getMain$p():46:46 -> run
+    82:83:void run():275 -> run
+    84:85:java.lang.Runnable dev.ouo.signals.Signals.access$getPong$p():46:46 -> run
+    84:85:void run():275 -> run
+    86:88:void run():275:275 -> run
+    89:92:void run():277:277 -> run
+    93:94:void run():278:278 -> run
+    95:96:long dev.ouo.signals.Signals.access$getLastAnswer$p():46:46 -> run
+    95:96:void run():278 -> run
+    97:99:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):38:38 -> run
+    97:99:void run():278 -> run
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    100:101:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):38:38 -> run
+    100:101:void run():278 -> run
+    102:112:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):39:39 -> run
+    102:112:void run():278 -> run
+    113:122:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):42:42 -> run
+    113:122:void run():278 -> run
+    123:130:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):43:43 -> run
+    123:130:void run():278 -> run
+    131:132:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):44:44 -> run
+    131:132:void run():278 -> run
+    133:139:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):45:45 -> run
+    133:139:void run():278 -> run
+    140:153:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):46:46 -> run
+    140:153:void run():278 -> run
+    154:157:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):48:48 -> run
+    154:157:void run():278 -> run
+    158:166:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):50:50 -> run
+    158:166:void run():278 -> run
+    167:169:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):51:51 -> run
+    167:169:void run():278 -> run
+    170:171:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):52:52 -> run
+    170:171:void run():278 -> run
+    172:187:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):53:53 -> run
+    172:187:void run():278 -> run
+    188:193:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):55:55 -> run
+    188:193:void run():278 -> run
+    194:199:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):56:56 -> run
+    194:199:void run():278 -> run
+    200:204:dev.ouo.signals.core.HangDetector$Event dev.ouo.signals.core.HangDetector.tick(long,long):57:57 -> run
+    200:204:void run():278 -> run
+    205:208:void run():279:279 -> run
+    209:214:void run():280:280 -> run
+    215:218:long dev.ouo.signals.core.HangDetector$Event$Started.getStartedAt():19:19 -> run
+    215:218:void run():280 -> run
+    219:220:void run():280:280 -> run
+    221:222:dev.ouo.signals.core.FrameCounter dev.ouo.signals.Signals.access$getFrames$p():46:46 -> run
+    221:222:void run():281 -> run
+    223:247:void run():281:281 -> run
+    248:270:void run():283:283 -> run
+    271:272:void dev.ouo.signals.Signals.access$setHangFrames$p(java.util.List):46:46 -> run
+    271:272:void run():284 -> run
+    273:279:void run():285:285 -> run
+    280:284:dev.ouo.signals.core.RunState dev.ouo.signals.Signals.access$updateRun(dev.ouo.signals.Signals,kotlin.jvm.functions.Function1):46:46 -> run
+    280:284:void run():285 -> run
+    285:299:void run():287:287 -> run
+    300:301:void run():278:278 -> run
+    302:304:void kotlin.NoWhenBranchMatchedException.<init>():9:9 -> run
+    302:304:void run():278 -> run
+    305:306:void run():278:278 -> run
+dev.ouo.signals.Signals$watchdog$1$$ExternalSyntheticLambda0 -> b.h:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    dev.ouo.signals.Signals$watchdog$1 dev.ouo.signals.Signals$watchdog$1$$InternalSyntheticLambda$3$e1c97c3704a9bdcc8fd2dbe462c21c5e5b2bbbd28f71549bea406a2facc62780$0.f$0 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lb/j;"}
+      # {"id":"com.android.tools.r8.synthesized"}
+    java.util.List dev.ouo.signals.Signals$watchdog$1$$InternalSyntheticLambda$3$e1c97c3704a9bdcc8fd2dbe462c21c5e5b2bbbd28f71549bea406a2facc62780$0.f$1 -> b
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ljava/util/ArrayList;"}
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:8:void b.Signals$watchdog$1$$ExternalSyntheticLambda0.<init>(b.Signals$watchdog$1,java.util.ArrayList):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lb/j;Ljava/util/ArrayList;)V"}
+    4:8:dev.ouo.signals.core.RunState dev.ouo.signals.Signals$watchdog$1.run$lambda$1(dev.ouo.signals.Signals$watchdog$1,java.util.List,dev.ouo.signals.core.RunState):0:0 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/Object;)Ljava/lang/Object;"}
+    9:28:dev.ouo.signals.core.RunState dev.ouo.signals.Signals$watchdog$1.run$lambda$1(dev.ouo.signals.Signals$watchdog$1,java.util.List,dev.ouo.signals.core.RunState):285:285 -> a
+dev.ouo.signals.Signals$watchdog$1$$ExternalSyntheticLambda1 -> b.i:
+# {"id":"sourceFile","fileName":"R8$$SyntheticClass"}
+# {"id":"com.android.tools.r8.synthesized"}
+    kotlin.jvm.functions.Function1 dev.ouo.signals.Signals$watchdog$1$$InternalSyntheticLambda$4$a795d76cc45585920fd1d4169a9846bfa42acc8f43e5016ab17d2091a6a325e4$1.f$0 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Li/a;"}
+      # {"id":"com.android.tools.r8.synthesized"}
+    dev.ouo.signals.core.Report dev.ouo.signals.Signals$watchdog$1$$InternalSyntheticLambda$4$a795d76cc45585920fd1d4169a9846bfa42acc8f43e5016ab17d2091a6a325e4$1.f$1 -> b
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lc/h;"}
+      # {"id":"com.android.tools.r8.synthesized"}
+    1:8:void b.Signals$watchdog$1$$ExternalSyntheticLambda1.<init>(i.Function1,c.Report):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Li/a;Lc/h;)V"}
+    3:12:void dev.ouo.signals.Signals$watchdog$1.ended$lambda$5(kotlin.jvm.functions.Function1,dev.ouo.signals.core.Report):314:314 -> run
+      # {"id":"com.android.tools.r8.residualsignature","signature":"()V"}
+dev.ouo.signals.core.Exit -> c.a:
+# {"id":"sourceFile","fileName":"RunState.kt"}
+    int pid -> a
+    int reason -> b
+    int importance -> c
+    int signal -> d
+    long timestampMs -> e
+    1:1:void <init>(int,int,int,int,long):51:51 -> <init>
+    5:50:boolean equals(java.lang.Object):0:0 -> equals
+    1:43:int hashCode():0:0 -> hashCode
+    1:62:java.lang.String toString():0:0 -> toString
+dev.ouo.signals.core.FrameCounter -> c.b:
+# {"id":"sourceFile","fileName":"Frames.kt"}
+    long total -> a
+    long slow -> b
+    long frozen -> c
+    double delayMs -> d
+    double expectedMs -> e
+    2:11:java.util.Map snapshot():30:30 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"()Ljava/util/LinkedHashMap;"}
+    12:18:java.util.Map snapshot():31:31 -> a
+    19:23:kotlin.Pair kotlin.TuplesKt.to(java.lang.Object,java.lang.Object):43:43 -> a
+    19:23:java.util.Map snapshot():31 -> a
+    24:32:java.util.Map snapshot():31:31 -> a
+    33:37:kotlin.Pair kotlin.TuplesKt.to(java.lang.Object,java.lang.Object):43:43 -> a
+    33:37:java.util.Map snapshot():31 -> a
+    38:46:java.util.Map snapshot():31:31 -> a
+    47:51:kotlin.Pair kotlin.TuplesKt.to(java.lang.Object,java.lang.Object):43:43 -> a
+    47:51:java.util.Map snapshot():31 -> a
+    52:59:java.util.Map snapshot():31:31 -> a
+    60:64:kotlin.Pair kotlin.TuplesKt.to(java.lang.Object,java.lang.Object):43:43 -> a
+    60:64:java.util.Map snapshot():31 -> a
+    65:72:java.util.Map snapshot():31:31 -> a
+    73:77:kotlin.Pair kotlin.TuplesKt.to(java.lang.Object,java.lang.Object):43:43 -> a
+    73:77:java.util.Map snapshot():31 -> a
+    78:81:java.util.Map snapshot():31:31 -> a
+    82:98:java.util.Map kotlin.collections.MapsKt__MapsKt.mapOf(kotlin.Pair[]):55:55 -> a
+    82:98:java.util.Map snapshot():31 -> a
+    99:100:void kotlin.collections.MapsKt__MapsKt.putAll(java.util.Map,kotlin.Pair[]):433:433 -> a
+    99:100:java.util.Map kotlin.collections.MapsKt__MapsKt.toMap(kotlin.Pair[],java.util.Map):605 -> a
+    99:100:java.util.Map kotlin.collections.MapsKt__MapsKt.mapOf(kotlin.Pair[]):55 -> a
+    99:100:java.util.Map snapshot():31 -> a
+    101:102:java.lang.Object kotlin.Pair.component1():0:0 -> a
+    101:102:void kotlin.collections.MapsKt__MapsKt.putAll(java.util.Map,kotlin.Pair[]):433 -> a
+      # {"id":"com.android.tools.r8.rewriteFrame","conditions":["throws(Ljava/lang/NullPointerException;)"],"actions":["removeInnerFrames(1)"]}
+    101:102:java.util.Map kotlin.collections.MapsKt__MapsKt.toMap(kotlin.Pair[],java.util.Map):605 -> a
+    101:102:java.util.Map kotlin.collections.MapsKt__MapsKt.mapOf(kotlin.Pair[]):55 -> a
+    101:102:java.util.Map snapshot():31 -> a
+    103:104:java.lang.Object kotlin.Pair.component2():0:0 -> a
+    103:104:void kotlin.collections.MapsKt__MapsKt.putAll(java.util.Map,kotlin.Pair[]):433 -> a
+    103:104:java.util.Map kotlin.collections.MapsKt__MapsKt.toMap(kotlin.Pair[],java.util.Map):605 -> a
+    103:104:java.util.Map kotlin.collections.MapsKt__MapsKt.mapOf(kotlin.Pair[]):55 -> a
+    103:104:java.util.Map snapshot():31 -> a
+    105:111:void kotlin.collections.MapsKt__MapsKt.putAll(java.util.Map,kotlin.Pair[]):434:434 -> a
+    105:111:java.util.Map kotlin.collections.MapsKt__MapsKt.toMap(kotlin.Pair[],java.util.Map):605 -> a
+    105:111:java.util.Map kotlin.collections.MapsKt__MapsKt.mapOf(kotlin.Pair[]):55 -> a
+    105:111:java.util.Map snapshot():31 -> a
+    112:116:java.util.Map snapshot():31:31 -> a
+dev.ouo.signals.core.HangDetector -> c.f:
+# {"id":"sourceFile","fileName":"HangDetector.kt"}
+    java.lang.Long hangStartedAt -> a
+    long quietUntil -> b
+    java.lang.Long lastTick -> c
+dev.ouo.signals.core.HangDetector$Event -> c.e:
+# {"id":"sourceFile","fileName":"HangDetector.kt"}
+    5:8:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):46:46 -> a
+    9:15:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):49:49 -> a
+    16:28:boolean kotlin.internal.jdk7.JDK7PlatformImplementations.sdkIsNullOrAtLeast(int):22:22 -> a
+    16:28:void kotlin.internal.jdk7.JDK7PlatformImplementations.addSuppressed(java.lang.Throwable,java.lang.Throwable):27 -> a
+    16:28:void kotlin.ExceptionsKt__ExceptionsKt.addSuppressed(java.lang.Throwable,java.lang.Throwable):70 -> a
+    16:28:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):51 -> a
+    29:40:void kotlin.internal.PlatformImplementations.addSuppressed(java.lang.Throwable,java.lang.Throwable):34:34 -> a
+    29:40:void kotlin.internal.jdk7.JDK7PlatformImplementations.addSuppressed(java.lang.Throwable,java.lang.Throwable):30 -> a
+    29:40:void kotlin.ExceptionsKt__ExceptionsKt.addSuppressed(java.lang.Throwable,java.lang.Throwable):70 -> a
+    29:40:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):51 -> a
+    41:44:void kotlin.internal.jdk7.JDK7PlatformImplementations.addSuppressed(java.lang.Throwable,java.lang.Throwable):28:28 -> a
+    41:44:void kotlin.ExceptionsKt__ExceptionsKt.addSuppressed(java.lang.Throwable,java.lang.Throwable):70 -> a
+    41:44:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):51 -> a
+    8:11:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):92:92 -> b
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lc/i;Lc/a;)Lc/h;"}
+    12:13:int dev.ouo.signals.core.Exit.getPid():51:51 -> b
+    12:13:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):92 -> b
+    14:19:int dev.ouo.signals.core.RunState.getPid():12:12 -> b
+    14:19:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):92 -> b
+    20:31:int dev.ouo.signals.core.Exit.getImportance():51:51 -> b
+    20:31:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):93 -> b
+    32:36:int dev.ouo.signals.core.Exit.getReason():51:51 -> b
+    32:36:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):94 -> b
+    37:59:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):94:94 -> b
+    60:70:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):97:97 -> b
+    71:75:int dev.ouo.signals.core.Exit.getSignal():51:51 -> b
+    71:75:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):100 -> b
+    76:79:java.lang.Long dev.ouo.signals.core.RunState.getMemoryWarningMs():15:15 -> b
+    76:79:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):101 -> b
+    80:81:long dev.ouo.signals.core.Exit.getTimestampMs():51:51 -> b
+    80:81:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):101 -> b
+    82:101:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):101:101 -> b
+    102:103:long dev.ouo.signals.core.Exit.getTimestampMs():51:51 -> b
+    102:103:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):108 -> b
+    104:105:java.lang.String dev.ouo.signals.core.RunState.getSessionId():13:13 -> b
+    104:105:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):109 -> b
+    106:107:long dev.ouo.signals.core.RunState.getSessionStartedMs():14:14 -> b
+    106:107:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):110 -> b
+    108:122:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):110:110 -> b
+    123:128:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):111:111 -> b
+    129:133:java.util.List dev.ouo.signals.core.RunState.getHangFrames():17:17 -> b
+    129:133:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):112 -> b
+    134:136:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):112:112 -> b
+    137:157:dev.ouo.signals.core.Report dev.ouo.signals.core.Termination.decide(dev.ouo.signals.core.RunState,dev.ouo.signals.core.Exit,boolean):106:106 -> b
+    1:7:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807:4807 -> c
+    1:7:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+      # {"id":"com.android.tools.r8.residualsignature","signature":"([Ljava/lang/StackTraceElement;)Ljava/util/ArrayList;"}
+    8:12:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9838:9838 -> c
+    8:12:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    8:12:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    13:14:java.util.List kotlin.collections.ArraysKt___ArraysKt.toMutableList(java.lang.Object[]):9937:9937 -> c
+    13:14:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9841 -> c
+    13:14:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    13:14:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    15:19:java.util.Collection kotlin.collections.CollectionsKt__CollectionsKt.asCollection(java.lang.Object[]):56:56 -> c
+    15:19:java.util.List kotlin.collections.ArraysKt___ArraysKt.toMutableList(java.lang.Object[]):9937 -> c
+    15:19:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9841 -> c
+    15:19:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    15:19:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    20:23:java.util.List kotlin.collections.ArraysKt___ArraysKt.toMutableList(java.lang.Object[]):9937:9937 -> c
+    20:23:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9841 -> c
+    20:23:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    20:23:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    24:25:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9840:9840 -> c
+    24:25:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    24:25:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    26:35:java.util.List kotlin.collections.CollectionsKt__CollectionsJVMKt.listOf(java.lang.Object):21:21 -> c
+    26:35:java.util.List kotlin.collections.ArraysKt___ArraysKt.toList(java.lang.Object[]):9840 -> c
+    26:35:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807 -> c
+    26:35:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    36:38:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4807:4807 -> c
+    36:38:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    39:43:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4810:4810 -> c
+    39:43:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    44:49:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4811:4811 -> c
+    44:49:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    50:59:java.util.List kotlin.collections.ArraysKt___ArraysKt.take(java.lang.Object[],int):4812:4812 -> c
+    50:59:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    60:68:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):105:105 -> c
+    69:82:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):106:106 -> c
+    83:84:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):107:107 -> c
+    85:89:dev.ouo.signals.core.JvmFrame dev.ouo.signals.core.JvmFrame$Companion.of(java.lang.StackTraceElement):0:0 -> c
+    85:89:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    90:128:dev.ouo.signals.core.JvmFrame dev.ouo.signals.core.JvmFrame$Companion.of(java.lang.StackTraceElement):19:19 -> c
+    90:128:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):82 -> c
+    129:133:java.util.List dev.ouo.signals.core.Report$Companion.frames(java.lang.StackTraceElement[]):107:107 -> c
+    4:8:java.util.Iterator kotlin.text.StringsKt__StringsKt$lineSequence$$inlined$Sequence$1.iterator():23:23 -> d
+    4:8:void kotlin.sequences.TransformingSequence$iterator$1.<init>(kotlin.sequences.TransformingSequence):208 -> d
+    4:8:java.util.Iterator kotlin.sequences.TransformingSequence.iterator():207 -> d
+    4:8:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):102 -> d
+    9:14:boolean kotlin.sequences.TransformingSequence$iterator$1.hasNext():214:214 -> d
+    9:14:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):102 -> d
+    15:20:java.lang.Object kotlin.sequences.TransformingSequence$iterator$1.next():210:210 -> d
+    15:20:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):102 -> d
+    21:25:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId$lambda$0(java.lang.String):0:0 -> d
+    21:25:java.lang.Object kotlin.sequences.TransformingSequence$iterator$1.next():210 -> d
+    21:25:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):102 -> d
+    26:33:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId$lambda$0(java.lang.String):76:76 -> d
+    26:33:java.lang.Object kotlin.sequences.TransformingSequence$iterator$1.next():210 -> d
+    26:33:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):102 -> d
+    34:38:boolean kotlin.text.StringsKt__StringsJVMKt.startsWith(java.lang.String,java.lang.String,boolean):0:0 -> d
+    34:38:boolean kotlin.text.StringsKt__StringsJVMKt.startsWith$default(java.lang.String,java.lang.String,boolean,int,java.lang.Object):416 -> d
+    34:38:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):77 -> d
+    39:53:boolean kotlin.text.StringsKt__StringsJVMKt.startsWith(java.lang.String,java.lang.String,boolean):419:419 -> d
+    39:53:boolean kotlin.text.StringsKt__StringsJVMKt.startsWith$default(java.lang.String,java.lang.String,boolean,int,java.lang.Object):416 -> d
+    39:53:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):77 -> d
+    54:63:int kotlin.text.StringsKt__StringsKt.indexOf(java.lang.CharSequence,char,int,boolean):1121:1121 -> d
+    54:63:int kotlin.text.StringsKt__StringsKt.indexOf$default(java.lang.CharSequence,char,int,boolean,int,java.lang.Object):1117 -> d
+    54:63:java.lang.String kotlin.text.StringsKt__StringsKt.substringAfter(java.lang.String,char,java.lang.String):460 -> d
+    54:63:java.lang.String kotlin.text.StringsKt__StringsKt.substringAfter$default(java.lang.String,char,java.lang.String,int,java.lang.Object):459 -> d
+    54:63:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):78 -> d
+    64:76:java.lang.String kotlin.text.StringsKt__StringsKt.substringAfter(java.lang.String,char,java.lang.String):461:461 -> d
+    64:76:java.lang.String kotlin.text.StringsKt__StringsKt.substringAfter$default(java.lang.String,char,java.lang.String,int,java.lang.Object):459 -> d
+    64:76:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):78 -> d
+    77:86:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):75:75 -> d
+    87:88:kotlin.text.Regex dev.ouo.signals.core.Report.access$getUUID$cp():31:31 -> d
+    87:88:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):79 -> d
+    89:91:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):79:79 -> d
+    92:107:boolean kotlin.text.Regex.matches(java.lang.CharSequence):106:106 -> d
+    92:107:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):79 -> d
+    108:120:java.lang.String dev.ouo.signals.core.Report$Companion.mappingId(java.lang.String):75:75 -> d
+    3:7:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):31:31 -> e
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/String;)Lc/i;"}
+    8:15:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):32:32 -> e
+    16:21:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):33:33 -> e
+    22:27:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):35:35 -> e
+    28:38:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):36:36 -> e
+    39:44:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):37:37 -> e
+    45:64:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):38:38 -> e
+    65:83:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):39:39 -> e
+    84:92:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40:40 -> e
+    93:95:kotlin.ranges.IntRange kotlin.ranges.IntRange.access$getEMPTY$cp():53:53 -> e
+    93:95:kotlin.ranges.IntRange kotlin.ranges.IntRange$Companion.getEMPTY():85 -> e
+    93:95:kotlin.ranges.IntRange kotlin.ranges.RangesKt___RangesKt.until(int,int):1129 -> e
+    93:95:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40 -> e
+    96:99:kotlin.ranges.IntRange kotlin.ranges.RangesKt___RangesKt.until(int,int):1130:1130 -> e
+    96:99:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40 -> e
+    100:103:void kotlin.ranges.IntRange.<init>(int,int):53:53 -> e
+    100:103:kotlin.ranges.IntRange kotlin.ranges.RangesKt___RangesKt.until(int,int):1130 -> e
+    100:103:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40 -> e
+    104:112:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):119:119 -> e
+    113:119:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120:120 -> e
+    120:123:boolean kotlin.ranges.IntProgressionIterator.hasNext():44:44 -> e
+    120:123:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    124:126:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120:120 -> e
+    127:128:int kotlin.ranges.IntProgressionIterator.nextInt():47:47 -> e
+    127:128:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    129:132:int kotlin.ranges.IntProgressionIterator.nextInt():48:48 -> e
+    129:132:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    133:136:int kotlin.ranges.IntProgressionIterator.nextInt():49:49 -> e
+    133:136:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    137:139:int kotlin.ranges.IntProgressionIterator.nextInt():50:50 -> e
+    137:139:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    140:145:int kotlin.ranges.IntProgressionIterator.nextInt():49:49 -> e
+    140:145:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    146:150:int kotlin.ranges.IntProgressionIterator.nextInt():53:53 -> e
+    146:150:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):120 -> e
+    151:159:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40:40 -> e
+    160:161:dev.ouo.signals.core.JvmFrame dev.ouo.signals.core.JvmFrame$Companion.fromJson(org.json.JSONObject):0:0 -> e
+    160:161:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40 -> e
+    162:215:dev.ouo.signals.core.JvmFrame dev.ouo.signals.core.JvmFrame$Companion.fromJson(org.json.JSONObject):21:21 -> e
+    162:215:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40 -> e
+    216:221:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):121:121 -> e
+    222:224:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):40:40 -> e
+    225:230:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):34:34 -> e
+    231:235:java.lang.Object kotlin.ResultKt.createFailure(java.lang.Throwable):122:122 -> e
+    231:235:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):31 -> e
+    236:241:boolean kotlin.Result.isFailure-impl(java.lang.Object):38:38 -> e
+    236:241:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):42 -> e
+    242:244:dev.ouo.signals.core.RunState dev.ouo.signals.core.RunState$Companion.parse(java.lang.String):42:42 -> e
+    1:7:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):111:111 -> f
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/io/InputStreamReader;)Ljava/lang/String;"}
+    8:9:long kotlin.io.TextStreamsKt.copyTo(java.io.Reader,java.io.Writer,int):127:127 -> f
+    8:9:long kotlin.io.TextStreamsKt.copyTo$default(java.io.Reader,java.io.Writer,int,int,java.lang.Object):125 -> f
+    8:9:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):112 -> f
+    10:16:long kotlin.io.TextStreamsKt.copyTo(java.io.Reader,java.io.Writer,int):128:128 -> f
+    10:16:long kotlin.io.TextStreamsKt.copyTo$default(java.io.Reader,java.io.Writer,int,int,java.lang.Object):125 -> f
+    10:16:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):112 -> f
+    17:19:long kotlin.io.TextStreamsKt.copyTo(java.io.Reader,java.io.Writer,int):130:130 -> f
+    17:19:long kotlin.io.TextStreamsKt.copyTo$default(java.io.Reader,java.io.Writer,int,int,java.lang.Object):125 -> f
+    17:19:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):112 -> f
+    20:24:long kotlin.io.TextStreamsKt.copyTo(java.io.Reader,java.io.Writer,int):132:132 -> f
+    20:24:long kotlin.io.TextStreamsKt.copyTo$default(java.io.Reader,java.io.Writer,int,int,java.lang.Object):125 -> f
+    20:24:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):112 -> f
+    25:34:java.lang.String kotlin.io.TextStreamsKt.readText(java.io.Reader):113:113 -> f
+    1:2:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText$default(java.io.File,java.nio.charset.Charset,int,java.lang.Object):131:131 -> g
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/io/File;)Ljava/lang/String;"}
+    3:7:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText(java.io.File,java.nio.charset.Charset):0:0 -> g
+    3:7:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText$default(java.io.File,java.nio.charset.Charset,int,java.lang.Object):131 -> g
+    8:21:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText(java.io.File,java.nio.charset.Charset):131:131 -> g
+    8:21:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText$default(java.io.File,java.nio.charset.Charset,int,java.lang.Object):131 -> g
+    22:26:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):46:46 -> g
+    22:26:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText(java.io.File,java.nio.charset.Charset):131 -> g
+    22:26:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText$default(java.io.File,java.nio.charset.Charset,int,java.lang.Object):131 -> g
+    27:32:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText(java.io.File,java.nio.charset.Charset):131:131 -> g
+    27:32:java.lang.String kotlin.io.FilesKt__FileReadWriteKt.readText$default(java.io.File,java.nio.charset.Charset,int,java.lang.Object):131 -> g
+    1:2:void kotlin.io.FilesKt__FileReadWriteKt.writeText$default(java.io.File,java.lang.String,java.nio.charset.Charset,int,java.lang.Object):140:140 -> h
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/io/File;Ljava/lang/String;)V"}
+    3:7:void kotlin.io.FilesKt__FileReadWriteKt.writeText(java.io.File,java.lang.String,java.nio.charset.Charset):0:0 -> h
+    3:7:void kotlin.io.FilesKt__FileReadWriteKt.writeText$default(java.io.File,java.lang.String,java.nio.charset.Charset,int,java.lang.Object):140 -> h
+    8:15:void kotlin.io.FilesKt__FileReadWriteKt.writeText(java.io.File,java.lang.String,java.nio.charset.Charset):141:141 -> h
+    8:15:void kotlin.io.FilesKt__FileReadWriteKt.writeText$default(java.io.File,java.lang.String,java.nio.charset.Charset,int,java.lang.Object):140 -> h
+    16:20:void kotlin.io.CloseableKt.closeFinally(java.io.Closeable,java.lang.Throwable):46:46 -> h
+    16:20:void kotlin.io.FilesKt__FileReadWriteKt.writeText(java.io.File,java.lang.String,java.nio.charset.Charset):141 -> h
+    16:20:void kotlin.io.FilesKt__FileReadWriteKt.writeText$default(java.io.File,java.lang.String,java.nio.charset.Charset,int,java.lang.Object):140 -> h
+    21:26:void kotlin.io.FilesKt__FileReadWriteKt.writeText(java.io.File,java.lang.String,java.nio.charset.Charset):141:141 -> h
+    21:26:void kotlin.io.FilesKt__FileReadWriteKt.writeText$default(java.io.File,java.lang.String,java.nio.charset.Charset,int,java.lang.Object):140 -> h
+    1:2:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):155:156 -> i
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/io/FileOutputStream;Ljava/lang/String;Ljava/nio/charset/Charset;)V"}
+    3:5:java.nio.charset.CharsetEncoder kotlin.io.FilesKt__FileReadWriteKt.newReplaceEncoder(java.nio.charset.Charset):189:191 -> i
+    3:5:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):160 -> i
+    6:7:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):161:162 -> i
+    8:9:java.nio.ByteBuffer kotlin.io.FilesKt__FileReadWriteKt.byteBufferForEncoding(int,java.nio.charset.CharsetEncoder):194:195 -> i
+    8:9:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):162 -> i
+    10:11:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):167:168 -> i
+    12:15:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):171:174 -> i
+    16:17:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):176:177 -> i
+    18:19:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):183:184 -> i
+    20:20:void kotlin.io.FilesKt__FileReadWriteKt.writeTextImpl(java.io.OutputStream,java.lang.String,java.nio.charset.Charset):173:173 -> i
+dev.ouo.signals.core.HangDetector$Event$Ended -> c.c:
+# {"id":"sourceFile","fileName":"HangDetector.kt"}
+    long startedAt -> a
+    long endedAt -> b
+    1:3:void dev.ouo.signals.core.HangDetector$Event.<init>():17:17 -> <init>
+    1:3:void dev.ouo.signals.core.HangDetector$Event.<init>(kotlin.jvm.internal.DefaultConstructorMarker):0 -> <init>
+    1:3:void <init>(long,long):22 -> <init>
+    4:8:void <init>(long,long):22:22 -> <init>
+    5:31:boolean equals(java.lang.Object):0:0 -> equals
+    1:16:int hashCode():0:0 -> hashCode
+    1:32:java.lang.String toString():0:0 -> toString
+dev.ouo.signals.core.HangDetector$Event$Started -> c.d:
+# {"id":"sourceFile","fileName":"HangDetector.kt"}
+    long startedAt -> a
+    1:3:void dev.ouo.signals.core.HangDetector$Event.<init>():17:17 -> <init>
+    1:3:void dev.ouo.signals.core.HangDetector$Event.<init>(kotlin.jvm.internal.DefaultConstructorMarker):0 -> <init>
+    1:3:void <init>(long):19 -> <init>
+    4:6:void <init>(long):19:19 -> <init>
+    5:22:boolean equals(java.lang.Object):0:0 -> equals
+    1:7:int hashCode():0:0 -> hashCode
+    1:22:java.lang.String toString():0:0 -> toString
+dev.ouo.signals.core.JvmFrame -> c.g:
+# {"id":"sourceFile","fileName":"Report.kt"}
+    java.lang.String module -> a
+    java.lang.String function -> b
+    java.lang.String filename -> c
+    java.lang.Integer lineno -> d
+    1:1:void <init>(java.lang.String,java.lang.String,java.lang.String,java.lang.Integer):10:10 -> <init>
+    1:21:org.json.JSONObject toJson():12:12 -> a
+    22:30:org.json.JSONObject toJson():13:13 -> a
+    31:49:org.json.JSONObject toJson():14:14 -> a
+    50:53:org.json.JSONObject toJson():15:15 -> a
+    5:57:boolean equals(java.lang.Object):0:0 -> equals
+    1:42:int hashCode():0:0 -> hashCode
+    1:52:java.lang.String toString():0:0 -> toString
+dev.ouo.signals.core.JvmFrame$Companion -> R8$$REMOVED$$CLASS$$3:
+# {"id":"sourceFile","fileName":"Report.kt"}
+dev.ouo.signals.core.Report -> c.h:
+# {"id":"sourceFile","fileName":"Report.kt"}
+    java.lang.String mechanism -> a
+    long timestampMs -> b
+    java.lang.String sessionId -> c
+    java.lang.Long sessionStartedMs -> d
+    java.lang.String exceptionName -> e
+    java.lang.String exceptionReason -> f
+    java.lang.Boolean mainThread -> g
+    java.util.List frames -> h
+    java.lang.Long hangDurationMs -> i
+    java.lang.Boolean hangFullyBlocking -> j
+    java.lang.String terminationCause -> k
+    java.lang.String mappingId -> l
+    kotlin.text.Regex UUID -> m
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ll/c;"}
+    1:8:void <clinit>():71:71 -> <clinit>
+    1:12:void <init>(java.lang.String,long,java.lang.String,java.lang.Long,java.lang.String,java.lang.String,java.lang.Boolean,java.util.List,java.lang.Long,java.lang.Boolean,java.lang.String,java.lang.String):31:42 -> <init>
+    13:13:void <init>(java.lang.String,long,java.lang.String,java.lang.Long,java.lang.String,java.lang.String,java.lang.Boolean,java.util.List,java.lang.Long,java.lang.Boolean,java.lang.String,java.lang.String):44:44 -> <init>
+    14:14:void <init>(java.lang.String,long,java.lang.String,java.lang.Long,java.lang.String,java.lang.String,java.lang.Boolean,java.util.List,java.lang.Long,java.lang.Boolean,java.lang.String,java.lang.String,int,kotlin.jvm.internal.DefaultConstructorMarker):31:31 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/String;JLjava/lang/String;Ljava/lang/Long;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/util/List;Ljava/lang/Long;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;I)V"}
+    23:44:dev.ouo.signals.core.Report copy(java.lang.String,long,java.lang.String,java.lang.Long,java.lang.String,java.lang.String,java.lang.Boolean,java.util.List,java.lang.Long,java.lang.Boolean,java.lang.String,java.lang.String):0:0 -> a
+    23:44:dev.ouo.signals.core.Report copy$default(dev.ouo.signals.core.Report,java.lang.String,long,java.lang.String,java.lang.Long,java.lang.String,java.lang.String,java.lang.Boolean,java.util.List,java.lang.Long,java.lang.Boolean,java.lang.String,java.lang.String,int,java.lang.Object):0 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lc/h;Ljava/lang/String;)Lc/h;"}
+    1:5:java.lang.String toJson():47:47 -> b
+    6:12:java.lang.String toJson():48:48 -> b
+    13:20:java.lang.String toJson():49:49 -> b
+    21:28:java.lang.String toJson():50:50 -> b
+    29:36:java.lang.String toJson():51:51 -> b
+    37:44:java.lang.String toJson():52:52 -> b
+    45:55:java.lang.String toJson():102:102 -> b
+    56:69:java.lang.String toJson():103:103 -> b
+    70:71:java.lang.String toJson():104:104 -> b
+    72:75:java.lang.String toJson():53:53 -> b
+    76:79:java.lang.String toJson():104:104 -> b
+    80:90:java.lang.String toJson():53:53 -> b
+    91:101:java.lang.String toJson():54:54 -> b
+    102:124:java.lang.String toJson():55:55 -> b
+    125:156:java.lang.String toJson():56:56 -> b
+    157:180:java.lang.String toJson():57:57 -> b
+    181:218:java.lang.String toJson():58:58 -> b
+    219:238:java.lang.String toJson():59:59 -> b
+    239:247:java.lang.String toJson():60:60 -> b
+    248:257:java.lang.String toJson():61:61 -> b
+    5:143:boolean equals(java.lang.Object):0:0 -> equals
+    1:138:int hashCode():0:0 -> hashCode
+    1:132:java.lang.String toString():0:0 -> toString
+dev.ouo.signals.core.RunState -> c.i:
+# {"id":"sourceFile","fileName":"RunState.kt"}
+    int pid -> a
+    java.lang.String sessionId -> b
+    long sessionStartedMs -> c
+    java.lang.Long memoryWarningMs -> d
+    java.lang.Long hangStartedMs -> e
+    java.util.List hangFrames -> f
+    1:7:void <init>(int,java.lang.String,long,java.lang.Long,java.lang.Long,java.util.List):11:17 -> <init>
+    8:8:void <init>(int,java.lang.String,long,java.lang.Long,java.lang.Long,java.util.List,int,kotlin.jvm.internal.DefaultConstructorMarker):17:17 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(I)V"}
+    9:9:void <init>(int,java.lang.String,long,java.lang.Long,java.lang.Long,java.util.List,int,kotlin.jvm.internal.DefaultConstructorMarker):11:11 -> <init>
+    1:1:dev.ouo.signals.core.RunState copy(int,java.lang.String,long,java.lang.Long,java.lang.Long,java.util.List):0:0 -> a
+    1:1:dev.ouo.signals.core.RunState copy$default(dev.ouo.signals.core.RunState,int,java.lang.String,long,java.lang.Long,java.lang.Long,java.util.List,int,java.lang.Object):0 -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Lc/i;JLjava/lang/Long;Ljava/lang/Long;Ljava/util/List;I)Lc/i;"}
+    1:29:java.lang.String toJson():20:20 -> b
+    30:42:java.lang.String toJson():21:21 -> b
+    43:46:java.lang.String toJson():22:22 -> b
+    47:55:java.lang.String toJson():23:23 -> b
+    56:66:java.lang.String toJson():118:118 -> b
+    67:80:java.lang.String toJson():119:119 -> b
+    81:82:java.lang.String toJson():120:120 -> b
+    83:86:java.lang.String toJson():24:24 -> b
+    87:90:java.lang.String toJson():120:120 -> b
+    91:100:java.lang.String toJson():24:24 -> b
+    101:110:java.lang.String toJson():26:26 -> b
+    5:73:boolean equals(java.lang.Object):0:0 -> equals
+    1:60:int hashCode():0:0 -> hashCode
+    1:72:java.lang.String toString():0:0 -> toString
+kotlin.ExceptionsKt__ExceptionsKt -> R8$$REMOVED$$CLASS$$4:
+# {"id":"sourceFile","fileName":"Exceptions.kt"}
+kotlin.LazyKt__LazyJVMKt -> R8$$REMOVED$$CLASS$$5:
+# {"id":"sourceFile","fileName":"LazyJVM.kt"}
+kotlin.NoWhenBranchMatchedException -> d.a:
+# {"id":"sourceFile","fileName":"NoWhenBranchMatchedException.kt"}
+kotlin.Pair -> d.b:
+# {"id":"sourceFile","fileName":"Tuples.kt"}
+    java.lang.Object first -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ljava/lang/String;"}
+    java.lang.Object second -> b
+    1:3:void <init>(java.lang.Object,java.lang.Object):26:26 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/Object;Ljava/lang/String;)V"}
+    4:5:void <init>(java.lang.Object,java.lang.Object):27:27 -> <init>
+    6:8:void <init>(java.lang.Object,java.lang.Object):28:28 -> <init>
+    15:21:boolean kotlin.jvm.internal.Intrinsics.areEqual(java.lang.Object,java.lang.Object):169:169 -> equals
+    15:21:boolean equals(java.lang.Object):0 -> equals
+    22:35:boolean equals(java.lang.Object):0:0 -> equals
+    1:20:int hashCode():0:0 -> hashCode
+    1:32:java.lang.String toString():34:34 -> toString
+kotlin.Result -> R8$$REMOVED$$CLASS$$6:
+# {"id":"sourceFile","fileName":"Result.kt"}
+kotlin.Result$Failure -> d.c:
+# {"id":"sourceFile","fileName":"Result.kt"}
+    java.lang.Throwable exception -> a
+    1:3:void <init>(java.lang.Throwable):105:105 -> <init>
+    4:6:void <init>(java.lang.Throwable):106:106 -> <init>
+    1:20:boolean equals(java.lang.Object):109:109 -> equals
+    1:7:int hashCode():110:110 -> hashCode
+    1:22:java.lang.String toString():111:111 -> toString
+kotlin.ResultKt -> R8$$REMOVED$$CLASS$$7:
+# {"id":"sourceFile","fileName":"Result.kt"}
+kotlin.SynchronizedLazyImpl -> d.d:
+# {"id":"sourceFile","fileName":"LazyJVM.kt"}
+    kotlin.jvm.functions.Function0 initializer -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"La/a;"}
+    java.lang.Object _value -> b
+    java.lang.Object lock -> c
+    1:3:void <init>(kotlin.jvm.functions.Function0,java.lang.Object):60:60 -> <init>
+    1:3:void <init>(kotlin.jvm.functions.Function0,java.lang.Object,int,kotlin.jvm.internal.DefaultConstructorMarker):60 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(La/a;)V"}
+    4:5:void <init>(kotlin.jvm.functions.Function0,java.lang.Object):61:61 -> <init>
+    4:5:void <init>(kotlin.jvm.functions.Function0,java.lang.Object,int,kotlin.jvm.internal.DefaultConstructorMarker):60 -> <init>
+    6:9:void <init>(kotlin.jvm.functions.Function0,java.lang.Object):64:64 -> <init>
+    6:9:void <init>(kotlin.jvm.functions.Function0,java.lang.Object,int,kotlin.jvm.internal.DefaultConstructorMarker):60 -> <init>
+    10:12:void <init>(kotlin.jvm.functions.Function0,java.lang.Object):68:68 -> <init>
+    10:12:void <init>(kotlin.jvm.functions.Function0,java.lang.Object,int,kotlin.jvm.internal.DefaultConstructorMarker):60 -> <init>
+    1:2:java.lang.Object getValue():72:72 -> a
+    3:7:java.lang.Object getValue():73:73 -> a
+    8:10:java.lang.Object getValue():78:78 -> a
+    11:15:java.lang.Object getValue():79:79 -> a
+    16:20:java.lang.Object getValue():83:83 -> a
+    21:25:java.lang.Object getValue():83:83 -> a
+    26:37:android.os.HandlerThread dev.ouo.signals.Signals.frameThread_delegate$lambda$22():320:320 -> a
+    26:37:java.lang.Object getValue():83 -> a
+    38:39:android.os.Handler dev.ouo.signals.Signals.frameHandler_delegate$lambda$23():321:321 -> a
+    38:39:java.lang.Object getValue():83 -> a
+    40:47:android.os.HandlerThread dev.ouo.signals.Signals.getFrameThread():320:320 -> a
+    40:47:android.os.Handler dev.ouo.signals.Signals.frameHandler_delegate$lambda$23():321 -> a
+    40:47:java.lang.Object getValue():83 -> a
+    48:55:android.os.Handler dev.ouo.signals.Signals.frameHandler_delegate$lambda$23():321:321 -> a
+    48:55:java.lang.Object getValue():83 -> a
+    56:58:java.lang.Object getValue():84:84 -> a
+    59:60:java.lang.Object getValue():85:85 -> a
+    61:66:java.lang.Object getValue():78:78 -> a
+    1:6:boolean isInitialized():91:91 -> toString
+    1:6:java.lang.String toString():93 -> toString
+    7:18:java.lang.String toString():93:93 -> toString
+kotlin.TuplesKt -> R8$$REMOVED$$CLASS$$8:
+# {"id":"sourceFile","fileName":"Tuples.kt"}
+kotlin.UNINITIALIZED_VALUE -> d.e:
+# {"id":"sourceFile","fileName":"Lazy.kt"}
+    int d.UNINITIALIZED_VALUE.$r8$classId -> a
+      # {"id":"com.android.tools.r8.synthesized"}
+    kotlin.UNINITIALIZED_VALUE INSTANCE -> b
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ld/e;"}
+    kotlin.Unit kotlin.Unit.INSTANCE -> c
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Ld/e;"}
+    4:6:void <init>():88:88 -> <clinit>
+    4:6:void <clinit>():0 -> <clinit>
+    4:6:void d.UNINITIALIZED_VALUE.<clinit>():0 -> <clinit>
+      # {"id":"com.android.tools.r8.synthesized"}
+    7:8:void <clinit>():0:0 -> <clinit>
+    7:8:void d.UNINITIALIZED_VALUE.<clinit>():0 -> <clinit>
+    9:11:void d.UNINITIALIZED_VALUE.<clinit>():0:0 -> <clinit>
+    12:14:void kotlin.Unit.<init>():11:11 -> <clinit>
+    12:14:void kotlin.Unit.<clinit>():0 -> <clinit>
+    12:14:void d.UNINITIALIZED_VALUE.<clinit>():0 -> <clinit>
+    15:17:void kotlin.Unit.<clinit>():0:0 -> <clinit>
+    15:17:void d.UNINITIALIZED_VALUE.<clinit>():0 -> <clinit>
+    1:6:void d.UNINITIALIZED_VALUE.<init>(int):0:0 -> <init>
+      # {"id":"com.android.tools.r8.synthesized"}
+    11:14:java.lang.String kotlin.Unit.toString():12:12 -> toString
+kotlin.collections.ArrayAsCollection -> e.a:
+# {"id":"sourceFile","fileName":"Collections.kt"}
+    java.lang.Object[] values -> a
+    boolean isVarargs -> b
+    1:8:void <init>(java.lang.Object[],boolean):58:58 -> <init>
+    1:8:boolean add(java.lang.Object):0:0 -> add
+    1:8:boolean addAll(java.util.Collection):0:0 -> addAll
+    1:8:void clear():0:0 -> clear
+    1:10:boolean contains(java.lang.Object):61:61 -> contains
+    11:14:int kotlin.collections.ArraysKt___ArraysKt.indexOf(java.lang.Object[],java.lang.Object):1563:1563 -> contains
+    11:14:boolean kotlin.collections.ArraysKt___ArraysKt.contains(java.lang.Object[],java.lang.Object):520 -> contains
+    11:14:boolean contains(java.lang.Object):61 -> contains
+    15:22:int kotlin.collections.ArraysKt___ArraysKt.indexOf(java.lang.Object[],java.lang.Object):1564:1564 -> contains
+    15:22:boolean kotlin.collections.ArraysKt___ArraysKt.contains(java.lang.Object[],java.lang.Object):520 -> contains
+    15:22:boolean contains(java.lang.Object):61 -> contains
+    23:26:int kotlin.collections.ArraysKt___ArraysKt.indexOf(java.lang.Object[],java.lang.Object):1569:1569 -> contains
+    23:26:boolean kotlin.collections.ArraysKt___ArraysKt.contains(java.lang.Object[],java.lang.Object):520 -> contains
+    23:26:boolean contains(java.lang.Object):61 -> contains
+    27:28:int kotlin.collections.ArraysKt___ArraysKt.indexOf(java.lang.Object[],java.lang.Object):1570:1570 -> contains
+    27:28:boolean kotlin.collections.ArraysKt___ArraysKt.contains(java.lang.Object[],java.lang.Object):520 -> contains
+    27:28:boolean contains(java.lang.Object):61 -> contains
+    29:45:boolean kotlin.jvm.internal.Intrinsics.areEqual(java.lang.Object,java.lang.Object):169:169 -> contains
+    29:45:int kotlin.collections.ArraysKt___ArraysKt.indexOf(java.lang.Object[],java.lang.Object):1570 -> contains
+    29:45:boolean kotlin.collections.ArraysKt___ArraysKt.contains(java.lang.Object[],java.lang.Object):520 -> contains
+    29:45:boolean contains(java.lang.Object):61 -> contains
+    6:13:boolean containsAll(java.util.Collection):527:527 -> containsAll
+    14:27:boolean containsAll(java.util.Collection):528:528 -> containsAll
+    28:36:boolean containsAll(java.util.Collection):62:62 -> containsAll
+    1:9:boolean isEmpty():60:60 -> isEmpty
+    1:8:java.util.Iterator kotlin.jvm.internal.ArrayIteratorKt.iterator(java.lang.Object[]):14:14 -> iterator
+    1:8:java.util.Iterator iterator():63 -> iterator
+    1:8:boolean remove(java.lang.Object):0:0 -> remove
+    1:8:boolean removeAll(java.util.Collection):0:0 -> removeAll
+    1:8:boolean retainAll(java.util.Collection):0:0 -> retainAll
+    1:4:int getSize():59:59 -> size
+    1:4:int size():58 -> size
+    1:1:java.lang.Object[] toArray(java.lang.Object[]):0:0 -> toArray
+    2:2:java.lang.Object[] kotlin.collections.CollectionsKt__CollectionsJVMKt.copyToArrayOfAny(java.lang.Object[],boolean):98:98 -> toArray
+    2:2:java.lang.Object[] toArray():65 -> toArray
+    3:3:boolean kotlin.jvm.internal.Intrinsics.areEqual(java.lang.Object,java.lang.Object):169:169 -> toArray
+    3:3:java.lang.Object[] kotlin.collections.CollectionsKt__CollectionsJVMKt.copyToArrayOfAny(java.lang.Object[],boolean):98 -> toArray
+    3:3:java.lang.Object[] toArray():65 -> toArray
+    4:4:java.lang.Object[] kotlin.collections.CollectionsKt__CollectionsJVMKt.copyToArrayOfAny(java.lang.Object[],boolean):102:102 -> toArray
+    4:4:java.lang.Object[] toArray():65 -> toArray
+kotlin.collections.ArraysKt___ArraysJvmKt -> R8$$REMOVED$$CLASS$$9:
+# {"id":"sourceFile","fileName":"_ArraysJvm.kt"}
+kotlin.collections.ArraysKt___ArraysKt -> R8$$REMOVED$$CLASS$$10:
+# {"id":"sourceFile","fileName":"_Arrays.kt"}
+kotlin.collections.ArraysUtilJVM -> R8$$REMOVED$$CLASS$$11:
+# {"id":"sourceFile","fileName":"ArraysUtilJVM.java"}
+kotlin.collections.CollectionsKt__IterablesKt -> e.b:
+# {"id":"sourceFile","fileName":"Iterables.kt"}
+    6:19:int collectionSizeOrDefault(java.lang.Iterable,int):39:39 -> j
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/Iterable;)I"}
+kotlin.collections.CollectionsKt___CollectionsKt -> R8$$REMOVED$$CLASS$$12:
+# {"id":"sourceFile","fileName":"_Collections.kt"}
+kotlin.collections.EmptyIterator -> e.c:
+# {"id":"sourceFile","fileName":"Collections.kt"}
+    kotlin.collections.EmptyIterator INSTANCE -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Le/c;"}
+    3:5:void <init>():16:16 -> <clinit>
+    3:5:void <clinit>():0 -> <clinit>
+    6:8:void <clinit>():0:0 -> <clinit>
+    1:8:void add(java.lang.Object):0:0 -> add
+    1:2:boolean hasNext():17:17 -> hasNext
+    1:2:boolean hasPrevious():18:18 -> hasPrevious
+    1:6:java.lang.Void next():21:21 -> next
+    1:6:java.lang.Object next():16 -> next
+    1:2:int nextIndex():19:19 -> nextIndex
+    1:6:java.lang.Void previous():22:22 -> previous
+    1:6:java.lang.Object previous():16 -> previous
+    1:2:int previousIndex():20:20 -> previousIndex
+    1:8:void remove():0:0 -> remove
+    1:8:void set(java.lang.Object):0:0 -> set
+kotlin.collections.EmptyList -> e.d:
+# {"id":"sourceFile","fileName":"Collections.kt"}
+    kotlin.collections.EmptyList INSTANCE -> a
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Le/d;"}
+    3:5:void <init>():25:25 -> <clinit>
+    3:5:void <clinit>():0 -> <clinit>
+    6:8:void <clinit>():0:0 -> <clinit>
+    1:1:void add(int,java.lang.Object):0:0 -> add
+    2:2:boolean add(java.lang.Object):0:0 -> add
+    1:1:boolean addAll(int,java.util.Collection):0:0 -> addAll
+    2:2:boolean addAll(java.util.Collection):0:0 -> addAll
+    1:8:void clear():0:0 -> clear
+    1:2:boolean contains(java.lang.Object):25:25 -> contains
+    6:10:boolean containsAll(java.util.Collection):35:35 -> containsAll
+    1:16:boolean equals(java.lang.Object):28:28 -> equals
+    1:25:java.lang.Void get(int):37:37 -> get
+    1:25:java.lang.Object get(int):25 -> get
+    1:2:int hashCode():29:29 -> hashCode
+    1:2:int indexOf(java.lang.Object):25:25 -> indexOf
+    1:2:boolean isEmpty():33:33 -> isEmpty
+    1:3:java.util.Iterator iterator():41:41 -> iterator
+    1:2:int lastIndexOf(java.lang.Object):25:25 -> lastIndexOf
+    1:1:java.util.ListIterator listIterator():42:42 -> listIterator
+    2:2:java.util.ListIterator listIterator(int):45:45 -> listIterator
+    3:3:java.util.ListIterator listIterator(int):44:44 -> listIterator
+    1:1:java.lang.Object remove(int):0:0 -> remove
+    2:2:boolean remove(java.lang.Object):0:0 -> remove
+    1:8:boolean removeAll(java.util.Collection):0:0 -> removeAll
+    1:8:boolean retainAll(java.util.Collection):0:0 -> retainAll
+    1:8:java.lang.Object set(int,java.lang.Object):0:0 -> set
+    1:2:int size():25:25 -> size
+    6:33:java.util.List subList(int,int):50:50 -> subList
+    1:1:java.lang.Object[] toArray(java.lang.Object[]):0:0 -> toArray
+    2:2:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):89:89 -> toArray
+    2:2:java.lang.Object[] toArray():0 -> toArray
+    3:4:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):91:92 -> toArray
+    3:4:java.lang.Object[] toArray():0 -> toArray
+    5:5:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):27:27 -> toArray
+    5:5:java.lang.Object[] toArray():0 -> toArray
+    6:6:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):25:25 -> toArray
+    6:6:java.lang.Object[] toArray():0 -> toArray
+    7:9:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):97:99 -> toArray
+    7:9:java.lang.Object[] toArray():0 -> toArray
+    10:10:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):105:105 -> toArray
+    10:10:java.lang.Object[] toArray():0 -> toArray
+    11:11:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):108:108 -> toArray
+    11:11:java.lang.Object[] toArray():0 -> toArray
+    12:12:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):110:110 -> toArray
+    12:12:java.lang.Object[] toArray():0 -> toArray
+    13:13:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection):26:26 -> toArray
+    13:13:java.lang.Object[] toArray():0 -> toArray
+    1:3:java.lang.String toString():30:30 -> toString
+kotlin.collections.IntIterator -> R8$$REMOVED$$CLASS$$13:
+# {"id":"sourceFile","fileName":"PrimitiveIterators.kt"}
+kotlin.collections.MapsKt__MapsKt -> R8$$REMOVED$$CLASS$$14:
+# {"id":"sourceFile","fileName":"Maps.kt"}
+kotlin.internal.PlatformImplementations -> R8$$REMOVED$$CLASS$$15:
+# {"id":"sourceFile","fileName":"PlatformImplementations.kt"}
+kotlin.internal.PlatformImplementations$ReflectThrowable -> f.a:
+# {"id":"sourceFile","fileName":"PlatformImplementations.kt"}
+    java.lang.reflect.Method addSuppressed -> a
+    1:6:void <clinit>():25:25 -> <clinit>
+    7:17:void <clinit>():26:26 -> <clinit>
+    18:38:void <clinit>():27:27 -> <clinit>
+    39:44:java.lang.Object kotlin.collections.ArraysKt___ArraysKt.singleOrNull(java.lang.Object[]):3107:3107 -> <clinit>
+    39:44:void <clinit>():27 -> <clinit>
+    45:55:void <clinit>():27:27 -> <clinit>
+    56:57:void <clinit>():26:26 -> <clinit>
+    58:79:void <clinit>():29:29 -> <clinit>
+kotlin.internal.ProgressionUtilKt -> R8$$REMOVED$$CLASS$$16:
+# {"id":"sourceFile","fileName":"progressionUtil.kt"}
+kotlin.internal.jdk7.JDK7PlatformImplementations -> R8$$REMOVED$$CLASS$$17:
+# {"id":"sourceFile","fileName":"JDK7PlatformImplementations.kt"}
+kotlin.internal.jdk7.JDK7PlatformImplementations$ReflectSdkVersion -> g.a:
+# {"id":"sourceFile","fileName":"JDK7PlatformImplementations.kt"}
+    java.lang.Integer sdkVersion -> a
+    2:27:void <clinit>():16:16 -> <clinit>
+    28:37:void <clinit>():19:19 -> <clinit>
+kotlin.jvm.functions.Function1 -> i.a:
+# {"id":"sourceFile","fileName":"Functions.kt"}
+    java.lang.Object invoke(java.lang.Object) -> a
+kotlin.jvm.internal.ArrayIterator -> j.a:
+# {"id":"sourceFile","fileName":"ArrayIterator.kt"}
+    java.lang.Object[] array -> a
+    int index -> b
+    1:6:void <init>(java.lang.Object[]):8:8 -> <init>
+    1:11:boolean hasNext():10:10 -> hasNext
+    1:28:java.lang.Object next():11:11 -> next
+    1:8:void remove():0:0 -> remove
+kotlin.jvm.internal.ArrayIteratorKt -> R8$$REMOVED$$CLASS$$18:
+# {"id":"sourceFile","fileName":"ArrayIterator.kt"}
+kotlin.jvm.internal.Intrinsics -> j.b:
+# {"id":"sourceFile","fileName":"Intrinsics.java"}
+    java.lang.Object[] kotlin.jvm.internal.CollectionToArray.EMPTY -> a
+    2:6:void kotlin.jvm.internal.CollectionToArray.<clinit>():14:14 -> <clinit>
+    9:13:boolean areEqual(java.lang.Object,java.lang.Object):169:169 -> a
+    4:12:void throwJavaNpe():45:45 -> b
+    4:12:void checkNotNull(java.lang.Object):25 -> b
+    4:18:void checkNotNullExpressionValue(java.lang.Object,java.lang.String):93:93 -> c
+    3:4:void throwParameterIsNullNPE(java.lang.String):140:140 -> d
+    3:4:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    5:12:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):144:144 -> d
+    5:12:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    5:12:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    13:19:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):146:146 -> d
+    13:19:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    13:19:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    20:34:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):149:149 -> d
+    20:34:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    20:34:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    35:49:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):151:151 -> d
+    35:49:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    35:49:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    50:51:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):153:153 -> d
+    50:51:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    50:51:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    52:55:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):154:154 -> d
+    52:55:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    52:55:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    56:59:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):155:155 -> d
+    56:59:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    56:59:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    60:89:java.lang.String createParameterIsNullExceptionMessage(java.lang.String):157:157 -> d
+    60:89:void throwParameterIsNullNPE(java.lang.String):140 -> d
+    60:89:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    90:97:void throwParameterIsNullNPE(java.lang.String):140:140 -> d
+    90:97:void checkNotNullParameter(java.lang.Object,java.lang.String):131 -> d
+    1:6:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253:253 -> e
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/RuntimeException;)V"}
+    7:10:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable,java.lang.String):257:257 -> e
+    7:10:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253 -> e
+    11:15:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable,java.lang.String):258:258 -> e
+    11:15:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253 -> e
+    16:33:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable,java.lang.String):262:262 -> e
+    16:33:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253 -> e
+    34:39:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable,java.lang.String):267:267 -> e
+    34:39:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253 -> e
+    40:43:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable,java.lang.String):268:268 -> e
+    40:43:java.lang.Throwable sanitizeStackTrace(java.lang.Throwable):253 -> e
+    1:19:void throwUninitializedPropertyAccessException(java.lang.String):58:58 -> f
+    20:21:void throwUninitializedProperty(java.lang.String):54:54 -> f
+    20:21:void throwUninitializedPropertyAccessException(java.lang.String):58 -> f
+    22:24:void kotlin.UninitializedPropertyAccessException.<init>(java.lang.String):11:11 -> f
+    22:24:void throwUninitializedProperty(java.lang.String):54 -> f
+    22:24:void throwUninitializedPropertyAccessException(java.lang.String):58 -> f
+    25:28:void throwUninitializedProperty(java.lang.String):54:54 -> f
+    25:28:void throwUninitializedPropertyAccessException(java.lang.String):58 -> f
+    1:8:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):111:111 -> g
+    9:14:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):40:40 -> g
+    15:18:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):113:113 -> g
+    19:24:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):114:114 -> g
+    25:30:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):40:40 -> g
+    31:53:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):45:45 -> g
+    54:59:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):119:119 -> g
+    60:64:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):120:120 -> g
+    65:85:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):121:121 -> g
+    86:91:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):127:127 -> g
+    92:100:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):130:130 -> g
+    101:108:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):132:132 -> g
+    109:111:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):49:49 -> g
+    112:119:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):52:52 -> g
+    120:130:void throwJavaNpe(java.lang.String):50:50 -> g
+    120:130:void checkNotNull(java.lang.Object,java.lang.String):31 -> g
+    120:130:java.lang.Object[] kotlin.jvm.internal.CollectionToArray.toArray(java.util.Collection,java.lang.Object[]):45 -> g
+kotlin.ranges.IntProgression -> k.a:
+# {"id":"sourceFile","fileName":"Progressions.kt"}
+    int first -> a
+    int last -> b
+    int step -> c
+    1:3:void <init>(int,int,int):79:79 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(II)V"}
+    4:9:void <init>(int,int,int):93:93 -> <init>
+    10:30:int kotlin.internal.ProgressionUtilKt.mod(int,int):10:10 -> <init>
+    10:30:int kotlin.internal.ProgressionUtilKt.differenceModulo(int,int,int):21 -> <init>
+    10:30:int kotlin.internal.ProgressionUtilKt.getProgressionLastElement(int,int,int):46 -> <init>
+    10:30:void <init>(int,int,int):98 -> <init>
+    31:32:void <init>(int,int,int):98:98 -> <init>
+    33:35:void <init>(int,int,int):103:103 -> <init>
+    1:12:kotlin.collections.IntIterator iterator():105:105 -> iterator
+    1:12:java.util.Iterator iterator():78 -> iterator
+kotlin.ranges.IntProgressionIterator -> k.b:
+# {"id":"sourceFile","fileName":"ProgressionIterators.kt"}
+    int step -> a
+    int finalElement -> b
+    boolean hasNext -> c
+    int next -> d
+    1:1:void kotlin.collections.IntIterator.<init>():168:168 -> <init>
+    1:1:void <init>(int,int,int):39 -> <init>
+    2:5:void <init>(int,int,int):39:42 -> <init>
+    1:3:boolean hasNext():44:44 -> hasNext
+    1:2:int nextInt():47:47 -> next
+    1:2:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    3:6:int nextInt():48:48 -> next
+    3:6:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    7:11:int nextInt():49:49 -> next
+    7:11:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    12:14:int nextInt():50:50 -> next
+    12:14:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    15:20:int nextInt():49:49 -> next
+    15:20:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    21:25:int nextInt():53:53 -> next
+    21:25:java.lang.Object kotlin.collections.IntIterator.next():168 -> next
+    26:30:java.lang.Object kotlin.collections.IntIterator.next():168:168 -> next
+    1:8:void kotlin.collections.IntIterator.remove():0:0 -> remove
+kotlin.ranges.IntRange -> k.c:
+# {"id":"sourceFile","fileName":"PrimitiveRanges.kt"}
+    kotlin.ranges.IntRange EMPTY -> d
+      # {"id":"com.android.tools.r8.residualsignature","signature":"Lk/c;"}
+    1:4:void <clinit>():85:85 -> <clinit>
+    5:7:void <init>(int,int):53:53 -> <clinit>
+    5:7:void <clinit>():85 -> <clinit>
+    8:10:void <clinit>():85:85 -> <clinit>
+    1:4:boolean equals(java.lang.Object):75:75 -> equals
+    5:10:boolean isEmpty():72:72 -> equals
+    5:10:boolean equals(java.lang.Object):75 -> equals
+    11:13:boolean equals(java.lang.Object):75:75 -> equals
+    14:15:int kotlin.ranges.IntProgression.getFirst():93:93 -> equals
+    14:15:boolean isEmpty():72 -> equals
+    14:15:boolean equals(java.lang.Object):75 -> equals
+    16:20:int kotlin.ranges.IntProgression.getLast():98:98 -> equals
+    16:20:boolean isEmpty():72 -> equals
+    16:20:boolean equals(java.lang.Object):75 -> equals
+    21:22:boolean equals(java.lang.Object):76:76 -> equals
+    23:26:int kotlin.ranges.IntProgression.getFirst():93:93 -> equals
+    23:26:boolean equals(java.lang.Object):76 -> equals
+    27:34:int kotlin.ranges.IntProgression.getLast():98:98 -> equals
+    27:34:boolean equals(java.lang.Object):76 -> equals
+    1:12:boolean isEmpty():72:72 -> hashCode
+    1:12:int hashCode():79 -> hashCode
+    1:5:java.lang.String toString():81:81 -> toString
+    6:7:int kotlin.ranges.IntProgression.getFirst():93:93 -> toString
+    6:7:java.lang.String toString():81 -> toString
+    8:15:java.lang.String toString():81:81 -> toString
+    16:17:int kotlin.ranges.IntProgression.getLast():98:98 -> toString
+    16:17:java.lang.String toString():81 -> toString
+    18:25:java.lang.String toString():81:81 -> toString
+kotlin.ranges.IntRange$Companion -> R8$$REMOVED$$CLASS$$19:
+# {"id":"sourceFile","fileName":"PrimitiveRanges.kt"}
+kotlin.ranges.RangesKt___RangesKt -> R8$$REMOVED$$CLASS$$20:
+# {"id":"sourceFile","fileName":"_Ranges.kt"}
+kotlin.sequences.TransformingSequence -> R8$$REMOVED$$CLASS$$22:
+# {"id":"sourceFile","fileName":"Sequences.kt"}
+kotlin.sequences.TransformingSequence$iterator$1 -> R8$$REMOVED$$CLASS$$21:
+# {"id":"sourceFile","fileName":"Sequences.kt"}
+kotlin.text.CharsKt__CharJVMKt -> R8$$REMOVED$$CLASS$$23:
+# {"id":"sourceFile","fileName":"CharJVM.kt"}
+kotlin.text.Charsets -> l.a:
+# {"id":"sourceFile","fileName":"Charsets.kt"}
+    java.nio.charset.Charset UTF_8 -> a
+    1:13:void <clinit>():29:29 -> <clinit>
+    14:22:void <clinit>():36:36 -> <clinit>
+    23:31:void <clinit>():42:42 -> <clinit>
+    32:40:void <clinit>():48:48 -> <clinit>
+    41:49:void <clinit>():55:55 -> <clinit>
+    50:59:void <clinit>():61:61 -> <clinit>
+kotlin.text.LinesIterator -> l.b:
+# {"id":"sourceFile","fileName":"Strings.kt"}
+    java.lang.CharSequence string -> a
+    int state -> b
+    int tokenStartIndex -> c
+    int delimiterStartIndex -> d
+    int delimiterLength -> e
+    6:11:void <init>(java.lang.CharSequence):1264:1264 -> <init>
+    1:10:boolean hasNext():1277:1277 -> hasNext
+    11:15:boolean hasNext():1281:1281 -> hasNext
+    16:18:boolean hasNext():1282:1282 -> hasNext
+    19:24:boolean hasNext():1287:1287 -> hasNext
+    25:32:boolean hasNext():1289:1289 -> hasNext
+    33:51:boolean hasNext():1290:1290 -> hasNext
+    52:68:boolean hasNext():1294:1294 -> hasNext
+    69:70:boolean hasNext():1301:1301 -> hasNext
+    71:72:boolean hasNext():1302:1302 -> hasNext
+    73:75:boolean hasNext():1303:1303 -> hasNext
+    1:7:java.lang.String next():1309:1309 -> next
+    1:7:java.lang.Object next():1264 -> next
+    8:9:java.lang.String next():1313:1313 -> next
+    8:9:java.lang.Object next():1264 -> next
+    10:11:java.lang.String next():1314:1314 -> next
+    10:11:java.lang.Object next():1264 -> next
+    12:13:java.lang.String next():1315:1315 -> next
+    12:13:java.lang.Object next():1264 -> next
+    14:18:java.lang.String next():1316:1316 -> next
+    14:18:java.lang.Object next():1264 -> next
+    19:29:java.lang.String next():1317:1317 -> next
+    19:29:java.lang.Object next():1264 -> next
+    30:35:java.lang.String next():1310:1310 -> next
+    30:35:java.lang.Object next():1264 -> next
+    1:8:void remove():0:0 -> remove
+kotlin.text.Regex -> l.c:
+# {"id":"sourceFile","fileName":"Regex.kt"}
+    java.util.regex.Pattern nativePattern -> a
+    3:11:void <init>(java.lang.String):88:88 -> <init>
+      # {"id":"com.android.tools.r8.residualsignature","signature":"()V"}
+    12:14:void <init>(java.util.regex.Pattern):83:83 -> <init>
+    12:14:void <init>(java.lang.String):88 -> <init>
+    15:17:void <init>(java.util.regex.Pattern):84:84 -> <init>
+    15:17:void <init>(java.lang.String):88 -> <init>
+    1:12:java.lang.String toString():301:301 -> toString
+kotlin.text.StringsKt__IndentKt -> l.d:
+# {"id":"sourceFile","fileName":"Indent.kt"}
+kotlin.text.StringsKt__RegexExtensionsJVMKt -> l.e:
+# {"id":"sourceFile","fileName":"RegexExtensionsJVM.kt"}
+kotlin.text.StringsKt__RegexExtensionsKt -> l.f:
+# {"id":"sourceFile","fileName":"RegexExtensions.kt"}
+kotlin.text.StringsKt__StringBuilderJVMKt -> l.g:
+# {"id":"sourceFile","fileName":"StringBuilderJVM.kt"}
+kotlin.text.StringsKt__StringBuilderKt -> l.h:
+# {"id":"sourceFile","fileName":"StringBuilder.kt"}
+kotlin.text.StringsKt__StringNumberConversionsJVMKt -> l.i:
+# {"id":"sourceFile","fileName":"StringNumberConversionsJVM.kt"}
+kotlin.text.StringsKt__StringsKt -> l.j:
+# {"id":"sourceFile","fileName":"Strings.kt"}
+    6:21:java.lang.CharSequence trim(java.lang.CharSequence):1680:1680 -> j
+      # {"id":"com.android.tools.r8.residualsignature","signature":"(Ljava/lang/String;)Ljava/lang/CharSequence;"}
+    22:25:java.lang.CharSequence trim(java.lang.CharSequence):1685:1685 -> j
+    26:57:boolean kotlin.text.CharsKt__CharJVMKt.isWhitespace(char):103:103 -> j
+    26:57:java.lang.CharSequence trim(java.lang.CharSequence):177 -> j
+    58:62:java.lang.CharSequence trim(java.lang.CharSequence):1700:1700 -> j
+kotlin.text.StringsKt__StringsKt$lineSequence$$inlined$Sequence$1 -> R8$$REMOVED$$CLASS$$24:
+# {"id":"sourceFile","fileName":"Sequences.kt"}

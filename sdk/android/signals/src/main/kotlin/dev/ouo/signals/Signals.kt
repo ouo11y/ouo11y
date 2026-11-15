@@ -87,16 +87,24 @@ object Signals {
     initialized = true
     app = context.applicationContext as Application
     dir = File(app.noBackupFilesDir, "ouo/signals").apply { mkdirs() }
+    mappingId = Report.mappingId(runCatching { app.assets.open(Report.DEBUG_META_ASSET).use { it.reader().readText() } }.getOrNull())
     val crashFile = File(dir, CRASH)
     val crash = runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()
     crashFile.delete()
     val previous = RunState.parse(runCatching { File(dir, RUN).readText() }.getOrNull())
-    pending = crash ?: Termination.decide(previous, lastExit(previous?.pid), crashReported = false)?.toJson()
+    // A termination is never judged across an update (C3), so this build's mapping id is the dead run's.
+    pending = crash ?: Termination.decide(previous, lastExit(previous?.pid), crashReported = false)?.copy(mappingId = mappingId)?.toJson()
     updateRun { RunState(Process.myPid()) }
     foreground = isVisible(app)
     app.registerActivityLifecycleCallbacks(lifecycle)
     app.registerComponentCallbacks(memory)
   }
+
+  /** This build's R8 mapping id (ADR-0027), set by [init]; null when the APK has no `ouo-debug-meta.properties`. */
+  @Volatile private var mappingId: String? = null
+
+  /** This build's R8 mapping id, null before [init] or when the app is not minified with `gradle/ouo-mapping.gradle`. */
+  fun mappingId(): String? = mappingId
 
   /** The previous run's crash or termination report (JSON), once; null when it ended normally. */
   @Synchronized
@@ -163,6 +171,7 @@ object Signals {
       exceptionReason = reason,
       mainThread = thread === Looper.getMainLooper().thread,
       frames = Report.frames(error.stackTrace),
+      mappingId = mappingId,
     )
     // Synchronous and atomic: the process dies when the handlers return.
     val tmp = File(dir, "$CRASH.tmp")
@@ -299,6 +308,7 @@ object Signals {
         frames = hangFrames,
         hangDurationMs = e.durationMs,
         hangFullyBlocking = !drew,
+        mappingId = mappingId,
       )
       val cb = onHang
       if (cb != null) main.post { cb(report.toJson()) }

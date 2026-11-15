@@ -40,6 +40,8 @@ data class Report(
   val hangDurationMs: Long? = null,
   val hangFullyBlocking: Boolean? = null,
   val terminationCause: String? = null,
+  /** The build's R8 mapping id (ADR-0027), from the asset the Gradle step wrote; null when not minified. */
+  val mappingId: String? = null,
 ) {
   fun toJson(): String {
     val o = JSONObject()
@@ -55,12 +57,27 @@ data class Report(
     if (mainThread != null) o.put("thread", JSONObject().put("main", mainThread))
     if (hangDurationMs != null) o.put("hang", JSONObject().put("duration_ms", hangDurationMs).put("fully_blocking", hangFullyBlocking == true))
     if (terminationCause != null) o.put("termination", JSONObject().put("cause", terminationCause))
+    if (mappingId != null) o.put("mapping_id", mappingId)
     return o.toString()
   }
 
   companion object {
     /** At most this many frames of a stack (the top ones): a stack overflow has thousands. */
     const val MAX_FRAMES = 100
+
+    /** The asset `gradle/ouo-mapping.gradle` writes into a minified APK. */
+    const val DEBUG_META_ASSET = "ouo-debug-meta.properties"
+
+    private val UUID = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    /** The `mapping_id` of the debug meta asset's text, lowercased; null when absent or not a UUID. */
+    fun mappingId(properties: String?): String? =
+      properties?.lineSequence()
+        ?.map { it.trim() }
+        ?.firstOrNull { it.startsWith("mapping_id=") }
+        ?.substringAfter('=')?.trim()
+        ?.takeIf { UUID.matches(it) }
+        ?.lowercase()
 
     fun frames(stack: Array<StackTraceElement>): List<JvmFrame> = stack.take(MAX_FRAMES).map(JvmFrame::of)
 

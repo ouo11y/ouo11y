@@ -21,3 +21,4 @@ One dated summary per run.
 - [2026-11-01-n55-n83-delivery-retries.md](2026-11-01-n55-n83-delivery-retries.md) N55 and N83: C11 retries only 429 and 502–504 (new check C11.3 in both suites), the React Native outbox keeps no age
 - [2026-11-01-w9-android-part2.md](2026-11-01-w9-android-part2.md) W9 part 2: native signals in `sdk/android` (crashes, hangs, `ApplicationExitInfo` terminations, `FrameMetrics`, cold start), ADR-0017, React Native Android at L2 on C1–C11 including C11.3
 - [2026-11-03-land-pr151.md](2026-11-03-land-pr151.md) Landing PR #151: Funnels CI flake fixed in PR #153 (floating-ui `autoUpdate` in jsdom), docs state Android NDK crashes are not captured (next: tombstones, Android 12+), suite re-run 19/19
+- [2026-11-15-r8-retrace.md](2026-11-15-r8-retrace.md) ADR-0027: R8 mapping id (Gradle script, `Signals`, `ouo.exception.mapping_id`), `ouo-sourcemaps upload-proguard`, `ouo-go/symbolicate` retrace matching R8's own on a real emulator crash

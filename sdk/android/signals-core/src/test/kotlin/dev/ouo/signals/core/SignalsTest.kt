@@ -139,4 +139,15 @@ class SignalsTest {
     assertEquals("cold" to 1000L, AppStart.of(1000, 60_000, true, true))
     assertEquals("warm" to 3000L, AppStart.of(1000, 3000, false, true))
   }
+
+  @Test
+  fun mappingIdFromTheDebugMetaAsset() {
+    val id = "0F9C2E4A-1B2C-4D3E-8F90-123456789ABC"
+    assertEquals(id.lowercase(), Report.mappingId("# ouo\nmapping_id=$id\n"))
+    assertNull(Report.mappingId("mapping_id=not-a-uuid"))
+    assertNull(Report.mappingId(null))
+    val json = JSONObject(Report(mechanism = "jvm", timestampMs = 1, sessionId = "s", mappingId = id.lowercase()).toJson())
+    assertEquals(id.lowercase(), json.getString("mapping_id"))
+    assertTrue(!JSONObject(Report(mechanism = "jvm", timestampMs = 1, sessionId = "s").toJson()).has("mapping_id"))
+  }
 }

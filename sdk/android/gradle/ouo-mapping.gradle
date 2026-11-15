@@ -1,0 +1,45 @@
+// ouo R8 / ProGuard mapping id (ADR-0027). Apply it in an Android app module after the Android
+// plugin:   apply(from = "<path to sdk/android>/gradle/ouo-mapping.gradle")
+//
+// Every variant that minifies gets a fresh random UUID per build:
+//   - in the APK as the asset ouo-debug-meta.properties (mapping_id=<uuid>), which the ouo SDK
+//     sends with each exception as ouo.exception.mapping_id;
+//   - next to the build as build/outputs/ouo/<variant>/mapping-id.txt, for the CI step
+//       ouo-sourcemaps upload-proguard build/outputs/mapping/<variant>/mapping.txt \
+//         --id-file build/outputs/ouo/<variant>/mapping-id.txt
+// Random, not a hash of the mapping: the asset is packaged before R8 writes the mapping.
+
+class OuoMappingIdTask extends DefaultTask {
+  @OutputDirectory
+  final DirectoryProperty assetDir = project.objects.directoryProperty()
+  @OutputFile
+  final RegularFileProperty idFile = project.objects.fileProperty()
+
+  OuoMappingIdTask() {
+    // A new id for every build: two builds never share one, so a mapping is never misapplied.
+    outputs.upToDateWhen { false }
+  }
+
+  @TaskAction
+  void write() {
+    String id = UUID.randomUUID().toString()
+    File dir = assetDir.get().asFile
+    project.delete(dir)
+    dir.mkdirs()
+    new File(dir, "ouo-debug-meta.properties").text = "mapping_id=" + id + "\n"
+    File f = idFile.get().asFile
+    f.parentFile.mkdirs()
+    f.text = id + "\n"
+  }
+}
+
+def components = project.extensions.getByName("androidComponents")
+components.onVariants(components.selector().all()) { variant ->
+  if (!variant.isMinifyEnabled()) return
+  def name = variant.name
+  def task = project.tasks.register("ouoMappingId" + name.capitalize(), OuoMappingIdTask) {
+    it.assetDir.set(project.layout.buildDirectory.dir("generated/ouo/assets/" + name))
+    it.idFile.set(project.layout.buildDirectory.file("outputs/ouo/" + name + "/mapping-id.txt"))
+  }
+  variant.sources.assets.addGeneratedSourceDirectory(task, { it.assetDir })
+}
