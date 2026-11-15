@@ -34,3 +34,13 @@ Session `quickstart-guides-series`, branch `claude/quickstart-guides-series-f935
 ## Envs
 
 No `ouo-env` env was used. Compose project `fs-verify` was torn down with `docker compose -p fs-verify down -v`; both simulators deleted; Vite and Metro stopped.
+
+## Review (PR #207)
+
+The review session followed 00, 01 and 03 as written on shifted ports and approved. Changes made in response:
+
+- The plugin's `hideIdentity` now denies by default: only Admin and Editor see identity, and a test covers Viewer, None and an empty role.
+- `ouo-go` is bumped to v0.2.0. It only adds readers; the ones the plugin uses are unchanged, and `go test`, typecheck, lint and build pass. Muninn stays at 0.1.0, the version verified end to end.
+- 01's event table now lists `ouo.replay.ended` and `ouo.sdk.dropped`. On a fresh tab, `@ouo11y/browser` 0.4.1 drops the first page load's navigation, timing, vitals and `documentLoad` as `no_session`. That is an SDK bug, proposed as its own session.
+- `summary()` now shows `browser_web_vital_name`.
+- The README now says exactly which scaffolded files `result/plugin` keeps (`.config/`, `src/README.md`, Playwright, Docker) and which it drops.

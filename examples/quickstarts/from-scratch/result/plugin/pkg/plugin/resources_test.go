@@ -67,9 +67,11 @@ func TestSessionsShowTheUserToEditorsOnly(t *testing.T) {
 	if status != http.StatusOK || !strings.Contains(body, `"user":"alice"`) {
 		t.Fatalf("editor: %d %s", status, body)
 	}
-	status, body = call(t, app, "Viewer", "sessions")
-	if status != http.StatusOK || strings.Contains(body, "alice") {
-		t.Fatalf("viewer: %d %s", status, body)
+	for _, role := range []string{"Viewer", "None", ""} { // anything not Editor or Admin
+		status, body = call(t, app, role, "sessions")
+		if status != http.StatusOK || strings.Contains(body, "alice") {
+			t.Fatalf("role %q: %d %s", role, status, body)
+		}
 	}
 }
 

@@ -344,6 +344,8 @@ Every line is one event. Open one: `event_name` says what it is, `session_id`, `
 | `add_to_cart` | Your `recordEvent` |
 | `exception` | The checkout bug, with `exception_message` and the stack |
 | `ouo.replay.chunk` | A reference to each replay chunk, without its bytes (those are in Muninn) |
+| `ouo.replay.ended` | The replay stopped: the tab was hidden or closed, or the session ended |
+| `ouo.sdk.dropped` | Records the SDK did not send, with a `reason`. On a fresh tab the first page load's `browser.navigation`, `browser.navigation_timing`, `browser.web_vital` and `documentLoad` come before the session starts and are dropped as `no_session`; the next navigation is recorded |
 
 Only the errors of every session:
 

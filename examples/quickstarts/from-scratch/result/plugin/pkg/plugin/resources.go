@@ -23,7 +23,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 // Editors and Admins see everything. Replace it with yours (teams, IdP groups, nothing).
 func hideIdentity(r *http.Request) bool {
 	u := backend.UserFromContext(r.Context())
-	return u == nil || u.Role == "Viewer" || u.Role == "None"
+	return u == nil || (u.Role != "Admin" && u.Role != "Editor")
 }
 
 // GET /sessions: the sessions of the last 24 hours, newest first.

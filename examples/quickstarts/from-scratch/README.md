@@ -24,8 +24,10 @@ ouo-from-scratch/
 ```
 
 [`result/`](result) is exactly what the four guides end with. Compare with it when you are stuck.
-It leaves out the scaffolded files the guides do not use: the template READMEs, the files for
-coding agents and the plugin's GitHub workflows.
+It leaves out the scaffolder's files for coding agents (`AGENTS.md`, `CLAUDE.md`, `.claude/`), its
+root `README.md` and its GitHub workflows. It keeps the rest as the scaffolder wrote it, including
+`.config/` (owned by `create-plugin update`), `src/README.md` (the plugin's page in Grafana) and
+the Playwright and Docker setup the guide does not use.
 
 ## Run `result/` as is
 
@@ -81,7 +83,7 @@ stopping what holds it.
 | `@ouo11y/browser` | 0.4.1 | npm |
 | `@ouo11y/react-native` | 0.4.0 | npm |
 | `@ouo11y/kit` | 0.1.0 | npm |
-| `ouo-go` | v0.1.0 | `go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0` |
+| `ouo-go` | v0.2.0 | `go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.2.0` |
 | `@grafana/create-plugin` | 9.0.3 | npm |
 
 Every development credential in the series is public and for a laptop only: the `demo` project
@@ -93,8 +95,8 @@ token `pt_dev_demo_0000000000000000`, Muninn's `mit_dev_...` and `mrt_dev_...` t
 - **Mobile replay does not play in the plugin.** The phone's `ouo-frames/3` chunks are stored in
   Muninn; `@ouo11y/kit` 0.1 plays `rrweb/2` (web) only and names the frames as "stored, not
   playable" until its frames player ships.
-- **Funnels, session health %, vitals and traces in the plugin** need the `ouo-go` readers that
-  are on `main` but not in v0.1.0 ([03, the last section](03-plugin.md#what-else-ouo-go-reads)).
+- **Funnels, session health %, vitals and traces in the plugin**: `ouo-go` v0.2.0 has the readers;
+  the plugin does not use them yet ([03, the last section](03-plugin.md#what-else-ouo-go-reads)).
 - **The ouo collector image** adds a per-client rate limiter; its released 0.5.0 lacks the disk
   queue Muninn's route needs, so 00 uses the stock contrib Collector.
 - **Android** for 02: the SDK supports it, but this series was verified on the iOS Simulator only.

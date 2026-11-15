@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/grafana/grafana-plugin-sdk-go v0.299.0
-	github.com/ouo11y/ouo11y/libs/ouo-go v0.1.0
+	github.com/ouo11y/ouo11y/libs/ouo-go v0.2.0
 )
 
 require (

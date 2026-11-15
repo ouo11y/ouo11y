@@ -100,7 +100,7 @@ and GitHub workflows (`.github/`). This guide does not use them; keep them or de
 serves it like any module:
 
 ```bash
-go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0
+go get github.com/ouo11y/ouo11y/libs/ouo-go@v0.2.0
 ```
 
 | Module | What it does in this plugin |
@@ -201,7 +201,7 @@ func (a *App) registerRoutes(mux *http.ServeMux) {
 // Editors and Admins see everything. Replace it with yours (teams, IdP groups, nothing).
 func hideIdentity(r *http.Request) bool {
 	u := backend.UserFromContext(r.Context())
-	return u == nil || u.Role == "Viewer" || u.Role == "None"
+	return u == nil || (u.Role != "Admin" && u.Role != "Editor")
 }
 
 // GET /sessions: the sessions of the last 24 hours, newest first.
@@ -373,9 +373,11 @@ func TestSessionsShowTheUserToEditorsOnly(t *testing.T) {
 	if status != http.StatusOK || !strings.Contains(body, `"user":"alice"`) {
 		t.Fatalf("editor: %d %s", status, body)
 	}
-	status, body = call(t, app, "Viewer", "sessions")
-	if status != http.StatusOK || strings.Contains(body, "alice") {
-		t.Fatalf("viewer: %d %s", status, body)
+	for _, role := range []string{"Viewer", "None", ""} { // anything not Editor or Admin
+		status, body = call(t, app, role, "sessions")
+		if status != http.StatusOK || strings.Contains(body, "alice") {
+			t.Fatalf("role %q: %d %s", role, status, body)
+		}
 	}
 }
 
@@ -630,7 +632,7 @@ import { getChunk, getManifest, getSession, type Event, type Replay, type Sessio
 function summary(e: Event) {
   const a = e.attributes ?? {};
   const body = e.body !== e.name ? e.body : undefined; // mobile events repeat their name as body
-  return a.exception_message || a.product_name || a.url_path || a.url_full || a.browser_css_selector || body || '';
+  return a.exception_message || a.product_name || a.url_path || a.url_full || a.browser_web_vital_name || a.browser_css_selector || body || '';
 }
 
 function Session() {
@@ -849,13 +851,13 @@ docker compose down
 | `muninn could not be read` | Wrong read token or URL | `MUNINN_READ_TOKEN` in `50-grafana/compose.yaml` must equal Muninn's |
 | The list is empty | No session in the last 24 hours | Click around the web app of guide 01 |
 | A web session has events but no replay | The session started before you set `replay.sessionRate` | Reload the web app for a new session |
-| `go: module github.com/ouo11y/ouo11y/libs/ouo-go: not found` | A typo in the path, or a proxy that blocks it | The path and version are exactly `github.com/ouo11y/ouo11y/libs/ouo-go@v0.1.0` |
+| `go: module github.com/ouo11y/ouo11y/libs/ouo-go: not found` | A typo in the path, or a proxy that blocks it | The path and version are exactly `github.com/ouo11y/ouo11y/libs/ouo-go@v0.2.0` |
 | `go test ./...` fails in `node_modules` | An npm package ships Go files | `go test ./pkg/...` |
 
 ## What else `ouo-go` reads
 
-`ouo-go` v0.1.0, used here, reads sessions, events and replays. The next release adds readers
+`ouo-go` v0.2.0, used here, also has readers this plugin does not call yet,
 whose definitions follow ouo's telemetry schema, so you do not rebuild them: `Loki.Funnel` (ordered
 steps such as `page:/` then `event:add_to_cart`), `Loki.Health` (session health %),
-`Loki.SessionVitals` (mobile vitals) and `Tempo.SessionTraces` (a session's traces). They are on
-`main` in [libs/ouo-go](../../../libs/ouo-go/README.md); each is one more route in `resources.go`.
+`Loki.SessionVitals` (mobile vitals) and `Tempo.SessionTraces` (a session's traces). See
+[libs/ouo-go](../../../libs/ouo-go/README.md); each is one more route in `resources.go`.

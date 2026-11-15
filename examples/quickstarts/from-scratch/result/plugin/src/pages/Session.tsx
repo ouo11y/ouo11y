@@ -10,7 +10,7 @@ import { getChunk, getManifest, getSession, type Event, type Replay, type Sessio
 function summary(e: Event) {
   const a = e.attributes ?? {};
   const body = e.body !== e.name ? e.body : undefined; // mobile events repeat their name as body
-  return a.exception_message || a.product_name || a.url_path || a.url_full || a.browser_css_selector || body || '';
+  return a.exception_message || a.product_name || a.url_path || a.url_full || a.browser_web_vital_name || a.browser_css_selector || body || '';
 }
 
 function Session() {
