@@ -4,6 +4,17 @@
 
 ## Unreleased
 
+## [0.2.0](https://github.com/ouo11y/ouo11y/compare/muninn-v0.1.0...muninn-v0.2.0) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **muninn:** debug files and erasure without rum-api (ADR-0026) ([#197](https://github.com/ouo11y/ouo11y/issues/197))
+
+### Added
+
+* **muninn:** debug files and erasure without rum-api (ADR-0026) ([#197](https://github.com/ouo11y/ouo11y/issues/197)) ([1011542](https://github.com/ouo11y/ouo11y/commit/1011542023dce3953d4a5f728c70eec0e8b4016d))
+
 ## 0.1.0 - unreleased
 
 ### Added
