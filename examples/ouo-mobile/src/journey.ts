@@ -17,6 +17,7 @@
 //   action/golden                a request inside rum.withSpan("golden.checkout"), then a log line
 //   action/areas                 notes the window rectangles of the views the replay must mask
 //   action/crash                 a native crash (Android: an exception on the main thread)
+//   action/js-crash              a fatal JavaScript error in 100 ms (src/symbolication.ts, tests/e2e/symbolication)
 //   action/event?name=...        rum.addEvent(name)
 //   action/type?field=feedback-message&text=...  types into a registered text field (`typeable`)
 //   action/shutdown              rum.shutdown(): the session and the replay stream end normally
@@ -33,6 +34,7 @@ import { chaos } from "../modules/ouo-chaos";
 import { addToCart, checkout, getProducts, type PaymentMethod } from "./api";
 import type { RootStackParamList } from "./navigation";
 import { config, note, rum } from "./rum";
+import { crashForSymbolication } from "./symbolication";
 
 /** Views whose rectangles `action/areas` notes for the replay pixel check (C8.2), by name. */
 const areas = new Map<string, View>();
@@ -137,6 +139,10 @@ async function run(cmd: string): Promise<void> {
       }
       case "shutdown":
         await rum.shutdown();
+        break;
+      case "js-crash":
+        note("js-crash");
+        crashForSymbolication();
         break;
       case "crash":
         note("crash");
