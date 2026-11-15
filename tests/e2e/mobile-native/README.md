@@ -22,7 +22,7 @@ tests/e2e/mobile-native/run.sh <env> <simulator udid>
 
 About 6 minutes, plus the first build. It needs `xcodegen` (Homebrew) and Docker for the stack.
 
-**Not in CI yet** (checklist N78): CI's Mac runner runs one job at a time and has no `ouo-env`
-stack; the Linux runners that have one have no simulator. CI builds every target of `sdk/ios` for
+**Not in CI yet** (checklist N78): the macOS runners have a simulator but no Docker for an
+`ouo-env` stack; the Linux runners that have Docker have no simulator. CI builds every target of `sdk/ios` for
 the simulator (the Objective-C smoke included) and runs the unit tests; this suite is run by hand
 before a release and by the package that changes the native SDK.

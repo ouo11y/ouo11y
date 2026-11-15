@@ -12,8 +12,8 @@
 # Registry (founder 2026-10-24): public on npmjs.org (the SDKs are Apache-2.0), through npm
 # trusted publishing: npm trusts this workflow by OIDC, so there is no NPM_TOKEN to create or
 # renew. Each package lists `ouo11y/ouo11y` + `release-npm.yml` as its trusted publisher
-# (npmjs.com > package > Settings). Trusted publishing needs a GitHub-hosted runner, so this
-# job ignores the RUNNER variable. Provenance is added by npm once the repository is public.
+# (npmjs.com > package > Settings). Trusted publishing needs a GitHub-hosted runner, which every
+# workflow here uses. Provenance is added by npm now that the repository is public.
 #
 # Dry run (publishes nothing, `npm publish --dry-run`):
 #   - Actions > release-npm > Run workflow with the tag to rehearse;
@@ -48,7 +48,6 @@ concurrency:
 
 jobs:
   publish:
-    # GitHub-hosted on purpose: npm trusted publishing (OIDC) does not accept self-hosted runners.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

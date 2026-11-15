@@ -15,7 +15,7 @@ if [ "${1:-}" = "--uikit" ]; then
 fi
 DEV="$(xcode-select -p)"
 case "$DEV" in
-  *Xcode.app*) exec swift test "$@" ;;
+  */Xcode*.app/*) exec swift test "$@" ;;   # Xcode.app, or Xcode_26.6.app on GitHub's runners
 esac
 F="$DEV/Library/Developer/Frameworks"
 L="$DEV/Library/Developer/usr/lib"

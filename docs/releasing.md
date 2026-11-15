@@ -258,14 +258,14 @@ and variables.
 |---|---|---|
 | Repository setting "Allow GitHub Actions to create and approve pull requests" (Settings > Actions > General) | release-please with `GITHUB_TOKEN` | Currently **off**. Turn it on, or set `RELEASE_PLEASE_TOKEN` instead. |
 | `RELEASE_PLEASE_TOKEN` secret (recommended) | release PRs that trigger `ci` and `release-check` | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
-| npm org `ouo11y` + trusted publisher | `release-npm.yml` | Org claimed 2026-10-23; keep 2FA on for every member. No token: (1) the founder publishes each package's first version by hand once (npm only lets you set a trusted publisher on a package that exists); (2) on each package, npmjs.com > Settings > Trusted publisher > GitHub Actions: organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (3) then every tag publishes from a GitHub-hosted runner (not the self-hosted Mac: npm refuses those). Still to claim: the lookalike `ouolly` (ADR-0009). |
+| npm org `ouo11y` + trusted publisher | `release-npm.yml` | Org claimed 2026-10-23; keep 2FA on for every member. No token: (1) the founder publishes each package's first version by hand once (npm only lets you set a trusted publisher on a package that exists); (2) on each package, npmjs.com > Settings > Trusted publisher > GitHub Actions: organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (3) then every tag publishes from a GitHub-hosted runner (npm refuses self-hosted ones). Still to claim: the lookalike `ouolly` (ADR-0009). |
 | `OUO_IOS_DEPLOY_KEY` secret | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy -N ""`; add `ouo_ios_deploy.pub` as a deploy key **with write access** on `github.com/ouo11y/ouo11y-ios` (Settings > Deploy keys); paste the private file as the secret; delete both local files. The mirror exists (private) with a README on branch `about`; the first push creates `main`; then make `main` the default branch and delete `about`. |
 | grafana.com organisation `ouo11y` | plugin signing | Not found (2026-10-23). Create it at grafana.com (sign up, organisation name `ouo11y`). |
 | `GRAFANA_ACCESS_POLICY_TOKEN` secret | `release-plugin.yml` signing | grafana.com > My account > Security > Access policies: realm the `ouo11y` org, scope `plugins:write`; create a token. Without it the zip is unsigned. |
 | `GRAFANA_ROOT_URLS` variable | `release-plugin.yml` signing | Comma separated Grafana root URLs allowed to load the private signature, e.g. `https://grafana.pilot.example.com`. Required when the token is set. |
 | Organization settings > Packages: allow members / Actions to create packages | first image or chart push | Already done for the 0.3.0 images; the first `chart-v*` push creates `charts/ouo` the same way. |
 | Renovate GitHub App | `.github/renovate.json5` | Install "Renovate" (Mend) from the GitHub Marketplace on the `ouo11y` org, repository `ouo11y/ouo11y` only. The config already exists, so there is no onboarding PR; expect the "Dependency Dashboard" issue and, on the first Monday, the digest-pinning PRs. |
-| Security contact | `.github/SECURITY.md` | Replace `SECURITY_CONTACT_TBD` with the disclosure address. |
+| Security contact | `.github/SECURITY.md` | security@ouo11y.com (founder, 2026-11-15). |
 
 Provenance and attestations: npm `--provenance` (npmjs.org only, at the public release),
 `actions/attest-build-provenance` for the plugin zip and the chart need a **public** repository on the free plan; the
@@ -284,13 +284,13 @@ BuildKit SBOM and max-mode provenance attestations, private or not.
 | Provenance | images: BuildKit; npm, plugin, chart: GitHub attestations when public | every release |
 | Disclosure policy | `.github/SECURITY.md` | |
 
-Actions minutes (free plan, 2,000 per month for private repos, macOS counts 10x): `ci.yml` runs
-each job only for the paths it covers, the macOS jobs only for `sdk/ios` (and the iOS release),
-every workflow has a concurrency group, and release dry runs only run when their own workflow
-file changes. The Linux jobs run on the self-hosted server and the Swift jobs on the self-hosted
-Mac (`[self-hosted, macOS]`), so they use no minutes. Only `benchmark.yml` tag and manual runs (macOS, an idle
-machine for the numbers; its PR smoke run is on the Mac) and `release-npm.yml` (npm OIDC refuses self-hosted runners) stay on GitHub-hosted
-runners. Layout and setup: [ci-runners.md](../project/kb-archive/ci-runners.md).
+Runners: every job runs on GitHub-hosted runners (`ubuntu-latest`, `macos-latest` for the Swift,
+iOS release and benchmark jobs), free for a public repository. No job asks for a self-hosted
+runner, and the org runner group `Default` must keep `allows_public_repositories: false` (check
+command in the kb entry below), so code from a fork pull request never runs on our hosts. `ci.yml`
+still runs each job only for the paths it covers, every workflow has a concurrency group, and
+release dry runs only run when their own workflow file changes. What runs where, and the job
+times: [github-hosted.md](../project/kb/ci/runners/github-hosted.md).
 
 ## 10. Local checks
 

@@ -1,12 +1,14 @@
 # Continuous integration for every pull request and for pushes to main.
 # Mirrors the local commands in AGENTS.md: go vet + go test per Go module, the ouo-collector
 # ocb build (collector/), npm build + test across the workspaces (Node 24), the Swift core
-# tests of sdk/ios on macOS, the Android build and unit tests of sdk/android on the same Mac, helm lint, an offline link check of the docs, and a build (no
+# tests of sdk/ios on macOS, the Android build and unit tests of sdk/android, helm lint, an offline link check of the docs, and a build (no
 # push) plus a Trivy scan of every released container image. See docs/releasing.md.
 #
-# Actions minutes (free org plan): the `changes` job lists the files a pull request touches
-# and every other job runs only when its paths changed (macOS bills 10x, so `swift` runs only
-# for sdk/ios). A push to main runs everything. A change to this file runs everything.
+# Runners: GitHub-hosted only (ubuntu-latest, macos-latest), free for this public repository.
+# No job asks for a self-hosted runner, and the org runner group must not serve public
+# repositories, so fork pull requests never run on our hosts (project/kb/ci/runners/github-hosted.md). The `changes` job lists the files a
+# pull request touches and every other job runs only when its paths changed. A push to main runs
+# everything. A change to this file runs everything.
 name: ci
 
 on:
@@ -24,7 +26,7 @@ concurrency:
 jobs:
   changes:
     name: changed paths
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: read
@@ -83,7 +85,7 @@ jobs:
   pr-title:
     name: PR title (conventional commit)
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Check
@@ -108,7 +110,7 @@ jobs:
     name: quickstart.yaml in sync
     needs: changes
     if: needs.changes.outputs.quickstart == 'true'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
@@ -120,7 +122,7 @@ jobs:
           fetch-depth: 0
       - name: deploy/scripts/gen-quickstart.sh --check --verify-digests
         env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read with curl; no docker login on the shared runner
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # read with curl, no docker login
         run: deploy/scripts/gen-quickstart.sh --check --verify-digests
       - name: docker compose config
         working-directory: deploy/compose
@@ -132,7 +134,7 @@ jobs:
     name: go (${{ matrix.module }})
     needs: changes
     if: needs.changes.outputs.go == 'true'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -160,7 +162,7 @@ jobs:
     name: collector (ocb distribution)
     needs: changes
     if: needs.changes.outputs.collector == 'true'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -202,7 +204,7 @@ jobs:
     name: image (${{ matrix.image }})
     needs: changes
     if: needs.changes.outputs.images != '[]'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -274,9 +276,7 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           trivy() {
-            # Rootless Docker on the self-hosted runners: mount the socket DOCKER_HOST points at.
-            sock="${DOCKER_HOST:-unix:///var/run/docker.sock}"
-            docker run --rm -v "${sock#unix://}:/var/run/docker.sock" -v "$RUNNER_TEMP/trivy:/root/.cache/" "$TRIVY" image --no-progress --scanners vuln "$@"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$RUNNER_TEMP/trivy:/root/.cache/" "$TRIVY" image --no-progress --scanners vuln "$@"
           }
           echo "::group::HIGH and CRITICAL (informational)"
           trivy --severity HIGH,CRITICAL --format table "ouo-ci/$IMAGE"
@@ -287,7 +287,7 @@ jobs:
     name: node (workspaces)
     needs: changes
     if: needs.changes.outputs.node == 'true'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -326,9 +326,7 @@ jobs:
     name: examples (journey + verify)
     needs: changes
     if: needs.changes.outputs.ex-web == 'true' || needs.changes.outputs.ex-ouo-mobile == 'true' || needs.changes.outputs.ex-sentry-mobile == 'true'
-    # Any self-hosted runner: each has its own rootless dockerd and its own host ports (OUO_*_PORT in
-    # its .env, project/kb-archive/ci-runners.md), so two stacks on two runners do not collide.
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
       WEB: ${{ needs.changes.outputs.ex-web }}
@@ -347,7 +345,6 @@ jobs:
       - name: tracecheck unit tests
         run: python3 -I -m unittest discover -s examples/tools
       - name: Free disk space for the image builds
-        if: runner.environment == 'github-hosted' # hosted-runner cleanup; the self-hosted runners have no sudo
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
       - name: npm ci, plugin and SDK builds
         run: |
@@ -357,7 +354,7 @@ jobs:
           if [ "$WEB" = true ]; then npm run -w sdk/browser build; fi
           # examples/sentry-mobile depends on @ouo11y/react-native too (file:../../sdk/react-native).
           if [ "$OUO_MOBILE" = true ] || [ "$SENTRY_MOBILE" = true ]; then npm run -w sdk/react-native build; fi
-      - name: Stack URLs from this runner's ports
+      - name: Stack URLs (compose's default ports)
         run: .github/scripts/stack-env.sh | tee -a "$GITHUB_ENV"
       - name: Start the stack (built from this checkout)
         run: |
@@ -433,7 +430,7 @@ jobs:
     name: swift (OuoReplayCore)
     needs: changes
     if: needs.changes.outputs.swift == 'true'
-    runs-on: [self-hosted, macOS]  # the Mac runner (project/kb-archive/ci-runners.md), only for sdk/ios changes
+    runs-on: macos-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -444,7 +441,8 @@ jobs:
         working-directory: sdk/ios
         run: swift build
       - name: OuoReplayCore tests
-        run: sh sdk/ios/test.sh
+        # Serial: in parallel on the hosted 3-core Mac, timing races in the suite fail (follow-up to fix).
+        run: sh sdk/ios/test.sh --no-parallel
       # The macOS build above compiles the UIKit code to stubs; this compiles it for iOS.
       - name: iOS simulator build (every target, with the UIKit code and the Objective-C smoke)
         working-directory: sdk/ios
@@ -452,17 +450,15 @@ jobs:
 
   # Android (roadmap W9): the replay-core and signals-core unit tests on the JVM, the Android libraries and the
   # instrumented tests compiled, and the React Native Expo module compiled inside the example app's
-  # Gradle build. On the Mac runner like `swift` (the hosted runners have no budget, the Linux ones
-  # no Android SDK); JDK 17 is the system Temurin, the SDK the Homebrew android-commandlinetools.
-  # The emulator runs (pixel test, tests/e2e/mobile-android) stay local: one job at a time here.
+  # Gradle build. ubuntu-latest ships the Android SDK (ANDROID_HOME) and JDK 17 as the default java.
+  # The emulator runs (pixel test, tests/e2e/mobile-android) stay local.
   android:
     name: android (sdk/android, React Native module)
     needs: changes
     if: needs.changes.outputs.android == 'true'
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
       GRADLE_OPTS: -Dorg.gradle.daemon=false
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -491,13 +487,21 @@ jobs:
   # external URLs are not fetched, so the job is fast and never flaky. Always runs.
   links:
     name: links (lychee, offline)
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      # lychee is installed once in /usr/local/bin on the self-hosted Linux runners.
+      - name: Install lychee (release binary, sha256 checked)
+        env:
+          LYCHEE_VERSION: 0.24.2
+          LYCHEE_SHA256: 1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/lychee.tgz" "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$LYCHEE_SHA256  $RUNNER_TEMP/lychee.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/lychee.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/lychee-x86_64-unknown-linux-gnu" >> "$GITHUB_PATH"
       - name: lychee --offline
         run: |
           lychee --version
@@ -507,7 +511,7 @@ jobs:
     name: helm lint
     needs: changes
     if: needs.changes.outputs.helm == 'true'
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

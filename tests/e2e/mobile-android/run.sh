@@ -4,8 +4,8 @@
 # ouo-env stack, the launches the checks need, then check.mjs asserts rum-api with the same check
 # ids as the other suites and prints the maturity row. Commands reach the app as broadcasts, taps
 # come from `adb shell input` on the views uiautomator finds by test id, OTLP goes through
-# ../mobile-native/proxy.mjs (C11.2). Run by hand: CI's Mac runner runs one job at a time and has
-# no stack (README.md).
+# ../mobile-native/proxy.mjs (C11.2). Run by hand: CI has no job with an emulator and a stack
+# together yet (README.md).
 #
 # Usage: run.sh <env> [<adb serial>]      (OUO_ANDROID_OUT keeps the notes, logs and frames)
 # OUO_ANDROID_SKIP_BUILD=1 reuses the installed app (built for the same env and proxy port).

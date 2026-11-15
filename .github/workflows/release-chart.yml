@@ -45,7 +45,7 @@ env:
 
 jobs:
   release:
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write       # gh release create
@@ -57,18 +57,6 @@ jobs:
       DRY_RUN: ${{ !(github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)) }}
       REPO_PUBLIC: ${{ github.event.repository.private == false }}
     steps:
-      # helm keeps its registry login, cache and plugins under ~/.config, ~/.cache and
-      # ~/.local/share; on the self-hosted runners ~/.config is not writable by runner-N
-      # (chart-v0.2.0's tag run failed at `helm registry login`). Keep them in the job's temp folder.
-      - name: Helm's files in the job's temp folder
-        run: |
-          {
-            echo "HELM_CONFIG_HOME=$RUNNER_TEMP/helm/config"
-            echo "HELM_CACHE_HOME=$RUNNER_TEMP/helm/cache"
-            echo "HELM_DATA_HOME=$RUNNER_TEMP/helm/data"
-            echo "HELM_REGISTRY_CONFIG=$RUNNER_TEMP/helm/config/registry/config.json"
-          } >> "$GITHUB_ENV"
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # `publish` builds the tag itself; every other run builds the commit that triggered it.

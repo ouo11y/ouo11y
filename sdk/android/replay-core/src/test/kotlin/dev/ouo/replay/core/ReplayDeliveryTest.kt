@@ -106,6 +106,7 @@ class ReplayDeliveryTest {
       TestFiles.drain(d)
       assertEquals(ReplayDelivery.Stats(partialRejected = 1), d.stats)
       assertEquals(listOf(1, 0), listOf(t.requests.size, d.queuedCount))
+      TestFiles.eventually { lost.isNotEmpty() } // onLoss runs on its own executor, after drain
       assertEquals(listOf("s1"), lost.toList())
       d.close()
     }
@@ -121,6 +122,7 @@ class ReplayDeliveryTest {
       TestFiles.drain(d)
       assertEquals("status $status", ReplayDelivery.Stats(rejectedStatus = 2), d.stats)
       assertEquals(listOf(2, 0), listOf(t.requests.size, d.queuedCount))
+      TestFiles.eventually { lost.isNotEmpty() } // onLoss runs on its own executor, after drain
       assertEquals(listOf("s1"), lost.toList())
       d.close()
     }
