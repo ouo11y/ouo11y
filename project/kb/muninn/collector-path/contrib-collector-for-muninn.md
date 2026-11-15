@@ -1,0 +1,12 @@
+# The Muninn route on the stock contrib Collector
+
+> Can the replay route of `deploy/compose/collector/config.muninn.yaml` run on `otel/opentelemetry-collector-contrib` instead of the ouo collector, and what changes?
+
+Verified 2026-11-15 with `otel/opentelemetry-collector-contrib:0.160.0`, `ghcr.io/ouo11y/muninn:0.1.0`, `@ouo11y/browser` 0.4.1 and `@ouo11y/react-native` 0.4.0, for [examples/quickstarts/from-scratch/00-stack.md](../../../../examples/quickstarts/from-scratch/00-stack.md) (config: `result/stack/10-collector/config.yaml`).
+
+- **It runs.** Replace `ouoauth` by the `basicauth` extension it wraps (`basicauth/projects` with the htpasswd file) and drop `ouoratelimit`; everything else in the Muninn config is stock: `routing` connector on `instrumentation_scope.name == "ouo.replay"`, `transform`, `resource` with `from_context: auth.username`, `otlp_http` with a `file_storage` sending queue. Web `rrweb/2` and iOS `ouo-frames/3` chunks reached Muninn, with reference records in Loki.
+- **Why not the ouo image.** `ghcr.io/ouo11y/collector:0.5.0` (latest released on 2026-11-15) has no `file_storage`; it is in `collector/builder.yaml` on `main`, so the next collector release can run the same config plus `ouoratelimit`.
+- **The queue volume.** The contrib image runs as uid 10001 and has no `/var/lib/otelcol`, so a new named volume there is owned by root and the exporter fails at start: `failed to start "otlp_http/muninn" exporter: open /var/lib/otelcol/replay-queue/exporter_otlp_http_muninn_logs: permission denied`. A one-shot `busybox:1.37` service that runs `chown 10001:10001` on the volume, and `depends_on: condition: service_completed_successfully`, fixes it. The ouo image avoids it by shipping the directory owned by `nonroot`.
+- **CORS before auth.** With `basicauth` on the OTLP/HTTP receiver, a browser preflight (`OPTIONS` with `Origin` and `Access-Control-Request-Headers: authorization,content-type`) still answers 204 without credentials; a `POST` without them answers 401.
+- **Muninn on a directory.** `storage.backend: filesystem` with a named volume at `/data` works with the released image (the image ships `/data` owned by `nonroot`), so a laptop stack needs no MinIO. `OTEL_SDK_DISABLED=true` turns Muninn's own telemetry off when no collector project is set up for it.
+- **Reads.** Muninn answers `200 {"replays":[]}` for a session it has no replay of, so a reader needs no not-found branch there.

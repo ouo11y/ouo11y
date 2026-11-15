@@ -1,0 +1,19 @@
+# Muninn: the replay store. The collector posts replay chunks to it (/otlp/v1/logs, ingest
+# token); your plugin's backend reads them (/api/v1/..., read token). It keeps one file per
+# chunk in the muninn-data volume. Port 3400 on loopback for curl; browsers never reach it.
+services:
+  muninn:
+    image: ghcr.io/ouo11y/muninn:0.1.0
+    command: ["-config.file=/etc/muninn/config.yaml", "-config.expand-env=true"]
+    ports:
+      - "127.0.0.1:${OUO_MUNINN_PORT:-3400}:3400"
+    environment:
+      MUNINN_INGEST_TOKEN: mit_dev_0000000000000000   # the collector's; public, local only
+      MUNINN_READ_TOKEN: mrt_dev_0000000000000000     # your plugin's (guide 03); public, local only
+      OTEL_SDK_DISABLED: "true"                       # Muninn's own telemetry: off here
+    volumes:
+      - ./config.yaml:/etc/muninn/config.yaml:ro
+      - muninn-data:/data
+
+volumes:
+  muninn-data:

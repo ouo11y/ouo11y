@@ -15,7 +15,7 @@
 | [adr/](adr/README.md) | architecture decision records |
 | [adr-archive/](adr-archive/README.md) | MVP-era architecture decision records |
 | [../examples/fast-tracked/index.md](../examples/fast-tracked/index.md) | copy-and-paste onboarding: stack, Go backend, React, Expo iOS |
-| [../examples/quickstarts/index.md](../examples/quickstarts/index.md) | standalone quickstart apps against the one-file stack: `tiny-shop` (Node API + React); `tiny-shop-funnels` (quickstart 5, funnels); `tiny-shop-otel` (no ouo SDK: OpenTelemetry + rrweb by hand) |
+| [../examples/quickstarts/index.md](../examples/quickstarts/index.md) | standalone quickstart apps against the one-file stack: `tiny-shop` (Node API + React); `tiny-shop-funnels` (quickstart 5, funnels); `tiny-shop-otel` (no ouo SDK: OpenTelemetry + rrweb by hand); `from-scratch` (series: stack, web, React Native, your own Grafana plugin on `ouo-go` and `@ouo11y/kit`) |
 | [sourcemaps.md](sourcemaps.md) | readable stacks from minified web apps: upload tokens, `ouo-sourcemaps inject` / `upload`, Vite / webpack / Next.js setups, what the plugin shows, troubleshooting, retention (ADR-0011) |
 | [symbolication.md](symbolication.md) | readable native iOS crashes: build UUIDs, `ouo-sourcemaps upload-dsym`, where Xcode puts dSYMs, what the plugin shows, checking an upload, limits (ADR-0011 section 7) |
 | [releasing.md](releasing.md) | the one releasing document: components and tags, versioning, conventional commits, release-please flow, the founder's release checklist, dry runs, pull access, accounts and secrets, supply chain |

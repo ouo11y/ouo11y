@@ -17,7 +17,9 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const write = process.argv.includes("--write");
-const marker = /^<!-- embed: (\S+) -->\n(`{3,})([^\n]*)\n([\s\S]*?)\n\2$/gm;
+// The body is whole lines, so an empty block (a placeholder) matches too and never runs on into
+// the next block.
+const marker = /^<!-- embed: (\S+) -->\n(`{3,})([^\n]*)\n((?:[^\n]*\n)*?)\2$/gm;
 
 function markdownFiles(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -32,11 +34,11 @@ let stale = 0;
 for (const guide of markdownFiles(here)) {
   const text = readFileSync(guide, "utf8");
   const updated = text.replace(marker, (block, source, fence, lang, body) => {
-    const want = readFileSync(join(root, source), "utf8").replace(/\n$/, "");
+    const want = readFileSync(join(root, source), "utf8").replace(/\n?$/, "\n");
     if (body === want) return block;
     stale++;
     console.error(`${relative(root, guide)}: embedded ${source} differs from the file`);
-    return `<!-- embed: ${source} -->\n${fence}${lang}\n${want}\n${fence}`;
+    return `<!-- embed: ${source} -->\n${fence}${lang}\n${want}${fence}`;
   });
   if (write && updated !== text) writeFileSync(guide, updated);
 }

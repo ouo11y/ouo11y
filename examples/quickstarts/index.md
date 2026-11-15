@@ -7,6 +7,7 @@
 | [tiny-shop/](tiny-shop/README.md) | Express API + React app traced end to end; [build-it-yourself guide](tiny-shop/build-it-yourself-guide.md) |
 | [tiny-shop-otel/](tiny-shop-otel/README.md) | [build-it-yourself guide](tiny-shop-otel/build-it-yourself-guide.md); Tiny Shop without the ouo SDK: OpenTelemetry JS + rrweb + web-vitals in the browser, and the contract ouo needs from a browser. **The reference quickstart for the rules below** |
 | [tiny-shop-funnels/](tiny-shop-funnels/README.md) | [build-it-yourself guide](tiny-shop-funnels/build-it-yourself-guide.md); quickstart 5: shop pages and custom events as a funnel, 50 generated sessions, drop-off to replay |
+| [from-scratch/](from-scratch/README.md) | series of build-it-yourself guides on the post-ADR-0025 stack: [00 stack](from-scratch/00-stack.md) (stock Collector, Tempo, Loki, Muninn, Grafana), [01 web](from-scratch/01-web.md), [02 React Native](from-scratch/02-react-native.md), [03 your own Grafana plugin](from-scratch/03-plugin.md) with `ouo-go` and `@ouo11y/kit` |
 
 ## Rules for every quickstart
 
@@ -147,3 +148,4 @@ or needs a server, with a line count. tiny-shop-otel step 8 is the model.
 | [tiny-shop-otel](tiny-shop-otel/README.md) | all (reference) | nothing |
 | [tiny-shop-funnels](tiny-shop-funnels/README.md) | all | nothing |
 | [tiny-shop](tiny-shop/README.md) | shape, embeds | one-file `quickstart.yaml` stack (3, 4); `~/Desktop` paths (2) |
+| [from-scratch](from-scratch/README.md) | all; one `result/` for the series, four guides instead of one `build-it-yourself-guide.md` | nothing |
