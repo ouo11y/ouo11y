@@ -7,7 +7,7 @@
  *   background: long background stay -> session rotation
  * Env: OUO_OTLP (collector OTLP/HTTP base URL, default http://localhost:4318), OUO_PROJECT_ID
  *      (default demo), OUO_PROJECT_TOKEN (default the development token pt_dev_demo_0000000000000000),
- *      OUO_REPLAY_ENDPOINT (optional; default derived, 4318 -> 4319), OUO_BACKEND (default
+ *      OUO_BACKEND (default
  *      http://localhost:8082), APP_VERSION (default 2.3.0), OUO_STORAGE_FILE (shared "disk").
  */
 const { initRUM } = require("../dist/index.js");
@@ -15,7 +15,6 @@ const { initRUM } = require("../dist/index.js");
 const OTLP = process.env.OUO_OTLP || "http://localhost:4318";
 const PROJECT_ID = process.env.OUO_PROJECT_ID || "demo";
 const PROJECT_TOKEN = process.env.OUO_PROJECT_TOKEN || "pt_dev_demo_0000000000000000";
-const REPLAY_ENDPOINT = process.env.OUO_REPLAY_ENDPOINT;
 const BACKEND = process.env.OUO_BACKEND || "http://localhost:8082";
 const VERSION = process.env.APP_VERSION || "2.3.0";
 const SCENARIO = process.env.SCENARIO || "healthy";
@@ -26,7 +25,6 @@ async function main() {
     endpoint: OTLP,
     projectId: PROJECT_ID,
     projectToken: PROJECT_TOKEN,
-    ...(REPLAY_ENDPOINT ? { replayEndpoint: REPLAY_ENDPOINT } : {}),
     service: { name: "mobile-store", version: VERSION, environment: "local" },
     tracing: { propagateTo: [new RegExp(`^${BACKEND.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)] },
     // The demo backend reads the session id from W3C baggage (off by default, spec PRP-6).

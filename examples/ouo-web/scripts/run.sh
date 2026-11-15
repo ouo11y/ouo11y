@@ -12,11 +12,11 @@
 #
 # The build is minified with hidden source maps: they get debug ids (`ouo-sourcemaps inject`), go to
 # Muninn's upload route with the demo project's upload token (OUO_UPLOAD_TOKEN, ADR-0026) when the
-# stack runs Muninn (OUO_MUNINN_URL, `ouo-env up <env> --muninn`), and are deleted before the app is
+# stack runs Muninn (OUO_MUNINN_URL), and are deleted before the app is
 # served. verify checks that the render error carries the bundle's debug id and, with Muninn, that its
 # map is stored there; resolving the stack is `libs/ouo-go/symbolicate`'s job, tested in that module.
 #
-# Stock ports: OTLP 4318, replay 4319, backend 8081, Tempo 3200, rum-api 8080, overridden by
+# Stock ports: OTLP 4318 (replay included), backend 8081, Tempo 3200, overridden by
 # examples/ouo-web/.env (copy .env.example). With --env the URLs come from `ouo-env env/url`.
 # Needs Node 24 and `npm ci` at the repo root; the first run downloads Playwright's browsers.
 # Each browser runs the journey and verify in turn, with its own session (journey-<browser>.json).
@@ -42,16 +42,16 @@ log() { printf '%s [ouo-web] %s\n' "$(date +%H:%M:%S)" "$*"; }
 if [[ -f "$here/.env" ]]; then set -a; . "$here/.env"; set +a; fi
 if [[ -n $ENV_NAME ]]; then
   eval "$("$root/deploy/envs/ouo-env" env "$ENV_NAME")"
-  export VITE_OTLP_ENDPOINT="$OUO_OTLP_URL" VITE_OUO_REPLAY_ENDPOINT="$OUO_REPLAY_URL"
+  export VITE_OTLP_ENDPOINT="$OUO_OTLP_URL"
   export VITE_BACKEND_URL="http://backend.$ENV_NAME.ouo.localhost"
   [[ $ENV_NAME == main ]] && VITE_BACKEND_URL="http://backend.ouo.localhost"
 fi
 export VITE_OTLP_ENDPOINT="${VITE_OTLP_ENDPOINT:-http://localhost:4318}"
 export VITE_BACKEND_URL="${VITE_BACKEND_URL:-http://localhost:8081}"
 # The proxy forwards to the collector; the SDK only sees its own origin.
-export OUO_OTLP_URL="${OUO_OTLP_URL:-$VITE_OTLP_ENDPOINT}" OUO_REPLAY_URL="${OUO_REPLAY_URL:-${VITE_OUO_REPLAY_ENDPOINT:-${VITE_OTLP_ENDPOINT%:4318}:4319}}"
-if [[ $FIRST_PARTY == 1 ]]; then export VITE_OTLP_ENDPOINT=/otel VITE_OUO_REPLAY_ENDPOINT=""; fi
-export OUO_TEMPO_URL="${OUO_TEMPO_URL:-http://localhost:3200}" OUO_RUM_API_URL="${OUO_RUM_API_URL:-http://localhost:8080}"
+export OUO_OTLP_URL="${OUO_OTLP_URL:-$VITE_OTLP_ENDPOINT}"
+if [[ $FIRST_PARTY == 1 ]]; then export VITE_OTLP_ENDPOINT=/otel; fi
+export OUO_TEMPO_URL="${OUO_TEMPO_URL:-http://localhost:3200}"
 
 cd "$root"
 [[ -f sdk/browser/dist/index.js ]] || { log "build @ouo11y/browser"; npm run -w sdk/browser build >/dev/null; }

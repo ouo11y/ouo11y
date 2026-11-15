@@ -1,13 +1,11 @@
 # EXAMPLE ONLY, NOT VERIFIED. How a highly available ouo looks: the LGTM backends come from
 # the upstream Grafana charts in replicated mode on object storage, and this chart runs
-# rum-api, the collector and Grafana against them. Phase 8a verified the bundled mode on
+# the collector and Grafana against them (Muninn, the replay store, runs beside it). Phase 8a verified the bundled mode on
 # kind; this file documents the HA path for the Phase 8 exit criterion ("install on a
 # fresh Kubernetes cluster") and is the starting point for a real HA install.
 #
-# 1. Object storage: one S3 bucket (or GCS / Azure / MinIO) per backend, rum-api's replay
-#    bucket included (S3 compatible only: AWS S3, MinIO, Ceph RGW, R2, ...):
-#      kubectl -n ouo create secret generic ouo-rum-api-s3 \
-#        --from-literal=access-key-id=... --from-literal=secret-access-key=...
+# 1. Object storage: one S3 bucket (or GCS / Azure / MinIO) per backend. Replays live in
+#    Muninn (services/muninn, ADR-0019), deployed separately with its own bucket.
 #
 # 2. Loki (chart grafana/loki, "simple scalable" or "distributed"):
 #      helm install loki grafana/loki -n observability -f loki-values.yaml
@@ -64,7 +62,7 @@
 # 5. ouo (this chart) against them:
 #      helm install ouo deploy/helm/ouo -n ouo --create-namespace -f values-ha-example.yaml \
 #        --set projects[0].id=web-store --set projects[0].token=pt_... \
-#        --set ingestToken=it_... --set readToken=rt_... --set grafana.adminPassword=...
+#        --set muninn.ingestToken=mit_... --set grafana.adminPassword=...
 
 lgtm:
   mode: external
@@ -74,40 +72,12 @@ lgtm:
     tempoOtlpGrpcEndpoint: tempo-distributor.observability.svc:4317
     mimirUrl: http://mimir-nginx.observability.svc:80
 
-# rum-api: replays in object storage (storage.backend s3), so any number of replicas share
-# one bucket without a ReadWriteMany volume (meta.json is written with conditional PUTs,
-# project/kb-archive/rum-api-config-s3.md). Create the bucket first; rum-api never creates it. Credentials:
-# pod identity (EKS IRSA: serviceAccountName with the role annotation, keys left empty) or
-# a pre-created Secret with access-key-id / secret-access-key (storage.s3.existingSecret).
-# For MinIO set endpoint (host:port), forcePathStyle: true and, without TLS, insecure: true.
-# rum-api is ClusterIP only; there is no Ingress option (ADR-0007 section 5).
-rumApi:
-  replicas: 2
-  storage:
-    backend: s3
-    s3:
-      bucket: ouo-replays
-      region: eu-central-1
-      # endpoint: minio.storage.svc:9000
-      # forcePathStyle: true
-      # insecure: true
-      existingSecret: ouo-rum-api-s3
-  persistence:
-    enabled: false
-  resources:
-    requests: { cpu: 500m, memory: 512Mi }
-    limits: { memory: 1Gi }
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels: { app.kubernetes.io/component: rum-api }
+muninn:
+  endpoint: http://muninn.muninn.svc:3400
 
 # The collector is the public ingest: two replicas behind one Ingress host that routes
-# /v1/replay/* to 4319 and the OTLP paths to 4318. The ouoratelimit buckets are per pod
+# /api/* to the Sentry bridge 4320 and the OTLP paths to 4318. Each replica keeps its own
+# Muninn disk queue (emptyDir by default; collector.replayQueue.persistence for a PVC). The ouoratelimit buckets are per pod
 # (shared state is post-MVP), so per-project limits are effectively multiplied by replicas.
 collector:
   replicas: 2

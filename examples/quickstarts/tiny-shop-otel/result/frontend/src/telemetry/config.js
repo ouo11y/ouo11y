@@ -3,9 +3,8 @@
 // The tiny-shop API (backend/).
 export const API = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
-// The ouo collector: OTLP/HTTP for spans and logs, and the replay receiver for rrweb chunks.
+// The ouo collector: OTLP/HTTP for spans and logs.
 export const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT || "http://localhost:4318";
-export const REPLAY_ENDPOINT = import.meta.env.VITE_REPLAY_ENDPOINT || "http://localhost:4319";
 
 // Every request to the collector carries the project credential:
 // Basic base64("<project id>:<project token>"). The token is public by design: it ships in the bundle.

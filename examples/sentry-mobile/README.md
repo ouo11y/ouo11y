@@ -10,7 +10,7 @@ The DSN must point at a local host: the `ouosentry` receiver (the bridge) or a r
 (`scripts/recorder.py`). Never point it at sentry.io from this repo.
 
 Path: `@sentry/react-native` → the ouo Sentry bridge (the collector's `ouosentry` receiver) →
-fan-out to Sentry (self-hosted `sentry-sbx`, or your own) and to ouo (Loki / Tempo / rum-api);
+fan-out to Sentry (self-hosted `sentry-sbx`, or your own) and to ouo (Loki / Tempo);
 `fetch` to `examples/backend` with `traceparent` (`propagateTraceparent: true`), so app and
 backend spans are one trace. The stack's bridge defaults to `upstream: none`: it runs without any
 Sentry. Client setup notes (sampling, propagation targets, breadcrumbs, parallel mode):
@@ -42,9 +42,6 @@ deploy/envs/ouo-env down sentry-demo
 launch, navigation, network calls including a 500, one shop round, errors; `--full` adds the
 background rotation and a native crash) and then `scripts/verify.py`:
 
-- rum-api has the bridged sessions with their traces and, when rum-api and the collector have
-  mobile vitals (after 0.3.0), the app start and time to initial display
-  (`docs/specs/mobile-vitals.md`);
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
   - no backend span has a missing parent (Sentry sends a random parent span id when no span is
@@ -219,7 +216,7 @@ scripts/verify-rollout.py --mode parallel --start <start> --end <end> --sentry-c
 ```
 
 `verify-rollout.py` expects the Sentry upstream of the bridge and `SENTRY_DIRECT_DSN` to be the
-same sentrytap capture (what sentry.io would receive), and checks Sentry, Loki, Tempo and rum-api
+same sentrytap capture (what sentry.io would receive), and checks Sentry, Loki and Tempo
 for the cohort. Quick local test without flagd: `OUO_FLAG_PROVIDER=memory OUO_RUM_MODE=ouo
 scripts/build-ios.sh`. The former build flag `OUO_SDK=1` is gone (the build fails with a pointer
 here); `parallel` is what it did.

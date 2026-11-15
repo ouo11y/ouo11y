@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # End-to-end smoke test for the local stack (ADR-0007: the collector is the edge):
 #   1. CORS: a browser preflight from an allowed origin against the collector's OTLP port
-#      (4318) and replay port (4319) returns the allow headers, including `authorization`
-#   2. auth: OTLP without credential -> 401, wrong token -> 401, unknown project -> 401;
-#      replay chunk without credential -> 401; the internal rum-api sink refuses a direct
-#      post without the ingest token -> 401
+#      (4318) returns the allow headers, including `authorization`
+#   2. auth: OTLP without credential -> 401, wrong token -> 401, unknown project -> 401
 #   3. one trace, one log record, one metric sent as OTLP/JSON to the collector
-#      POST /v1/{traces,logs,metrics} with `Authorization: Basic base64(project:token)`,
-#      plus one replay chunk to POST /v1/replay/chunks on 4319 (202)
+#      POST /v1/{traces,logs,metrics} with `Authorization: Basic base64(project:token)`
 #   4. the trace is found in Tempo (stamped ouo.project.id), the log in Loki, the metric
-#      in Mimir, and the replay chunk is readable from rum-api with the read token
+#      in Mimir (Muninn's readiness is checked by wait-ready.sh)
 # Exits non-zero on the first failure. Honors OUO_* from deploy/compose/.env.
 set -euo pipefail
 
@@ -18,14 +15,11 @@ ENV_FILE="${OUO_ENV_FILE:-$SCRIPT_DIR/../compose/.env}"
 if [[ -f "$ENV_FILE" ]]; then set -a; . "$ENV_FILE"; set +a; fi
 
 OTLP="${OUO_OTLP_URL:-http://localhost:${OUO_OTLP_HTTP_PORT:-4318}}"       # collector OTLP/HTTP (public)
-REPLAY="${OUO_REPLAY_URL:-http://localhost:${OUO_REPLAY_PORT:-4319}}"      # collector replay receiver (public)
-RUM="${OUO_RUM_API_URL:-${OUO_RUM_API:-http://localhost:${OUO_RUM_API_PORT:-8080}}}"  # internal, read side
 LOKI="${OUO_LOKI_URL:-http://localhost:${OUO_LOKI_PORT:-3100}}"
 TEMPO="${OUO_TEMPO_URL:-http://localhost:${OUO_TEMPO_PORT:-3200}}"
 MIMIR="${OUO_MIMIR_URL:-http://localhost:${OUO_MIMIR_PORT:-9009}}"
 PROJECT_ID="${OUO_PROJECT_ID:-demo}"
 TOKEN="${OUO_PROJECT_TOKEN:-pt_dev_demo_0000000000000000}"
-READ_TOKEN="${OUO_READ_TOKEN:-rt_dev_0000000000000000}"
 ORIGIN="${OUO_SMOKE_ORIGIN:-http://localhost:5173}"
 BAD_ORIGIN="${OUO_SMOKE_BAD_ORIGIN:-https://evil.example}"
 SESSION_ID="${OUO_SMOKE_SESSION:-smoke-session}"
@@ -44,12 +38,10 @@ warn() { echo "warn: $*" >&2; }
 
 # Requested headers are listed the way browsers send them: lowercase and sorted
 # (the collector's CORS handler rejects unsorted lists, see project/kb-archive/collector-components.md).
-# The OTLP SDK exporters send trace context headers; the replay uploaders do not.
+# The OTLP SDK exporters send trace context headers.
 OTLP_PREFLIGHT_HEADERS="authorization,baggage,content-encoding,content-type,traceparent"
-REPLAY_PREFLIGHT_HEADERS="authorization,content-encoding,content-type"
 preflight() { # $1 url, $2 origin -> prints response headers
   local hdrs="$OTLP_PREFLIGHT_HEADERS"
-  [[ "$1" == */v1/replay/* ]] && hdrs="$REPLAY_PREFLIGHT_HEADERS"
   curl -s -i -X OPTIONS "$1" \
     -H "Origin: $2" \
     -H "Access-Control-Request-Method: POST" \
@@ -62,8 +54,8 @@ header_contains() { # $1 response, $2 header, $3 substring (case-insensitive)
   printf '%s' "$1" | grep -i "^$2:" | grep -qi "$3"
 }
 
-# --- 1. CORS at the collector, both public ports ---------------------------------------
-for ep in "$OTLP/v1/traces" "$REPLAY/v1/replay/chunks"; do
+# --- 1. CORS at the collector's OTLP port ----------------------------------------------
+for ep in "$OTLP/v1/traces"; do
   resp=$(preflight "$ep" "$ORIGIN")
   has_header "$resp" access-control-allow-origin \
     || fail "preflight $ep from $ORIGIN lacks Access-Control-Allow-Origin"$'\n'"$resp"
@@ -98,29 +90,12 @@ code=$(curl -s -o "$TMP/r" -w '%{http_code}' -X POST "$OTLP/v1/traces" -H "Conte
 [[ "$code" == "401" ]] || fail "OTLP POST with unknown project id returned $code, want 401: $(cat "$TMP/r")"
 pass "OTLP POST with unknown project id -> 401"
 
-chunk_min='{"session_id":"x","seq":0,"started_at":1000,"ended_at":2000,"events":[]}'
-code=$(curl -s -o "$TMP/r" -w '%{http_code}' -X POST "$REPLAY/v1/replay/chunks" -H "Content-Type: application/json" --data-binary "$chunk_min")
-[[ "$code" == "401" ]] || fail "replay POST without credential returned $code, want 401: $(cat "$TMP/r")"
-pass "replay POST without credential -> 401"
-
-# The internal sink (rum-api) must refuse a direct post without the ingest token. Only
-# testable where rum-api's port is published (laptop); skipped when it is unreachable.
-code=$(curl -s -o "$TMP/r" -w '%{http_code}' -X POST "$RUM/v1/replay/chunks" -H "Content-Type: application/json" \
-  -H "X-Ouo-Project-Id: $PROJECT_ID" --data-binary "$chunk_min" || true)
-case "$code" in
-  401) pass "rum-api internal sink refuses a direct post without the ingest token -> 401" ;;
-  000) warn "rum-api not reachable at $RUM (expected on a server); skipping the internal-sink check" ;;
-  *) fail "rum-api POST /v1/replay/chunks without ingest token returned $code, want 401: $(cat "$TMP/r")" ;;
-esac
-
-# --- 3. send OTLP/JSON and one replay chunk to the collector ---------------------------
+# --- 3. send OTLP/JSON to the collector -------------------------------------------------
 now_ns=$(python3 -c 'import time; print(time.time_ns())')
 start_ns=$((now_ns - 50000000))
-now_ms=$((now_ns / 1000000))
 trace_id=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
 span_id=$(python3 -c 'import secrets; print(secrets.token_hex(8))')
 run_id="$(date +%s)"
-replay_session="${OUO_SMOKE_REPLAY_SESSION:-smoke-replay-$run_id}"
 
 post() { # $1 signal path, $2 body
   local code
@@ -169,16 +144,6 @@ post v1/metrics '{"resourceMetrics":[{"resource":'"$resource"',"scopeMetrics":[{
     "startTimeUnixNano":"'"$start_ns"'","timeUnixNano":"'"$now_ns"'","asInt":"1",
     "attributes":[{"key":"ouo.platform","value":{"stringValue":"web"}},{"key":"run_id","value":{"stringValue":"'"$run_id"'"}}]}]}}]}]}]}'
 
-# One rrweb chunk (ADR-0003 shape) through the replay receiver on 4319. The receiver
-# answers 202 once the chunk is accepted into the pipeline; the exporter then posts it
-# to rum-api with X-Ouo-Project-Id=<auth username> and the ingest token bearer.
-chunk='{"session_id":"'"$replay_session"'","seq":0,"started_at":'"$now_ms"',"ended_at":'"$((now_ms + 1000))"',
-  "events":[{"type":4,"data":{"href":"http://localhost:5173/"},"timestamp":'"$now_ms"'},{"type":2,"data":{},"timestamp":'"$((now_ms + 1))"'}]}'
-code=$(curl -s -o "$TMP/r" -w '%{http_code}' -X POST "$REPLAY/v1/replay/chunks" \
-  -H "Content-Type: application/json" -H "Origin: $ORIGIN" -H "$AUTH" --data-binary "$chunk")
-[[ "$code" == "202" || "$code" == "200" ]] || fail "replay POST with credential returned $code, want 202: $(cat "$TMP/r")"
-pass "replay POST /v1/replay/chunks with credential -> $code (session_id=$replay_session)"
-
 # --- 4. query back -----------------------------------------------------------------------
 retry() { # $1 label, $2 command (string, eval'd); passes when it prints non-empty output
   local label="$1" cmd="$2" deadline=$((SECONDS + WAIT)) out=""
@@ -225,17 +190,4 @@ retry "mimir query ouo_smoke_requests{run_id=\"$run_id\"}" \
   "curl -s -G '$MIMIR/prometheus/api/v1/query' --data-urlencode 'query=ouo_smoke_requests{run_id=\"$run_id\"}' \
    | python3 -c 'import sys,json; r=json.load(sys.stdin)[\"data\"][\"result\"]; print(r[0][\"value\"][1]+\" \"+json.dumps(r[0][\"metric\"]) if r else \"\")'"
 
-# Replay: the chunk travelled collector -> ouoreplay exporter -> rum-api and is readable
-# with the read token; meta records the authenticated project.
-code=$(curl -s -o /dev/null -w '%{http_code}' "$RUM/v1/sessions/$replay_session/replay" || true)
-if [[ "$code" == "000" ]]; then
-  warn "rum-api not reachable at $RUM; skipping the replay read-back"
-else
-  [[ "$code" == "401" ]] || fail "GET /v1/sessions/{id}/replay without read token returned $code, want 401"
-  pass "rum-api GET /v1/sessions/{id}/replay without read token -> 401"
-  retry "rum-api GET /v1/sessions/$replay_session/replay (read token) has the chunk with project_id=$PROJECT_ID" \
-    "curl -s -H 'Authorization: Bearer $READ_TOKEN' '$RUM/v1/sessions/$replay_session/replay' \
-     | python3 -c 'import sys,json; m=json.load(sys.stdin); print(\"kind=%s chunks=%s project_id=%s\" % (m.get(\"kind\"), m.get(\"chunk_count\"), m.get(\"project_id\")) if m.get(\"chunk_count\",0) >= 1 and m.get(\"project_id\") == \"$PROJECT_ID\" else \"\")'"
-fi
-
-echo "SMOKE OK: trace_id=$trace_id session.id=$SESSION_ID replay_session=$replay_session service=$SERVICE project=$PROJECT_ID run_id=$run_id"
+echo "SMOKE OK: trace_id=$trace_id session.id=$SESSION_ID service=$SERVICE project=$PROJECT_ID run_id=$run_id"

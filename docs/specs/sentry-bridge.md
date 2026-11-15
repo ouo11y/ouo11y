@@ -327,7 +327,7 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 
 ### 9d. Replay on the Muninn wire (`replay_wire: muninn`)
 
-`replay_wire` picks the shape of replay records. `legacy` (the default) is the video chunk above, which the `ouoreplay` exporter reads. `muninn` emits the replay contract that Muninn stores ([muninn.md](muninn.md) section 3.1): scope `ouo.replay`, event `ouo.replay.chunk`, the chunk bytes as the body, under a resource with `ouo.project.id` and the project's `service_name`. A Collector that routes scope `ouo.replay` to Muninn (`deploy/compose/collector/config.muninn.yaml`) stores it unchanged.
+`replay_wire` picks the shape of replay records. `legacy` (the default) is the video chunk above, which the `ouoreplay` exporter reads. `muninn` emits the replay contract that Muninn stores ([muninn.md](muninn.md) section 3.1): scope `ouo.replay`, event `ouo.replay.chunk`, the chunk bytes as the body, under a resource with `ouo.project.id` and the project's `service_name`. A Collector that routes scope `ouo.replay` to Muninn (`deploy/compose/collector/config.yaml`, which sets `replay_wire: muninn`) stores it unchanged.
 
 | Sentry source | `ouo.replay.format` | Body | Keyframe |
 |---|---|---|---|
@@ -344,6 +344,8 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 - No `ouo.replay.ended` record is sent: Sentry's envelope never says a recording ended. Muninn reports the stream `open`, then `partial` after its idle period; players play it either way.
 
 ## 10. Collector wiring
+
+> rum-api, the MVP Grafana plugin and the `ouoreplay` receiver/exporter were removed on 2026-11-15. The bridge's video chunks (`ouo.replay.chunk = true`) are routed to the `debug` exporter until a store takes them (`deploy/compose/collector/config.yaml`); sections 10 and 11 below describe the MVP wiring and API.
 
 Checked against the Phase 8a rev 2 components in `collector/` and `deploy/compose/collector/config.yaml`.
 

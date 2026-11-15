@@ -9,8 +9,8 @@ Pages: `/` product grid, `/products/:id`, `/cart`, `/checkout`, `/order/:id`,
 `/chaos` (fault buttons). A floating "chaos" button opens the same panel on
 every other page.
 
-Path: `@ouo11y/browser` in the page → ouo collector (OTLP + replay) → Loki / Tempo / Mimir and
-rum-api, and `fetch` to `examples/backend` with `traceparent` and `baggage`, so browser and backend
+Path: `@ouo11y/browser` in the page → ouo collector (OTLP, replay included) → Loki / Tempo / Mimir and
+Muninn (replay), and `fetch` to `examples/backend` with `traceparent` and `baggage`, so browser and backend
 spans are one trace. On the web, clients use the ouo SDK only: there is no Sentry-web example (the
 bridge does not translate browser envelopes, `docs/specs/sentry-bridge.md`).
 
@@ -52,8 +52,8 @@ fast clicks on it, a 300 ms long task and a render error) and then `scripts/veri
   `ouo.replay.ended`;
 - Tempo: every backend request is a client span in a trace of its own (a click never starts a
   trace), no `click` or `soft-navigation` spans, one `documentLoad` span;
-- rum-api (the MVP read path): the journey's session with its timeline and traces, and the render
-  error symbolicated back to its source;
+- source maps: the render error carries the bundle's debug id, and with Muninn running its map is
+  stored there under that id;
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
   - no backend span has a missing parent;
@@ -70,7 +70,7 @@ mcr.microsoft.com/playwright:v1.64.1-noble` runs the journey in that image (the 
 their system libraries are in it; CI does this), serving the built app inside the container. That is
 also how to run Firefox on macOS 27, where Playwright's Firefox does not start. Exit status 0 means
 every check passed. Then open Grafana (compose: http://localhost:3000, ouo-env:
-the URL `ouo-env up` prints; admin / testing567), the ouo11y RUM app, and the session.
+the URL `ouo-env up` prints; admin / testing567) and Explore the session in Loki and Tempo.
 
 CI runs the same journey and verify in Chromium, Firefox and WebKit on every change to this example,
 the backend or the browser SDK (job `examples` in `.github/workflows/ci.yml`), after the SDK's own
@@ -239,7 +239,7 @@ and `/v1/logs` (replay chunks too, as OTLP protobuf), each with
 `Authorization: Basic base64(id:token)`. A `401` in the network tab means the id
 or token does not match the collector's htpasswd; a CORS error with no POST at
 all means `http://localhost:5173` is not in the collector's `allowed_origins`
-or `Authorization` is missing from its allowed headers. rum-api is internal and
+or `Authorization` is missing from its allowed headers. Muninn is internal and
 never reached from the browser.
 
 ## API usage from the command line

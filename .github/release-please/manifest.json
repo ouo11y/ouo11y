@@ -3,10 +3,7 @@
   "sdk/react-native": "0.4.0",
   "sdk/ios": "0.3.0",
   "libs/ouo-kit": "0.2.0",
-  "plugins/ouo11y-rum-app": "0.10.0",
   "collector": "0.7.0",
-  "services/rum-api": "0.6.0",
   "services/muninn": "0.2.0",
-  "deploy/images/grafana": "0.6.0",
   "deploy/helm/ouo": "0.2.0"
 }

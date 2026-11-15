@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Replay chunk attributes, the ones the ouoreplay exporter reads (ADR-0007).
+// Replay chunk attributes (ADR-0007); the collector config drops these records today.
 const (
 	attrReplaySeq      = "ouo.replay.seq"
 	attrReplayKind     = "ouo.replay.kind"

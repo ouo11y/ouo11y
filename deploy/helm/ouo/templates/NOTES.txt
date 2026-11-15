@@ -9,22 +9,21 @@ Wait for everything to be Ready (the bundled Loki takes ~20 s, Mimir ~30 s):
 {{- if .Values.collector.ingress.enabled }}
 
 Collector (the only public ingest, ADR-0007): {{ include "ouo.collectorPublicUrl" . }}
-  /v1/traces, /v1/logs, /v1/metrics -> OTLP/HTTP 4318;  /v1/replay/chunks -> replay 4319
+  /v1/traces, /v1/logs, /v1/metrics (replay chunks included) -> OTLP/HTTP 4318;  /api/* -> Sentry bridge 4320
 {{- else }}
 
 The collector Service {{ include "ouo.collector.fullname" . }} is {{ .Values.collector.service.type }}; without an Ingress reach both
 public ports with port-forwards (set collector.ingress.enabled=true or collector.service.type=LoadBalancer for real clients):
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.collector.fullname" . }} 4318:4318 &
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.collector.fullname" . }} 4319:4319 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.collector.fullname" . }} 4320:4320 &   # Sentry bridge
 {{- end }}
 {{- end }}
 
-rum-api is ClusterIP only and has no Ingress by design (ADR-0007 section 5); the collector and
-Grafana reach it in-cluster. For debugging only:
+{{- if .Values.collector.enabled }}
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.rumApi.fullname" . }} 8080:{{ .Values.rumApi.service.port }}
-  curl -s localhost:8080/readyz
+Replay chunks go to Muninn at {{ .Values.muninn.endpoint }} (tenant {{ .Values.muninn.tenant }}); this chart does not deploy Muninn.
+{{- end }}
 {{- if .Values.grafana.enabled }}
 {{- if .Values.grafana.ingress.enabled }}
 
@@ -34,9 +33,8 @@ Grafana: {{ ternary "https" "http" .Values.grafana.ingress.tls.enabled }}://{{ .
 Grafana has no Ingress; reach it with a port-forward:
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ouo.grafana.fullname" . }} 3000:{{ .Values.grafana.service.port }}
-  open http://localhost:3000/a/ouo11y-rum-app/overview      (user {{ .Values.grafana.adminUser }})
+  open http://localhost:3000      (user {{ .Values.grafana.adminUser }})
 {{- end }}
-  Plugin settings: /api/plugins/ouo11y-rum-app/settings  (rumApiUrl = {{ include "ouo.rumApiUrl" . }})
 {{- end }}
 
 Projects (ADR-0007): every SDK and every OTLP exporter authenticates with HTTP Basic
@@ -47,20 +45,18 @@ Projects (ADR-0007): every SDK and every OTLP exporter authenticates with HTTP B
   {{ len .Values.projects }} project(s) in Secret {{ include "ouo.collector.projectsSecretName" . }}:{{ range .Values.projects }} {{ .id }}{{ end }}
   Add or rotate: edit `projects` in your values and `helm upgrade`; the collector rolls on the checksum.
 {{- end }}
-  Read token (Grafana -> rum-api): kubectl -n {{ .Release.Namespace }} get secret {{ include "ouo.rumApi.secretName" . }} -o jsonpath='{.data.read-token}' | base64 -d
 {{- $dev := false }}
 {{- range .Values.projects }}{{ if eq .token "pt_dev_demo_0000000000000000" }}{{ $dev = true }}{{ end }}{{ end }}
-{{- if or $dev (eq .Values.readToken "rt_dev_0000000000000000") (eq .Values.ingestToken "it_dev_0000000000000000") }}
+{{- if or $dev (eq .Values.muninn.ingestToken "mit_dev_0000000000000000") }}
 
   !!! You are running with the committed DEVELOPMENT tokens. Fine on kind or a laptop;
-  !!! rotate them (pt_$(openssl rand -hex 16), rt_$(openssl rand -hex 16), it_$(openssl rand -hex 16))
+  !!! rotate them (pt_$(openssl rand -hex 16), and Muninn's ingest token on both sides)
   !!! before anything another person can reach.
 {{- end }}
 
 SDK snippet (browser and React Native SDKs 0.2.0):
   initRUM({
-    endpoint: "{{ include "ouo.collectorPublicUrl" . }}",{{ if not .Values.collector.ingress.enabled }}
-    replayEndpoint: "http://localhost:4319",        // defaults to endpoint on port 4319 when endpoint uses 4318{{ end }}
+    endpoint: "{{ include "ouo.collectorPublicUrl" . }}",
     projectId: "{{ with first .Values.projects }}{{ .id }}{{ else }}<project id>{{ end }}",
     projectToken: "<project token>",
     service: { name: "web-store", version: "1.0.0", environment: "production" },
@@ -74,4 +70,4 @@ with the same Basic credential (gRPC metadata `authorization`). Client rate-limi
 {{- end }}
 
 Uninstall keeps the data: PersistentVolumeClaims are annotated helm.sh/resource-policy: keep
-(rum-api replays, Grafana) or belong to StatefulSets (Loki, Tempo, Mimir). See README.md.
+(Grafana, the collector replay queue when persisted) or belong to StatefulSets (Loki, Tempo, Mimir). See README.md.

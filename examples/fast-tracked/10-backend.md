@@ -103,7 +103,7 @@ exception; the only difference from a browser is where it runs, which decides th
 your backend (same host)   --OTLP + Basic--> localhost:4318        ──> otel-collector ──> tempo / loki / mimir
 your backend (in compose)  --OTLP + Basic--> otel-collector:4318   ──^
 your backend (elsewhere)   --OTLP + Basic--> https://otel.<domain> ──^
-browser / mobile SDK       --OTLP + Basic--> same endpoint         ──^   (+ replay chunks to :4319)
+browser / mobile SDK       --OTLP + Basic--> same endpoint         ──^   (replay included, as log records)
 ```
 
 The collector stamps `ouo.project.id` from the Basic username, so a backend and the
@@ -428,9 +428,8 @@ How the ids get from the client to your spans:
    calls `span.SetAttributes` with `session.id`, `user.id`, `ouo.platform`. Baggage
    stays in the context, so children get the same attributes with no extra code.
 4. Tempo indexes span attributes, so `{ span.session.id = "a4d47dfa-..." }` matches
-   the browser span, your server span and all its children in one search. rum-api
-   runs exactly that query (plus `&& status = error`) to list the traces of a session
-   and to compute `has_error`.
+   the browser span, your server span and all its children in one search (add
+   `&& status = error` for the failed traces of a session).
 5. Log records do not go through span processors. `AttributesFromBaggage` is the
    same helper reused by the handlers (`identityLogAttrs` below) to put the three
    keys on every `slog` record, so Loki can filter `| session_id="..."` too.
@@ -593,8 +592,8 @@ and always build the request with the handler's context:
 Why: `NewTransport` opens a client span and runs the propagator's `Inject`, so
 `traceparent` **and** `baggage` (with `session.id`) travel to the next service,
 which, if it has the same baggage processor, lands in the same session search.
-`DefaultClient` sends nothing. The demo backend has no outbound calls; the reference
-is `services/rum-api/main.go` (its Loki and Tempo clients):
+`DefaultClient` sends nothing. The demo backend has no outbound calls; wrap the client's
+transport like this:
 
 ```go
 	httpClient := &http.Client{Timeout: 60 * time.Second, Transport: otelhttp.NewTransport(http.DefaultTransport)}
@@ -665,7 +664,7 @@ if err := charge(ctx, amount); err != nil {
 Why: `tracer.Start(ctx, ...)` parents the span to the server span through the
 context, the baggage processor stamps it with `session.id`, and `RecordError` +
 `SetStatus(codes.Error, ...)` are what make the trace show as failed in Tempo
-(`status = error`) and the session show as errored in the plugin. Use
+(`status = error`) and the session count as errored. Use
 `trace.SpanFromContext(ctx).SetAttributes(...)` to enrich the current server span
 (the reference sets `order.id` that way). Semantic convention constants
 (`semconv.DBSystemNamePostgreSQL`, `semconv.DBQueryText(...)`, `semconv.HTTPRoute`)

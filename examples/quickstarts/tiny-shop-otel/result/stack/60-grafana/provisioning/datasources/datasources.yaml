@@ -1,5 +1,5 @@
 # Grafana datasources: Loki (logs), Tempo (traces), Mimir (metrics), all inside the network.
-# The uids are fixed because rum-api's config refers to them.
+# The uids are fixed so the derived field and the trace-to-logs link can refer to them.
 # Log lines with a trace_id link to the trace in Tempo.
 apiVersion: 1
 

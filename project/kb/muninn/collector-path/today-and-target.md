@@ -1,10 +1,12 @@
 # The MVP replay path and the target
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 > What does the replay path look like on `main` today, and how does the target of ADR-0019 differ hop by hop?
 
 **The MVP path is removed, not evolved** (founder, 2026-11-11). The target is a new Collector configuration for the spec wire, with no compatibility with the MVP envelope, its `kind` names, or rum-api. The left column is here only so a reader who knows the MVP can find their bearings.
 
-Read on 2026-11-11 at `origin/main` 27f7101e. Sources: [collector config](../../../../deploy/compose/collector/config.yaml), [collector README](../../../../collector/README.md), [rum-api README](../../../../services/rum-api/README.md), [data-lifecycle.md](../../../../docs/operations/data-lifecycle.md), [SDK spec draft §8 and §11](../../opentelemetry/rum-semantic-conventions/sdk-spec.md).
+Read on 2026-11-11 at `origin/main` 27f7101e. Sources: [collector config](../../../../deploy/compose/collector/config.yaml), [collector README](../../../../collector/README.md), rum-api README (removed 2026-11-15), [data-lifecycle.md](../../../../docs/operations/data-lifecycle.md), [SDK spec draft §8 and §11](../../opentelemetry/rum-semantic-conventions/sdk-spec.md).
 
 ## Hop by hop
 

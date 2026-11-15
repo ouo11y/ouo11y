@@ -1,5 +1,7 @@
 # grafana-plugin
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 Owns `plugins/ouo11y-rum-app` (Grafana app plugin: Overview, Sessions, Session detail with replay).
 
 - [tracker.md](tracker.md)

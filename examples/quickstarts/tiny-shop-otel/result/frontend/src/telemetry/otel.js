@@ -10,7 +10,7 @@ import { FetchInstrumentation } from "@opentelemetry/browser-instrumentation/exp
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor, StackContextManager, TracerProvider } from "@opentelemetry/sdk-trace";
-import { API, AUTHORIZATION, OTLP_ENDPOINT, REPLAY_ENDPOINT, SERVICE } from "./config.js";
+import { API, AUTHORIZATION, OTLP_ENDPOINT, SERVICE } from "./config.js";
 import { deviceId, getSession, touch } from "./session.js";
 
 const headers = { Authorization: AUTHORIZATION };
@@ -95,7 +95,7 @@ registerInstrumentations({
       // Only calls to our API get the trace headers. A RegExp: a plain string must equal the whole URL.
       propagateTraceHeaderCorsUrls: [new RegExp(`^${API}/`)],
       // Never trace the telemetry itself.
-      ignoreUrls: [new RegExp(`^${OTLP_ENDPOINT}/`), new RegExp(`^${REPLAY_ENDPOINT}/`)],
+      ignoreUrls: [new RegExp(`^${OTLP_ENDPOINT}/`)],
       applyCustomAttributesOnSpan(span, request, result) {
         touch();
         if (result.status >= 400) onFailedFetch(request.method ?? "GET", result.url, result.status);

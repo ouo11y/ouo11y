@@ -37,7 +37,7 @@ const (
 	UpstreamNone = "none"
 )
 
-// ouoProjectIDRe matches the project ids rum-api's replay sink accepts.
+// ouoProjectIDRe matches the project ids the platform accepts (lowercase slug).
 var ouoProjectIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 // sentryProjectIDRe matches Sentry's numeric project ids.

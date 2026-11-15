@@ -10,7 +10,7 @@
 dist:
   module: github.com/ouo11y/ouo11y/collector/dist
   name: ouo-collector
-  description: ouo OpenTelemetry Collector distribution (OTLP, replay and Sentry SDK ingest edge)
+  description: ouo OpenTelemetry Collector distribution (OTLP and Sentry SDK ingest edge)
   version: 0.7.0 # x-release-please-version (release-please bumps it in the collector release PR)
   output_path: ./dist
 
@@ -18,7 +18,7 @@ extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.160.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.160.0
   # file_storage: the persistent, fsync-ed sending queue of the replay exporter to Muninn
-  # (ADR-0019, spec COL-4; deploy/compose/collector/config.muninn.yaml).
+  # (ADR-0019, spec COL-4; deploy/compose/collector/config.yaml).
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.160.0
   # ouoauth wraps basicauth/server and counts rejected requests (ouo_auth_failures_total).
   - gomod: github.com/ouo11y/ouo11y/collector/extension/ouoauthextension v0.0.0
@@ -30,7 +30,6 @@ extensions:
 
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
-  - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver v0.0.0
   - gomod: github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver v0.0.0
 
 processors:
@@ -45,10 +44,9 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.160.0
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.160.0
-  - gomod: github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter v0.0.0
 
-# routing: sends the Sentry bridge's replay chunk records (ouo.replay.chunk=true) to the
-# replay pipeline and everything else to the logs pipeline (ADR-0008).
+# routing: sends replay chunks (scope ouo.replay, the Sentry bridge's included with
+# replay_wire: muninn) to Muninn (ADR-0019) and everything else to Loki.
 connectors:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.160.0
 
@@ -61,7 +59,5 @@ providers:
 # output_path, so the paths are relative to collector/dist.
 replaces:
   - github.com/ouo11y/ouo11y/collector/extension/ouoauthextension => ../extension/ouoauthextension
-  - github.com/ouo11y/ouo11y/collector/receiver/ouoreplayreceiver => ../receiver/ouoreplayreceiver
   - github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver => ../receiver/ouosentryreceiver
-  - github.com/ouo11y/ouo11y/collector/exporter/ouoreplayexporter => ../exporter/ouoreplayexporter
   - github.com/ouo11y/ouo11y/collector/processor/ouoratelimitprocessor => ../processor/ouoratelimitprocessor

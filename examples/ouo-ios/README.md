@@ -16,6 +16,5 @@ Environment: `OUO_OTLP` (collector OTLP/HTTP), `OUO_REPLAY` (its replay receiver
 SDK not started), `OUO_TAP_LABELS=0`, `OUO_DEBUG=1`. The app writes its steps to
 `Documents/journey.jsonl` for the suite's checker.
 
-- The conformance suite: [tests/e2e/mobile-native](../../tests/e2e/mobile-native/README.md).
 - The B3 cells: `scripts/bench.sh <env> <udid> <out> [rounds]` (`none` against `ouo`, paired
   medians by `scripts/bench.py`).

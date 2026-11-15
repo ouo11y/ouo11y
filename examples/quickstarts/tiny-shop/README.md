@@ -40,8 +40,7 @@ in that folder:
 docker compose up -d
 ```
 
-Grafana is on http://localhost:3000 (admin / testing567), the collector on `:4318` (OTLP) and
-`:4319` (replay). Ports taken? See [Ports](#ports) below.
+Grafana is on http://localhost:3000 (admin / testing567), the collector on `:4318` (OTLP). Ports taken? See [Ports](#ports) below.
 
 ## 2. Start the API
 
@@ -85,23 +84,20 @@ Give Tempo up to a minute after the click before searching.
   with the recorded exception.
 - **Browser events:** Explore -> Loki -> `{service_name="tiny-shop-frontend"}`: `session.start`,
   `navigation`, `cart.added`, `http.request.failed`, `exception`, `web_vital`.
-- **The session:** More apps -> ouo11y RUM -> Sessions. After **Throw error** the session is
-  `crashed`; it has a replay and its traces.
 
 ## Ports
 
 If the quickstart runs on other ports (a `.env` next to its `compose.yaml` with
-`OUO_OTLP_HTTP_PORT=14318`, `OUO_REPLAY_PORT=14319`, ...), point both apps at them:
+`OUO_OTLP_HTTP_PORT=14318`, ...), point both apps at them:
 
 ```bash
 OUO_OTLP_ENDPOINT=http://localhost:14318 npm start
 ```
 
-and in `frontend/.env.local` (the replay URL is only derived when the endpoint is on 4318):
+and in `frontend/.env.local`:
 
 ```
 VITE_OUO_ENDPOINT=http://localhost:14318
-VITE_OUO_REPLAY_ENDPOINT=http://localhost:14319
 ```
 
 The API on another port: `PORT=5002 npm start` and `VITE_API_URL=http://localhost:5002` in

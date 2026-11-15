@@ -2,13 +2,11 @@
 #
 #   kind create cluster --name ouo-8a
 #   docker build -t ouo/collector:dev collector
-#   docker build -t ouo/rum-api:dev services/rum-api
-#   npm run -w plugins/ouo11y-rum-app build
-#   docker build -t ouo/grafana:dev -f deploy/images/grafana/Dockerfile .
-#   kind load docker-image ouo/collector:dev ouo/rum-api:dev ouo/grafana:dev --name ouo-8a
+#   kind load docker-image ouo/collector:dev --name ouo-8a
+#   # Muninn is not part of the chart: run it in the cluster (services/muninn) as a Service
+#   # `muninn` on 3400 with auth.ingest_token = the token below.
 #   helm install ouo deploy/helm/ouo -f deploy/helm/ouo/values-kind.yaml
 #   kubectl port-forward svc/ouo-collector 4318:4318 &   # OTLP/HTTP
-#   kubectl port-forward svc/ouo-collector 4319:4319 &   # replay
 #   kubectl port-forward svc/ouo-grafana 13000:3000 &
 #
 # Development tokens shared by the whole Phase 8a stack (deploy/compose/.env.example,
@@ -17,8 +15,9 @@
 projects:
   - id: demo
     token: pt_dev_demo_0000000000000000
-ingestToken: it_dev_0000000000000000
-readToken: rt_dev_0000000000000000
+muninn:
+  endpoint: http://muninn:3400
+  ingestToken: mit_dev_0000000000000000
 
 collector:
   image:
@@ -31,25 +30,7 @@ collector:
   resources:
     requests: { cpu: 50m, memory: 128Mi }
 
-rumApi:
-  image:
-    repository: ouo/rum-api
-    tag: dev
-    pullPolicy: IfNotPresent
-  config:
-    grafanaUrl: http://localhost:13000   # the port-forward used in verification
-  otel:
-    environment: kind
-  persistence:
-    size: 1Gi
-  resources:
-    requests: { cpu: 50m, memory: 64Mi }
-
 grafana:
-  image:
-    repository: ouo/grafana
-    tag: dev
-    pullPolicy: IfNotPresent
   adminPassword: testing567
   persistence:
     size: 1Gi

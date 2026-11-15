@@ -6,7 +6,7 @@
 # --build   build and install the app first (scripts/build-ios.sh, same --env / --device)
 # --full    the full journey (background rotation and native crash, ~2.5 min) instead of the
 #           short one (launch, navigation, network, shop, errors, ~1.5 min)
-# Without --env the plain compose stack's ports are used (Tempo 3200, Loki 3100, rum-api 8080,
+# Without --env the plain compose stack's ports are used (Tempo 3200, Loki 3100,
 # backend 8081); the app must have been built for the same stack (.env or --env).
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -51,7 +51,7 @@ redact.Manifest(m, redact.Identity)
 
 Readers with a nil `HTTP` use a client with a 30 second timeout. Every identifier is checked before it reaches LogQL, TraceQL or a Muninn path (project `^[a-z0-9][a-z0-9._-]{0,63}$`, ids 32 lowercase hex, filter values `^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$`, funnel step values without control characters, quotes, backslashes or backticks): a bad one is a `*BadRequestError` and no store is called. A store failure is a `*BackendError`: log `Error()` (it carries URLs and queries), show users `Public()`.
 
-The funnel, health, vitals and traces readers are ported from rum-api with its tests and give its answers on the same data; [funnels.md](funnels.md#compared-with-rum-api) lists where they differ and why (mainly: rum-api does not read the web SDK 0.4 wire). Health and traces differ in two small fixes: `Health` takes a `project` filter, and a trace whose `serviceStats` count an error keeps `HasError` when the error span has no `session.id` (rum-api dropped it).
+The funnel, health, vitals and traces readers are ported from rum-api with its tests and give its answers on the same data; [funnels.md](funnels.md#compared-with-rum-api) lists where they differ and why (mainly: rum-api did not read the web SDK 0.4 wire). Health and traces differ in two small fixes: `Health` takes a `project` filter, and a trace whose `serviceStats` count an error keeps `HasError` when the error span has no `session.id` (rum-api dropped it).
 
 Optional sub-packages, which decide nothing for you:
 

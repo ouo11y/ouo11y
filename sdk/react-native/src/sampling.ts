@@ -4,8 +4,8 @@ import type { ReadableSpan, SpanProcessor } from "@opentelemetry/sdk-trace-base"
 import { isDropEvent, type DropCounter } from "./drops";
 
 /**
- * Deterministic session sampling, shared with rum-api's server-side cap
- * (services/rum-api/internal/sampling, docs/operations/data-lifecycle.md): a session is in
+ * Deterministic session sampling, the rule a server-side cap must share
+ * (docs/operations/data-lifecycle.md): a session is in
  * the sample of `rate` for a decision `salt` when
  *
  *   fmix32(fnv1a32(salt + ":" + sessionId)) / 2^32 < rate
