@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
@@ -66,6 +67,7 @@ func (f *fakeUpstream) requests() []seenRequest {
 
 type harness struct {
 	r        *sentryReceiver
+	metrics  *sdkmetric.ManualReader
 	base     string
 	mu       sync.Mutex
 	envs     []*Envelope
@@ -87,6 +89,8 @@ func startReceiver(t *testing.T, upstream string, mutate ...func(*Config)) *harn
 		t.Fatalf("config: %v", err)
 	}
 	set := receivertest.NewNopSettings(metadata.Type)
+	reader := sdkmetric.NewManualReader()
+	set.MeterProvider = sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	logs, err := createLogs(context.Background(), set, cfg, new(consumertest.LogsSink))
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +99,7 @@ func startReceiver(t *testing.T, upstream string, mutate ...func(*Config)) *harn
 		t.Fatal(err)
 	}
 	r := logs.(*sentryReceiver)
-	h := &harness{r: r, envCount: make(chan struct{}, 100)}
+	h := &harness{r: r, metrics: reader, envCount: make(chan struct{}, 100)}
 	r.onEnvelope = func(_ job, e *Envelope) {
 		h.mu.Lock()
 		h.envs = append(h.envs, e)
@@ -331,10 +335,15 @@ func TestRoutingAndLimits(t *testing.T) {
 	h := startReceiver(t, up.URL, func(c *Config) { c.ServerConfig.MaxRequestBodySize = 1024 })
 	auth := map[string]string{"X-Sentry-Auth": "Sentry sentry_key=" + testKey}
 
-	resp := post(t, h.base+"/api/"+testProject+"/store/", []byte("{}"), auth)
+	resp := post(t, h.base+"/api/"+testProject+"/nope/x", []byte("{}"), auth)
 	resp.Body.Close()
 	if resp.StatusCode != 404 {
-		t.Errorf("store endpoint: %d, want 404", resp.StatusCode)
+		t.Errorf("unknown route: %d, want 404", resp.StatusCode)
+	}
+	resp = post(t, h.base+"/api/9999/store/", []byte("{}"), auth)
+	resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("store endpoint of an unknown project without passthrough: %d, want 404", resp.StatusCode)
 	}
 	req, _ := http.NewRequest(http.MethodGet, h.base+"/api/"+testProject+"/envelope/", nil)
 	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != 405 {
