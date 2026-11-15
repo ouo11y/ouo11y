@@ -35,6 +35,7 @@ const (
 	proj   = "shop-web"
 	ingTok = "it"
 	rdTok  = "rt"
+	admTok = "at"
 )
 
 // --- fixtures -----------------------------------------------------------------------
@@ -137,7 +138,7 @@ type harness struct {
 func newHarness(t *testing.T, mutate ...func(*config.Config)) *harness {
 	t.Helper()
 	cfg := config.Defaults()
-	cfg.Auth.IngestToken, cfg.Auth.ReadToken = ingTok, rdTok
+	cfg.Auth.IngestToken, cfg.Auth.ReadToken, cfg.Auth.AdminToken = ingTok, rdTok, admTok
 	for _, m := range mutate {
 		m(&cfg)
 	}

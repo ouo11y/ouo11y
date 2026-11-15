@@ -2,7 +2,7 @@
 import { parseArgs } from "node:util";
 import { artifactOf, composeHermesMaps, deleteMaps, findArtifacts, findDSYMs, inject, upload, uploadDSYM, type Artifact, type InjectResult, type UploadOptions } from "./index.js";
 
-const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to rum-api (ADR-0011)
+const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and dSYMs up to Muninn (ADR-0011, ADR-0026)
 
   ouo-sourcemaps inject <dir>... [--bundle <file> --sourcemap <map>] [--react-native] [--dry-run]
       Appends a debug id (and the snippet the ouo SDK reads) to every bundle that has a map, and
@@ -10,19 +10,22 @@ const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and 
       bundles (.bundle, .jsbundle, or any file with --react-native) get the React Native snippet:
       run it before hermesc, or use withOuoDebugIds from @ouo11y/sourcemaps/metro instead.
 
-  ouo-sourcemaps upload <dir>... --url <rum-api> --token <upload token> [options]
-      PUTs every map to <rum-api>/v1/sourcemaps, keyed by the bundle's debug id (from the map,
-      the //# debugId= comment, or the id a React Native bundle, text or Hermes bytecode, holds).
+  ouo-sourcemaps upload <dir>... --url <muninn> --token <upload token> --project <id> [options]
+      PUTs every map to <muninn>/api/v1/projects/<id>/debug-files/sourcemap/<debug id>, keyed by
+      the bundle's debug id (from the map, the //# debugId= comment, or the id a React Native
+      bundle, text or Hermes bytecode, holds). A map without one needs --release: its id is then
+      derived from the map's bytes and only the release + URL path finds it.
       Bundles: .js .mjs .cjs .bundle .jsbundle .hbc with <file>.map or a sourceMappingURL.
       --bundle <file>      a bundle whose map is elsewhere, with --sourcemap (repeatable)
       --sourcemap <file>   the map of the --bundle at the same position
-      --url <url>          rum-api base URL                         [OUO_SOURCEMAPS_URL]
+      --url <url>          Muninn's public base URL                 [OUO_SOURCEMAPS_URL]
       --token <token>      the project's upload token (a CI secret)  [OUO_UPLOAD_TOKEN]
-      --project <id>       fail unless the token is this project's    [OUO_PROJECT_ID]
+      --project <id>       the project the maps belong to (required) [OUO_PROJECT_ID]
       --release <version>  the build's service.version: also index by release + URL path  [OUO_RELEASE]
       --url-prefix <path>  URL path <dir> is served under (default "/")
-      --delete-after       delete the .map files after a successful upload (never deploy them)
+      --delete-after       delete the .map files after every upload succeeded (never deploy them)
       --dry-run            list what would be uploaded
+      A debug id already stored with the same map succeeds (200); with a different map it fails (409).
 
   ouo-sourcemaps inject-and-upload <dir>... (same options as upload)
 
@@ -30,9 +33,11 @@ const usage = `ouo-sourcemaps: debug ids into built JavaScript, source maps and 
       Composes Metro's map with hermesc's (-output-source-map) into the map of the bytecode, with
       the app's metro-source-map, and keeps the debug id (of the packager map, or of --bundle).
 
-  ouo-sourcemaps upload-dsym <path>... --url <rum-api> --token <upload token> [--project] [--release] [--dry-run]
-      PUTs every DWARF file of the .dSYM bundles under each path (or the path itself when it is a
-      file) to <rum-api>/v1/dsyms, so native iOS crashes get function names, files and lines.
+  ouo-sourcemaps upload-dsym <path>... --url <muninn> --token <upload token> --project <id> [--release] [--dry-run]
+      Splits every DWARF file of the .dSYM bundles under each path (or the path itself when it is
+      a file) into its architecture slices and PUTs each to
+      <muninn>/api/v1/projects/<id>/debug-files/dsym/<LC_UUID>, so native iOS crashes get
+      function names, files and lines.
 `;
 
 function fail(msg: string): never {
@@ -53,7 +58,7 @@ async function artifactsOf(dirs: string[]): Promise<Artifact[]> {
   return out;
 }
 
-/** The upload options from the flags, else the environment; exits when --url or --token is missing. */
+/** The upload options from the flags, else the environment; exits when --url, --token or --project is missing. */
 function uploadOptions(values: { url?: string; token?: string; project?: string; release?: string }, dryRun: boolean): UploadOptions {
   const env = process.env;
   const url = values.url ?? env["OUO_SOURCEMAPS_URL"];
@@ -62,7 +67,8 @@ function uploadOptions(values: { url?: string; token?: string; project?: string;
   const release = values.release ?? env["OUO_RELEASE"];
   if (!url) fail("--url (or OUO_SOURCEMAPS_URL) is required");
   if (!token && !dryRun) fail("--token (or OUO_UPLOAD_TOKEN) is required");
-  return { url, token: token ?? "", ...(project ? { project } : {}), ...(release ? { release } : {}) };
+  if (!project) fail("--project (or OUO_PROJECT_ID) is required");
+  return { url, token: token ?? "", project, ...(release ? { release } : {}) };
 }
 
 async function main(): Promise<number> {
@@ -149,7 +155,8 @@ async function main(): Promise<number> {
       failed++;
       process.stderr.write(`failed   ${r.file}: ${r.error}\n`);
     } else {
-      process.stdout.write(`uploaded ${r.debugId ?? "(release only)                     "}  ${r.file}${o.release ? `  release ${o.release}` : ""}\n`);
+      const notes = [r.derived ? "id derived from the map" : "", r.status === 200 ? "already stored" : ""].filter(Boolean);
+      process.stdout.write(`uploaded ${r.debugId}  ${r.file}${o.release ? `  release ${o.release}` : ""}${notes.length > 0 ? `  (${notes.join(", ")})` : ""}\n`);
     }
   }
   if (failed === 0 && values["delete-after"] && !dryRun) {
@@ -180,12 +187,11 @@ async function uploadDSYMs(paths: string[], o: UploadOptions, dryRun: boolean): 
       continue;
     }
     const r = await uploadDSYM(f, o);
+    for (const d of r.dsyms ?? []) process.stdout.write(`uploaded ${d.debug_id} (${d.arch})  ${f}\n`);
     if (r.error) {
       failed++;
       process.stderr.write(`failed   ${f}: ${r.error}\n`);
-      continue;
     }
-    for (const d of r.dsyms ?? []) process.stdout.write(`uploaded ${d.debug_id} (${d.arch})  ${f}\n`);
   }
   process.stdout.write(`${files.length - failed}/${files.length} dSYM file(s) uploaded\n`);
   return failed === 0 ? 0 : 1;

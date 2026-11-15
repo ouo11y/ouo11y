@@ -27,14 +27,18 @@ var (
 const maxSequence = 999_999_999
 
 // keys builds the storage layout of section 6 under an optional prefix.
-type keys struct{ root string } // "<prefix>/muninn/" or "muninn/"
+type keys struct {
+	root  string // "<prefix>/muninn/" or "muninn/": replays
+	debug string // "<prefix>/debug-files/": section 13
+	audit string // "<prefix>/audit/": section 14
+}
 
 func newKeys(prefix string) keys {
 	prefix = strings.Trim(prefix, "/")
 	if prefix != "" {
 		prefix += "/"
 	}
-	return keys{root: prefix + "muninn/"}
+	return keys{root: prefix + "muninn/", debug: prefix + "debug-files/", audit: prefix + "audit/"}
 }
 
 func (k keys) schema() string { return k.root + "schema.json" }

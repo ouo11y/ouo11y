@@ -6,6 +6,7 @@ multitenancy_enabled: false   # tenant "anonymous"; the Collector sends one fixe
 auth:
   ingest_token: ${MUNINN_INGEST_TOKEN}
   read_token: ${MUNINN_READ_TOKEN}
+  admin_token: ${MUNINN_ADMIN_TOKEN}   # ouo-erase: project delete and audit entries
 storage:
   backend: s3
   s3:
@@ -17,3 +18,9 @@ storage:
 retention:
   default: ${OUO_RETENTION_REPLAYS:-720h}
   sweep_interval: ${OUO_REPLAY_SWEEP_INTERVAL:-1h}
+# Debug files (spec section 13, ADR-0026): the CI upload token of the demo project.
+# Development value, public like the tokens above.
+debug_files:
+  upload_tokens:
+    - project: demo
+      token: ${OUO_UPLOAD_TOKEN_DEMO:-ut_dev_demo_0000000000000000}

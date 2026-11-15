@@ -24,6 +24,9 @@ type Config struct {
 	Auth                struct {
 		IngestToken string `yaml:"ingest_token"` // Collector -> POST /otlp/v1/logs
 		ReadToken   string `yaml:"read_token"`   // BFF -> /api/v1/*
+		// AdminToken opens DELETE /api/v1/projects/{p} and the audit routes (ouo-erase),
+		// and every route the read token opens. Empty: those routes answer 401.
+		AdminToken string `yaml:"admin_token"`
 	} `yaml:"auth"`
 	Storage struct {
 		Backend    string `yaml:"backend"` // filesystem | s3
@@ -37,6 +40,50 @@ type Config struct {
 	StreamIdleTimeout time.Duration `yaml:"stream_idle_timeout"`
 	TombstoneTTL      time.Duration `yaml:"tombstone_ttl"`
 	Retention         Retention     `yaml:"retention"`
+	DebugFiles        DebugFiles    `yaml:"debug_files"`
+}
+
+// DebugFiles configures section 13: source maps, dSYM slices and R8 mappings
+// uploaded by a client's CI (ADR-0026).
+type DebugFiles struct {
+	UploadTokens []UploadToken `yaml:"upload_tokens"`
+	MaxBytes     struct {
+		Sourcemap int64 `yaml:"sourcemap"`
+		Dsym      int64 `yaml:"dsym"`
+		Proguard  int64 `yaml:"proguard"`
+	} `yaml:"max_bytes"`
+	Retention struct {
+		Default    time.Duration            `yaml:"default"`
+		PerProject map[string]time.Duration `yaml:"per_project"`
+	} `yaml:"retention"`
+}
+
+// UploadToken opens the public upload route for one project of one tenant (DBG-1, DBG-2).
+type UploadToken struct {
+	Project string `yaml:"project"`
+	Tenant  string `yaml:"tenant"`
+	Token   string `yaml:"token"`
+}
+
+// MaxBytesFor returns the decompressed size limit of a kind; 0 for an unknown kind.
+func (d DebugFiles) MaxBytesFor(kind string) int64 {
+	switch kind {
+	case "sourcemap":
+		return d.MaxBytes.Sourcemap
+	case "dsym":
+		return d.MaxBytes.Dsym
+	case "proguard":
+		return d.MaxBytes.Proguard
+	}
+	return 0
+}
+
+// RetentionFor returns a project's debug-file retention; 0 keeps files forever (DBG-20).
+func (d DebugFiles) RetentionFor(project string) time.Duration {
+	if v, ok := d.Retention.PerProject[project]; ok {
+		return v
+	}
+	return d.Retention.Default
 }
 
 type Limits struct {
@@ -68,6 +115,10 @@ func Defaults() Config {
 	c.StreamIdleTimeout = 30 * time.Minute
 	c.TombstoneTTL = 168 * time.Hour
 	c.Retention = Retention{Default: 720 * time.Hour, SweepInterval: time.Hour}
+	c.DebugFiles.MaxBytes.Sourcemap = 64 << 20
+	c.DebugFiles.MaxBytes.Dsym = 512 << 20
+	c.DebugFiles.MaxBytes.Proguard = 256 << 20
+	c.DebugFiles.Retention.Default = 8760 * time.Hour
 	return c
 }
 
@@ -107,11 +158,42 @@ func (c Config) Validate() error {
 	if c.Limits.MaxChunkBytes <= 0 || c.Limits.MaxAttributeBytes <= 0 || c.Limits.MaxRequestBytes <= 0 {
 		errs = append(errs, errors.New("limits must be positive"))
 	}
+	if c.DebugFiles.MaxBytes.Sourcemap <= 0 || c.DebugFiles.MaxBytes.Dsym <= 0 || c.DebugFiles.MaxBytes.Proguard <= 0 {
+		errs = append(errs, errors.New("debug_files.max_bytes must be positive"))
+	}
+	seen := map[string]bool{}
+	for _, t := range []string{c.Auth.IngestToken, c.Auth.ReadToken, c.Auth.AdminToken} {
+		if t != "" {
+			seen[t] = true
+		}
+	}
+	if a := c.Auth.AdminToken; a != "" && (a == c.Auth.ReadToken || a == c.Auth.IngestToken) {
+		errs = append(errs, errors.New("auth.admin_token must differ from the read and ingest tokens"))
+	}
+	for i, t := range c.DebugFiles.UploadTokens {
+		switch {
+		case !reProject.MatchString(t.Project):
+			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: project %q is not a project id", i, t.Project))
+		case t.Token == "":
+			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: token is empty", i))
+		case c.MultitenancyEnabled && !reTenant.MatchString(t.Tenant):
+			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: tenant %q is not a tenant id", i, t.Tenant))
+		case seen[t.Token]:
+			errs = append(errs, fmt.Errorf("debug_files.upload_tokens[%d]: token used twice, or equal to an auth token", i))
+		}
+		seen[t.Token] = true
+	}
 	if c.Retention.SweepInterval <= 0 {
 		errs = append(errs, errors.New("retention.sweep_interval must be positive"))
 	}
 	return errors.Join(errs...)
 }
+
+// Same syntax as internal/muninn (section 2).
+var (
+	reTenant  = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	reProject = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
+)
 
 // envRef matches ${VAR} and ${VAR:-default}; $${ escapes a literal ${.
 var envRef = regexp.MustCompile(`\$\$\{|\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}`)

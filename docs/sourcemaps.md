@@ -1,14 +1,14 @@
 # Source maps: readable stacks from minified web and React Native apps
 
-A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` into `at o (https://shop.example/assets/index-B3x9.js:40:1234)`. With source maps uploaded to ouo, the session page and rum-api's API show the original file, line, column and function, and the source line that threw. The raw stack stays available behind a toggle. The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md).
+A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` into `at o (https://shop.example/assets/index-B3x9.js:40:1234)`. With source maps uploaded to ouo, a stack read back shows the original file, line, column and function, and the source line that threw. The raw stack stays available. The design is [ADR-0011](adr-archive/0011-source-maps-and-symbolication.md); the maps live in Muninn since [ADR-0026](adr/0026-debug-files-and-erasure-without-rum-api.md).
 
 ## How it works
 
 1. Your build emits source maps.
 2. `ouo-sourcemaps inject` gives every bundle a **debug id** (`//# debugId=<uuid>`) and a one-line snippet that tells `@ouo11y/browser` the id at runtime. The same id goes into the map.
-3. `ouo-sourcemaps upload` sends the maps to rum-api with the project's **upload token**. Then you deploy the bundles, without the maps.
+3. `ouo-sourcemaps upload` sends the maps to Muninn's public upload route with the project's **upload token**. Then you deploy the bundles, without the maps.
 4. When an error happens, the SDK adds `ouo.exception.debug_ids` (script URL to debug id) to the exception record. The raw stack goes to Loki unchanged.
-5. When the session is read, rum-api finds each frame's map by its debug id, or by `service.version` + the script's URL path when there is none, and returns a `symbolicated` stack next to the raw one.
+5. When the session is read, the plugin backend resolves the stack with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/resolver.go): each frame's map is found by its debug id, or, when the frame has none, by `service.version` + the script's URL path if exactly one map was uploaded for them. The result sits next to the raw stack.
 
 Maps uploaded after an error still apply: symbolication happens on read.
 
@@ -16,23 +16,20 @@ Maps uploaded after an error still apply: symbolication happens on read.
 
 ### 1. Give the project an upload token (operator)
 
-The upload token is a **secret**, like a deploy key, kept in your CI. It is not the public `projectToken` that ships in the bundle. Configure one per project in rum-api:
-
-```bash
-# environment
-OUO_UPLOAD_TOKENS=web-store:ut_9f3c...,shop:ut_71aa...
-```
+The upload token is a **secret**, like a deploy key, kept in your CI. It is not the public `projectToken` that ships in the bundle. It opens the upload route of its own project and nothing else: it cannot read, list or delete. Configure one per project in Muninn's config ([spec section 13.5](specs/muninn.md#135-settings)):
 
 ```yaml
-# or config.yaml
-projects:
-  web-store:
-    upload_token: "${OUO_UPLOAD_TOKEN_WEB_STORE}"
+# Muninn config.yaml (with -config.expand-env=true)
+debug_files:
+  upload_tokens:
+    - project: web-store
+      tenant: acme # ignored with multi-tenancy off
+      token: "${MUNINN_UPLOAD_TOKEN_WEB_STORE}"
 ```
 
-The local stack (`deploy/compose`, `ouo-env`) ships `demo:ut_dev_demo_0000000000000000`.
+The local stack with Muninn (`deploy/envs/ouo-env up <env> --muninn`) configures the `demo` project with `ut_dev_demo_0000000000000000`, and Muninn is at `http://muninn.<env>.ouo.localhost`.
 
-**Network:** uploads go to rum-api, which is never public (ADR-0007). CI reaches it over your private network: a self-hosted runner, a VPN, or `kubectl port-forward svc/ouo-rum-api 8080` with the Helm chart (its README, "Source maps and dSYMs: upload tokens", shows the tokens and the port-forward). If your CI runs on hosted runners and cannot reach rum-api, see [Limits](#limits).
+**Network:** `PUT /api/v1/projects/*/debug-files/*` is the one Muninn route meant to be published to the internet, so CI on hosted runners can upload; every other Muninn route stays private. The reverse-proxy route for it (Caddy on the VM, the Helm Ingress) comes once Muninn is part of those installs; today Muninn runs in the compose stack.
 
 ### 2. Install the CLI and the SDK
 
@@ -54,7 +51,12 @@ npx ouo-sourcemaps upload dist \
   --project web-store --release "$APP_VERSION" --delete-after
 ```
 
-`--delete-after` removes the `.map` files once every upload succeeded, so you never serve your sources. Use `--url-prefix /static/` when the output directory is served under a path, so that `dist/js/a.js` is `/static/js/a.js` in the browser.
+- `--url` is Muninn's public base URL. `--project` is required: the upload route names the project, and the token must be that project's (401 otherwise).
+- `--url`, `--token`, `--project` and `--release` can come from `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN`, `OUO_PROJECT_ID` and `OUO_RELEASE` instead; the examples below assume they do.
+- `--delete-after` removes the `.map` files once every upload succeeded, so you never serve your sources.
+- Use `--url-prefix /static/` when the output directory is served under a path, so that `dist/js/a.js` is `/static/js/a.js` in the browser.
+- Uploads are write-once per debug id. Uploading the same map again succeeds (Muninn answers 200). A different map under an id that is already stored fails the step (409): two builds claim one id, which `inject` never does on its own. When Muninn is busy with other uploads it answers 503 and the CLI retries up to four times after its `Retry-After`.
+- A map without a debug id (not injected) is uploaded only with `--release`. Its id is then derived from the map's bytes, and only the release + URL path finds it.
 
 ## Bundlers
 
@@ -77,7 +79,7 @@ export default defineConfig({
 }
 ```
 
-`OUO_SOURCEMAPS_URL` and `OUO_UPLOAD_TOKEN` come from the CI environment. `examples/ouo-web` does this in `scripts/run.sh`.
+`OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN` and `OUO_PROJECT_ID` come from the CI environment.
 
 ### webpack
 
@@ -125,7 +127,7 @@ How the pieces fit:
 2. **The build composes the maps.** Metro's map (bundle to sources) and hermesc's map (bytecode to bundle) become the map of the bytecode. The Gradle plugin, `react-native-xcode.sh` and hot-updater do this themselves; `ouo-sourcemaps compose` does it for a hand-written pipeline.
 3. **`ouo-sourcemaps upload`** reads the id from the map, or from the bundle itself (text or bytecode), and uploads the map under it.
 4. **`@ouo11y/react-native`** adds `ouo.exception.debug_ids` (`{"app:///index.android.bundle": "<id>"}`) to every JavaScript exception: uncaught and fatal, unhandled rejections, `console.error`, `captureException`, and errors forwarded from Sentry. It reads the id when the error is captured.
-5. **rum-api** looks the map up by that id first, then by `service.version` + bundle name, and reads a Hermes column as the bytecode offset it is.
+5. **`ouo-go/symbolicate`** looks the map up by that id first, then by `service.version` + bundle name, and reads a Hermes column as the bytecode offset it is.
 
 Native crashes (signals, NSException, Java) have no JavaScript frames; they use dSYMs ([symbolication.md](symbolication.md)).
 
@@ -209,7 +211,7 @@ npx ouo-sourcemaps upload out --release "$APP_VERSION"  # uploads the .hbc and i
 
 ### OTA updates
 
-Every OTA bundle has its own debug id, so its own map, even though all of them are `index.android.bundle` of the same store version. Upload each bundle's map when you publish it; rum-api keeps every one, and an error from a device that still runs an older OTA bundle resolves against that bundle's map.
+Every OTA bundle has its own debug id, so its own map, even though all of them are `index.android.bundle` of the same store version. Upload each bundle's map when you publish it; Muninn keeps every one, and an error from a device that still runs an older OTA bundle resolves against that bundle's map.
 
 **hot-updater.** Wrap the build plugin, like hot-updater's own Sentry plugin does. The upload runs after each platform's build, before the bundle is deployed; a failed upload stops the deploy (`failOnError: false` only warns):
 
@@ -242,31 +244,35 @@ npx eas-cli update --skip-bundler --input-dir dist --branch production --message
 
 ## What you see
 
-- **Session page** (plugin): an exception with mapped frames shows a `source mapped` badge. Its stack opens on the original frames and source lines, and an **Original / Raw** toggle switches to the stack as recorded. Frames without a map are greyed and keep their minified position.
-- **rum-api**: exceptions in `GET /v1/sessions/{id}` and `/logs` carry `symbolicated` (`status` `ok` / `partial` / `no_maps`, frames with `generated` and `original` positions, source context). `POST /v1/symbolicate` maps any stack (see `services/rum-api/README.md`, section Source maps).
+- **The plugin** shows what its backend gets from `ouo-go/symbolicate`: per exception a `status` (`ok`, `partial`, `no_maps`), the stack text rewritten with original positions, and each frame with its `generated` and `original` positions, source context and a frame status (`mapped`, `no_map`, `ambiguous`, `unmapped`, `unavailable`).
 - **Loki** keeps `exception.stacktrace` as the browser sent it, plus `ouo.exception.debug_ids`.
 
 ## Checking an upload
 
+The upload prints each debug id. From the private network, Muninn's read routes ([spec section 13.3](specs/muninn.md#133-reads-private-read-token)) show what is stored:
+
 ```bash
-curl -s -H "Authorization: Bearer $OUO_READ_TOKEN" "$RUM_API/v1/sourcemaps?project=web-store" | jq '.sourcemaps[0]'
+curl -s -H "Authorization: Bearer $MUNINN_READ_TOKEN" "$MUNINN/api/v1/projects/web-store/debug-files/sourcemap/<debug id>/meta"
+curl -s -H "Authorization: Bearer $MUNINN_READ_TOKEN" "$MUNINN/api/v1/projects/web-store/debug-files/sourcemap?release=1.4.2&file=/assets/index-B3x9.js"
 ```
+
+Add `X-Scope-OrgID: <tenant>` when multi-tenancy is on.
 
 If a stack still shows minified frames:
 
 - **No `ouo_exception_debug_ids` on the record.** The deployed bundle was not injected (inject runs after every build), or the error came from a script you did not upload, such as a third-party CDN script.
-- **`no_map` with a debug id.** Nothing was uploaded under that id for this project. Check the token's project and the upload output. rum-api then tries the release index, but never with a map that names another debug id: for an OTA bundle whose map was not uploaded, that map is another bundle's, and its lines would be wrong.
+- **`no_map` with a debug id.** Nothing was uploaded under that id for this project. Check `--project` and the upload output. A frame with a debug id is never resolved with another id's map: for an OTA bundle whose map was not uploaded, that map is another bundle's, and its lines would be wrong.
 - **`no_map` without a debug id.** The release fallback needs the same `--release` as the SDK's `service.version`, and the same URL path (check `--url-prefix`).
+- **`ambiguous`.** The frame has no debug id and several maps were uploaded for its release and URL path (two deploys under one version, or OTA bundles). Inject debug ids, or give each deploy its own version.
 - **Function names.** The function name comes from the original source around the line when the map embeds `sourcesContent`, which is the default in Vite, webpack and esbuild. Otherwise it comes from the caller's call site. That second method is a heuristic and can name a wrapper.
 
 ## Retention and deletion
 
-Maps are kept `retention.sourcemaps` (default 90 days) from their upload, per project overridable. A re-upload restarts the clock. Keep it at least your log retention, or older errors lose their maps. rum-api warns at start-up when it is shorter. `DELETE /v1/admin/projects/{project}` deletes the project's maps with its data ([data lifecycle](operations/data-lifecycle.md)).
+Maps are kept for `debug_files.retention.default` in Muninn (one year by default, `0` keeps them forever), counted from their last upload (uploading the same map again restarts it), and `debug_files.retention.per_project` overrides it. Keep it at least your log retention, or older errors lose their maps. Deleting the project in Muninn (`ouo-erase project`, which calls `DELETE /api/v1/projects/{project}` with Muninn's admin token, [spec MUN-45](specs/muninn.md#8-delete-api)) deletes its maps with its replays.
 
 ## Limits
 
-- Uploads go to rum-api directly. A public upload path through `ouo-collector`, for CI on hosted runners, is planned (checklist N41).
-- React Native without a debug id (no Metro plugin, no `inject`) falls back to release + bundle name, which holds one map: the last OTA bundle uploaded for a store version replaces the one before, and errors from devices on an older OTA bundle map to the wrong lines.
+- React Native without a debug id (no Metro plugin, no `inject`) falls back to release + bundle name, which resolves only while one map is uploaded for that store version: after the first OTA bundle, its frames stay as recorded (`ambiguous`).
 - Expo's `expo export` for web and server bundles, and the JSON-list output of its static export, are not React Native bundles: the web ones take the [web setup](#3-build-with-maps-inject-upload-delete).
 - RAM bundles (`x_facebook_offsets`) and Hermes bytecode bundles split into segments are not supported; React Native has not built them by default for years.
-- One map is limited to 64 MiB decompressed (`MAX_SOURCEMAP_BYTES`).
+- One map is limited to 64 MiB decompressed (`debug_files.max_bytes.sourcemap` in Muninn; 413 above it).

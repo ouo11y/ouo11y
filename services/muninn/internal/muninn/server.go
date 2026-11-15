@@ -36,11 +36,14 @@ type Server struct {
 
 	mu      sync.Mutex
 	headers map[string]header // chunk headers by key; immutable, so never invalidated
+
+	uploads chan struct{} // debug-file uploads in progress, at most maxUploads (DBG-5)
 }
 
 // New wraps st with the operation-duration metric and returns the server.
 func New(cfg config.Config, st store.Store, version string) *Server {
-	s := &Server{cfg: cfg, keys: newKeys(cfg.Storage.Prefix), now: time.Now, version: version, headers: map[string]header{}}
+	s := &Server{cfg: cfg, keys: newKeys(cfg.Storage.Prefix), now: time.Now, version: version, headers: map[string]header{},
+		uploads: make(chan struct{}, maxUploads)}
 	s.m = newMetrics()
 	s.store = timedStore{Store: st, d: s.m.storeDuration}
 	return s
@@ -84,6 +87,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET "+base+"/{replay}", s.api("manifest", s.getReplay))
 	mux.Handle("DELETE "+base+"/{replay}", s.api("delete_replay", s.deleteReplay))
 	mux.Handle("GET "+base+"/{replay}/streams/{stream}/chunks/{seq}", s.api("chunk", s.getChunk))
+	mux.Handle("DELETE /api/v1/projects/{project}", s.counted("delete_project", s.deleteProject))
+	// Debug files (section 13). Only the PUT is ever published (section 13.6).
+	const dbg = "/api/v1/projects/{project}/debug-files/{kind}"
+	mux.Handle("PUT "+dbg+"/{id}", s.counted("debug_upload", s.putDebugFile))
+	mux.Handle("GET "+dbg+"/{id}", s.counted("debug_file", s.debugRead(s.getDebugFile)))
+	mux.Handle("GET "+dbg+"/{id}/meta", s.counted("debug_meta", s.debugRead(s.getDebugMeta)))
+	mux.Handle("GET "+dbg, s.counted("debug_list", s.debugRead(s.listDebugFiles)))
+	// Audit entries (section 14).
+	mux.Handle("PUT /api/v1/audit/{entry}/{status}", s.counted("audit_put", s.putAudit))
+	mux.Handle("GET /api/v1/audit", s.counted("audit_list", s.listAudit))
 	return mux
 }
 
@@ -112,6 +125,16 @@ func recoverWith(status int, h http.Handler) http.Handler {
 		}()
 		h.ServeHTTP(w, r)
 	})
+}
+
+// readOK: the read token, or the admin token, which opens every route (section 7).
+func (s *Server) readOK(r *http.Request) bool {
+	return bearerOK(r, s.cfg.Auth.ReadToken) || adminOK(r, s.cfg.Auth.AdminToken)
+}
+
+// adminOK: the admin token, never open when it is not configured (MUN-45, AUD-1).
+func adminOK(r *http.Request, token string) bool {
+	return token != "" && bearerOK(r, token)
 }
 
 func bearerOK(r *http.Request, token string) bool {
@@ -208,6 +231,9 @@ type countingWriter struct {
 	n      int64
 	status int
 }
+
+// Unwrap lets http.ResponseController reach the connection (upload deadlines).
+func (c *countingWriter) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 
 func (c *countingWriter) WriteHeader(code int) { c.status = code; c.ResponseWriter.WriteHeader(code) }
 func (c *countingWriter) Write(b []byte) (int, error) {

@@ -16,6 +16,10 @@ type Muninn struct {
 	URL       string // base URL, e.g. http://muninn:3400
 	Tenant    string // X-Scope-OrgID; "anonymous" when Muninn runs single-tenant
 	ReadToken string // bearer for reads, when Muninn has one configured
+	// AdminToken is Muninn's auth.admin_token, for DeleteProject and the audit entries
+	// (spec 7, 14). Muninn takes it on every /api/v1 route, so when it is set it is sent
+	// instead of ReadToken everywhere. Only an operator tool such as ouo-erase holds it.
+	AdminToken string
 	// HTTP is the client; nil means one with a 30 second timeout. Requests set
 	// Accept-Encoding themselves, so no Go transport decompresses an answer on the way.
 	HTTP *http.Client
@@ -94,8 +98,8 @@ func (m *Muninn) do(ctx context.Context, path string) (*http.Response, error) {
 		tenant = "anonymous"
 	}
 	req.Header.Set("X-Scope-OrgID", tenant)
-	if m.ReadToken != "" {
-		req.Header.Set("Authorization", "Bearer "+m.ReadToken)
+	if t := m.bearer(); t != "" {
+		req.Header.Set("Authorization", "Bearer "+t)
 	}
 	// Explicit, so no transport adds and then undoes it (kb muninn/implementation/gzip-on-the-read-path.md).
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -210,4 +214,12 @@ func (m *Muninn) Chunk(ctx context.Context, project, session, replay, stream str
 		return nil, &BackendError{Backend: "muninn", Err: err}
 	}
 	return &ChunkBytes{Format: resp.Header.Get("X-Ouo-Replay-Format"), Body: body}, nil
+}
+
+// bearer is the token a request carries: the admin token when set, else the read token.
+func (m *Muninn) bearer() string {
+	if m.AdminToken != "" {
+		return m.AdminToken
+	}
+	return m.ReadToken
 }

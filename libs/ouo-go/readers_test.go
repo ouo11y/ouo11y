@@ -727,6 +727,26 @@ func TestTempoSessionTraces(t *testing.T) {
 	}
 }
 
+func TestTempoTraceIDs(t *testing.T) {
+	store, u := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tt_test" {
+			t.Errorf("auth %q", r.Header.Get("Authorization"))
+		}
+		_, _ = w.Write([]byte(tempoSample))
+	})
+	tp := &Tempo{URL: u, Token: "tt_test"}
+	ids, err := tp.TraceIDs(context.Background(), sess, TimeRange{From: time.Unix(1791263000, 0), To: time.Unix(1791264000, 0)})
+	if err != nil || strings.Join(ids, ",") != "aaa,bbb,ccc" {
+		t.Fatalf("%v %v", ids, err)
+	}
+	if strings.Count(store.all(), "\n") != 0 || !strings.Contains(store.all(), `{ span.session.id = "`+sess+`" }`) {
+		t.Errorf("one search by session id: %q", store.all())
+	}
+	if _, err := tp.TraceIDs(context.Background(), "not-hex", TimeRange{}); err == nil {
+		t.Error("bad session id accepted")
+	}
+}
+
 func TestTempoBestEffortSearches(t *testing.T) {
 	// The error and root path searches fail: the traces are still answered.
 	_, u := serve(t, func(w http.ResponseWriter, r *http.Request) {
