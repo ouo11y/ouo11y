@@ -27,7 +27,7 @@ type JVMFrame struct {
 type pgMap struct {
 	classes map[string]*pgClass // obfuscated name -> class
 	files   map[string]string   // original class name -> source file
-	synth   map[string]bool     // original class names R8 synthesized (lambdas, outlines)
+	synth   map[string]bool     // classes and methods (sig) R8 synthesized: lambdas, bridges
 }
 
 type pgClass struct {
@@ -43,8 +43,10 @@ type pgMember struct {
 	class, name, args  string
 	origStart, origEnd int
 	nOrig              int // how many original line numbers the line gave: 0, 1 or 2
-	synthesized        bool
 }
+
+// sig names the original method with its arguments, the key of a synthesized method.
+func (e *pgMember) sig() string { return e.class + "." + e.name + "(" + e.args + ")" }
 
 var pgMethod = regexp.MustCompile(`^\s+(?:(\d+):(\d+):)?\S+ ([^\s(]+)\(([^)]*)\)(?::(\d+)(?::(\d+))?)? -> (\S+)$`)
 
@@ -79,7 +81,7 @@ func parseProguard(b []byte) (any, error) {
 			case meta.ID == "com.android.tools.r8.synthesized" && !indented:
 				m.synth[cls.original] = true
 			case meta.ID == "com.android.tools.r8.synthesized" && last != nil:
-				last.synthesized = true
+				m.synth[last.sig()] = true // marks every line of that method
 			}
 		case line[0] != ' ' && line[0] != '\t':
 			// "original.Class -> obf.Class:"
@@ -127,27 +129,12 @@ func parseProguard(b []byte) (any, error) {
 	if len(m.classes) == 0 {
 		return nil, nil
 	}
-	// A synthesized flag on one line of a method marks every line of it.
-	for _, c := range m.classes {
-		synth := map[string]bool{}
-		for _, ms := range c.methods {
-			for _, mb := range ms {
-				if mb.synthesized {
-					synth[mb.class+"."+mb.name+"("+mb.args+")"] = true
-				}
-			}
-		}
-		for _, ms := range c.methods {
-			for _, mb := range ms {
-				mb.synthesized = mb.synthesized || synth[mb.class+"."+mb.name+"("+mb.args+")"]
-			}
-		}
-	}
 	return m, nil
 }
 
 // fileOf is the source file of an original class: the mapping's sourceFile, else the
-// outer class's simple name + ".java", as R8's retrace prints it.
+// outer class's simple name + ".java". That is what R8's retrace prints too (Kotlin
+// classes included), so it is the expected output, not a guess.
 func (m *pgMap) fileOf(class string) string {
 	if f := m.files[class]; f != "" {
 		return f
@@ -163,7 +150,6 @@ func (m *pgMap) fileOf(class string) string {
 type pgRow struct {
 	class, method, file string
 	line                int
-	synthetic           bool
 }
 
 // retrace maps one frame; the rows are innermost first. ok is false when the class is
@@ -174,73 +160,72 @@ func (m *pgMap) retrace(f JVMFrame) (rows []pgRow, ok bool) {
 	if c == nil {
 		return nil, false
 	}
+	// Inline groups: an entry, then the callers it was inlined into, which R8 writes on
+	// the same obfuscated range with a single original line (":c"). Entries on one range
+	// without that are separate methods sharing a name: candidates, not a chain.
 	entries := c.methods[f.Function]
-	// Inline groups: consecutive entries on the same obfuscated range, innermost first.
-	var all [][]*pgMember
+	var all, hit [][]*pgMember
 	for i := 0; i < len(entries); {
 		j := i + 1
-		for j < len(entries) && entries[i].hasObf && entries[j].hasObf && entries[j].obfStart == entries[i].obfStart && entries[j].obfEnd == entries[i].obfEnd {
+		for j < len(entries) && entries[i].hasObf && entries[j].hasObf && entries[j].obfStart == entries[i].obfStart &&
+			entries[j].obfEnd == entries[i].obfEnd && entries[j].nOrig == 1 {
 			j++
 		}
-		all = append(all, entries[i:j])
+		g := entries[i:j]
+		all = append(all, g)
+		if f.Lineno > 0 && g[0].hasObf && f.Lineno >= g[0].obfStart && f.Lineno <= g[0].obfEnd {
+			hit = append(hit, g)
+		}
 		i = j
 	}
-	var groups [][]*pgMember
-	for _, g := range all {
-		if f.Lineno > 0 && g[0].hasObf && f.Lineno >= g[0].obfStart && f.Lineno <= g[0].obfEnd {
-			groups = append(groups, g)
+	line := f.Lineno
+	if len(hit) == 0 {
+		// No line, or no range holds it: the groups without a range, else any group;
+		// no line is known then, except for an unranged entry that was never renumbered.
+		for _, g := range all {
+			if !g[0].hasObf {
+				hit = append(hit, g)
+			}
+		}
+		if len(hit) == 0 {
+			hit, line = all, 0
 		}
 	}
-	if len(groups) == 0 {
-		// No line, or no range holds it: an entry without a range, or else the outermost
-		// method of any group, but only when they all name one original method.
-		var cands []*pgMember
-		for _, e := range entries {
-			if !e.hasObf {
-				cands = append(cands, e)
-			}
-		}
-		if len(cands) == 0 {
-			for _, g := range all {
-				cands = append(cands, g[len(g)-1])
-			}
-		}
-		for _, e := range cands {
-			if e.class != cands[0].class || e.name != cands[0].name {
-				return nil, true
-			}
-		}
-		if len(cands) == 0 {
-			return nil, true
-		}
-		e := cands[0]
-		line := 0
-		if !e.hasObf && e.nOrig == 0 {
-			line = f.Lineno // never renumbered
-		}
-		return []pgRow{{class: e.class, method: e.name, file: m.fileOf(e.class), line: line, synthetic: e.synthesized}}, true
+	if len(hit) == 0 {
+		return nil, true
 	}
-	for _, g := range groups[1:] {
-		if g[0].class != groups[0][0].class || g[0].name != groups[0][0].name {
+	// Several groups only when they all end in one original method.
+	out := hit[0][len(hit[0])-1]
+	for _, g := range hit[1:] {
+		if e := g[len(g)-1]; e.class != out.class || e.name != out.name {
 			return nil, true
 		}
 	}
-	for _, e := range groups[0] {
-		line := 0
+	g := hit[0]
+	if len(hit) > 1 {
+		g = []*pgMember{out}
+	}
+	for _, e := range g {
+		n := 0
 		switch {
+		case !e.hasObf:
+			if e.nOrig == 0 {
+				n = line
+			}
+		case line == 0:
 		case e.nOrig == 2 && e.origEnd-e.origStart == e.obfEnd-e.obfStart:
-			line = e.origStart + f.Lineno - e.obfStart
+			n = e.origStart + line - e.obfStart
 		case e.nOrig >= 1:
-			line = e.origStart
+			n = e.origStart
 		default:
-			line = f.Lineno
+			n = line
 		}
-		rows = append(rows, pgRow{class: e.class, method: e.name, file: m.fileOf(e.class), line: line, synthetic: e.synthesized || m.synth[e.class]})
+		rows = append(rows, pgRow{class: e.class, method: e.name, file: m.fileOf(e.class), line: n})
 	}
 	// R8's retrace drops the synthetic rows (lambda classes, bridges) when others remain.
-	kept := rows[:0:0]
-	for _, r := range rows {
-		if !r.synthetic {
+	var kept []pgRow
+	for i, r := range rows {
+		if !m.synth[r.class] && !m.synth[g[i].sig()] {
 			kept = append(kept, r)
 		}
 	}
@@ -336,8 +321,8 @@ func jvmStack(raw string, byFrame [][]Frame, m *pgMap) string {
 	var out []string
 	n := 0
 	for i, l := range strings.Split(strings.TrimRight(raw, "\n"), "\n") {
-		if name, _, _ := strings.Cut(l, ":"); i == 0 && m != nil && m.classes[name] != nil {
-			l = m.classes[name].original + l[len(name):]
+		if m != nil {
+			l = retraceClass(l, m, i == 0)
 		}
 		g := jvmLine.FindStringSubmatch(l)
 		if g == nil || n >= len(byFrame) {
@@ -348,4 +333,28 @@ func jvmStack(raw string, byFrame [][]Frame, m *pgMap) string {
 		n++
 	}
 	return strings.Join(out, "\n")
+}
+
+// retraceClass retraces the exception class of a stack's first line ("a.c: msg") and of
+// its "Caused by: " and "Suppressed: " lines.
+func retraceClass(l string, m *pgMap, first bool) string {
+	prefix := ""
+	if !first {
+		t := strings.TrimLeft(l, " \t")
+		var ok bool
+		for _, p := range []string{"Caused by: ", "Suppressed: "} {
+			if strings.HasPrefix(t, p) {
+				prefix, ok = l[:len(l)-len(t)]+p, true
+			}
+		}
+		if !ok {
+			return l
+		}
+	}
+	rest := l[len(prefix):]
+	name, _, _ := strings.Cut(rest, ":")
+	if c := m.classes[strings.TrimSpace(name)]; c != nil && !strings.Contains(name, " ") {
+		return prefix + c.original + rest[len(name):]
+	}
+	return l
 }

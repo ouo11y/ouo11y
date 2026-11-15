@@ -22,7 +22,8 @@ Written 2026-11-15 while building ADR-0027 (`libs/ouo-go/symbolicate/proguard.go
 2. Line in an obfuscated range: that inline group; original line = `c + (line - a)` when `d - c == b - a`, else `c`; no original numbers: the line itself.
 3. No line, or a line outside every range: an entry without a range, else any entry, only when all of them name one original method; otherwise `unmapped` (not guessed).
 4. Synthetic rows dropped when others remain.
-5. The exception class in the first stack line is retraced.
+5. The exception classes of the first stack line and of `Caused by:` / `Suppressed:` lines are retraced.
+6. Entries on one obfuscated range form an inline chain only while the next one has a single original line (`:c`, the caller's position); otherwise they are separate candidates, unmapped when their names differ.
 
 Not covered: outlines (`outline` / `outlineCallsite` metadata), `rewriteFrame` (R8's rewrite of NPE frames), fields in messages.
 

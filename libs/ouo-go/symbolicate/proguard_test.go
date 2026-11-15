@@ -124,6 +124,9 @@ com.shop.Till -> a.d:
     1:2:void com.shop.Basket.count():30:31 -> a
     1:2:void pay():7 -> a
     3:3:void pay():8:8 -> a
+com.shop.Pair -> a.e:
+    1:1:void foo():10:10 -> a
+    1:1:void bar():20:20 -> a
 com.shop.BasketException -> a.c:
 # {"id":"sourceFile","fileName":"Errors.kt"}
 `
@@ -149,6 +152,7 @@ func TestRetraceCases(t *testing.T) {
 		{JVMFrame{Module: "a.a", Function: "zz", Lineno: 1}, true, ""},                                   // unknown method
 		{JVMFrame{Module: "a.b", Function: "<init>", Lineno: 1}, true, "com.shop.Basket$Line.<init> Basket.java:5"},
 		{JVMFrame{Module: "a.d", Function: "a", Lineno: 0}, true, "com.shop.Till.pay Till.java:0"}, // no line: the outer method of inline groups
+		{JVMFrame{Module: "a.e", Function: "a", Lineno: 1}, true, ""},                              // two methods on one range: not an inline chain
 		{JVMFrame{Module: "java.lang.Thread", Function: "run", Lineno: 1}, false, ""},
 	}
 	for _, c := range cases {
@@ -166,6 +170,9 @@ func TestRetraceCases(t *testing.T) {
 	// The exception class in the first line, and a stack without text.
 	if got := jvmStack("a.c: out of stock\n\tat a.a.a(SourceFile:3)", [][]Frame{{{Status: FrameMapped, Original: &Position{File: "Basket.kt", Line: 12, Function: "com.shop.Basket.add"}}}}, m); got != "com.shop.BasketException: out of stock\n\tat com.shop.Basket.add(Basket.kt:12)" {
 		t.Errorf("stack: %q", got)
+	}
+	if got := jvmStack("a.c: out\nCaused by: a.c: inner\n\tSuppressed: a.c: other\nThread x crashed:", nil, m); got != "com.shop.BasketException: out\nCaused by: com.shop.BasketException: inner\n\tSuppressed: com.shop.BasketException: other\nThread x crashed:" {
+		t.Errorf("causes: %q", got)
 	}
 	if got := jvmStack("", [][]Frame{{{Status: FrameNoMap, Generated: Position{File: "Thread.java", Line: 1, Function: "java.lang.Thread.run"}}}}, m); got != "    at java.lang.Thread.run(Thread.java:1)" {
 		t.Errorf("no text: %q", got)
