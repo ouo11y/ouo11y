@@ -107,30 +107,14 @@ func ParseEnvelope(b []byte) (*Envelope, error) {
 // Decompress returns the body decoded according to Content-Encoding. The
 // limit bounds the decompressed size.
 func Decompress(body []byte, contentEncoding string, limit int64) ([]byte, error) {
-	var rd io.Reader
-	switch enc := strings.ToLower(strings.TrimSpace(contentEncoding)); enc {
-	case "", "identity":
-		return body, nil
-	case "gzip", "x-gzip":
-		zr, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return nil, err
-		}
-		defer zr.Close()
-		rd = zr
-	case "deflate":
-		// HTTP "deflate" is zlib-wrapped; some clients send raw deflate.
-		if zr, err := zlib.NewReader(bytes.NewReader(body)); err == nil {
-			defer zr.Close()
-			rd = zr
-		} else {
-			fr := flate.NewReader(bytes.NewReader(body))
-			defer fr.Close()
-			rd = fr
-		}
-	default:
-		return nil, fmt.Errorf("unsupported content encoding %q", contentEncoding)
+	rd, _, err := newDecoder(body, contentEncoding)
+	if err != nil {
+		return nil, err
 	}
+	if rd == nil {
+		return body, nil
+	}
+	defer rd.Close()
 	out, err := io.ReadAll(io.LimitReader(rd, limit+1))
 	if err != nil {
 		return nil, err
@@ -139,4 +123,26 @@ func Decompress(body []byte, contentEncoding string, limit int64) ([]byte, error
 		return nil, fmt.Errorf("decompressed envelope larger than %d bytes", limit)
 	}
 	return out, nil
+}
+
+// newDecoder returns a reader of the decoded body, nil for an identity body.
+// rawDeflate reports a "deflate" body without the zlib wrapper.
+func newDecoder(body []byte, contentEncoding string) (rd io.ReadCloser, rawDeflate bool, err error) {
+	switch enc := strings.ToLower(strings.TrimSpace(contentEncoding)); enc {
+	case "", "identity":
+		return nil, false, nil
+	case "gzip", "x-gzip":
+		zr, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			return nil, false, err
+		}
+		return zr, false, nil
+	case "deflate":
+		// HTTP "deflate" is zlib-wrapped; some clients send raw deflate.
+		if zr, err := zlib.NewReader(bytes.NewReader(body)); err == nil {
+			return zr, false, nil
+		}
+		return flate.NewReader(bytes.NewReader(body)), true, nil
+	}
+	return nil, false, fmt.Errorf("unsupported content encoding %q", contentEncoding)
 }

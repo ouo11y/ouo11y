@@ -84,7 +84,11 @@ type sentryReceiver struct {
 	nextLogs   consumer.Logs
 	nextTraces consumer.Traces
 
-	queue       chan job
+	queue chan job
+	// closing guards the translate and mirror queues against a send after
+	// Shutdown closed them (a handler still waiting on its upstream).
+	closing     sync.RWMutex
+	closed      bool
 	workers     sync.WaitGroup
 	state       *sessionState
 	pending     pendingReplays
@@ -133,7 +137,7 @@ func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 			p.upstream = u
 		}
 		for _, mc := range pc.Mirrors {
-			m, err := r.mirrors.add(mc, cfg.Mirror.QueueSize)
+			m, err := r.mirrors.add(mc, pc.OuoProjectID)
 			if err != nil {
 				return nil, err
 			}
@@ -199,7 +203,7 @@ func newReceiver(set receiver.Settings, cfg *Config) (*sentryReceiver, error) {
 		return nil, err
 	}
 	if r.mirrorReqs, err = meter.Int64Counter("ouo_sentry_mirror_requests_total",
-		metric.WithDescription("Envelope copies for mirror upstreams by mirror and outcome (sent, error, dropped, body_not_rewritten)."),
+		metric.WithDescription("Envelope copies for mirror upstreams by mirror, ouo project and outcome (sent, error, dropped)."),
 		metric.WithUnit("{envelope}")); err != nil {
 		return nil, err
 	}
@@ -307,7 +311,7 @@ func (r *sentryReceiver) Shutdown(ctx context.Context) error {
 		if r.server != nil {
 			err = r.server.Shutdown(ctx)
 			r.serveWG.Wait()
-			close(r.queue)
+			r.closeQueues()
 			done := make(chan struct{})
 			go func() { r.workers.Wait(); close(done) }()
 			select {
@@ -327,23 +331,40 @@ func (r *sentryReceiver) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// closeQueues closes the translate and mirror queues; later sends drop.
+func (r *sentryReceiver) closeQueues() {
+	r.closing.Lock()
+	defer r.closing.Unlock()
+	if r.closed {
+		return
+	}
+	r.closed = true
+	close(r.queue)
+	for _, m := range r.mirrors.all {
+		close(m.queue)
+	}
+}
+
 // handle serves the ingest routes /api/{id}/{endpoint}/. Envelopes of a
-// known project are forwarded, mirrored and translated; everything the table
-// does not match goes to passthrough_upstream when set, else 403 / 404.
+// known project are forwarded, mirrored and translated; everything else the
+// bridge does not serve (unknown key or project, other paths and methods)
+// goes to passthrough_upstream when set, else 403 / 404 / 405.
 func (r *sentryReceiver) handle(w http.ResponseWriter, req *http.Request) {
-	m := ingestPathRe.FindStringSubmatch(req.URL.Path)
-	if m == nil {
-		writeDetail(w, http.StatusNotFound, "not found: the Sentry bridge serves only /api/{project_id}/envelope/")
-		return
-	}
-	sentryID, endpoint := m[1], m[2]
-	if endpoint == "envelope" && req.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		writeDetail(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
 	ctx := req.Context()
 	start := time.Now()
+	m := ingestPathRe.FindStringSubmatch(req.URL.Path)
+	envelopeNotPost := m != nil && m[2] == "envelope" && req.Method != http.MethodPost
+	if r.passthrough == nil {
+		switch {
+		case m == nil:
+			writeDetail(w, http.StatusNotFound, "not found: the Sentry bridge serves only /api/{project_id}/envelope/")
+			return
+		case envelopeNotPost:
+			w.Header().Set("Allow", http.MethodPost)
+			writeDetail(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -357,7 +378,12 @@ func (r *sentryReceiver) handle(w http.ResponseWriter, req *http.Request) {
 		r.count(ctx, "", "rejected", "read", 0)
 		return
 	}
+	if m == nil || envelopeNotPost {
+		r.forwardOther(w, req, r.passthrough, "", body, start)
+		return
+	}
 
+	sentryID, endpoint := m[1], m[2]
 	if endpoint != "envelope" {
 		// Other ingest endpoints: forwarded unchanged, never translated.
 		hk, qk := requestKeys(req)
@@ -477,6 +503,8 @@ func (r *sentryReceiver) proxy(w http.ResponseWriter, req *http.Request, base *u
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		r.set.Logger.Debug("copying the upstream response to the SDK failed", zap.Error(err))
 	}
+	// The SDK has its answer before any copy or translation is queued.
+	_ = http.NewResponseController(w).Flush()
 	return resp.StatusCode, nil
 }
 
@@ -535,6 +563,7 @@ func (r *sentryReceiver) answerLocally(w http.ResponseWriter, req *http.Request,
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"id": id})
+	_ = http.NewResponseController(w).Flush()
 	r.count(req.Context(), p.OuoProjectID, "accepted_local", "", http.StatusOK)
 	r.mirrorEnvelope(req.Context(), p, req, sentryID, key, forwardHeader(req), body)
 	r.enqueue(req.Context(), p, req, body, start)
@@ -551,6 +580,12 @@ func (r *sentryReceiver) translateLimit() int64 {
 func (r *sentryReceiver) enqueue(ctx context.Context, p *project, req *http.Request, body []byte, start time.Time) {
 	if int64(len(body)) > r.translateLimit() {
 		r.drop(ctx, p.OuoProjectID, "too_large")
+		return
+	}
+	r.closing.RLock()
+	defer r.closing.RUnlock()
+	if r.closed {
+		r.drop(ctx, p.OuoProjectID, "shutdown")
 		return
 	}
 	if !r.translateBudget.take(int64(len(body))) {

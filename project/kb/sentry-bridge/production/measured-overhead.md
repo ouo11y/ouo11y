@@ -9,7 +9,7 @@ Measured 2026-11-15 by `sentry-demo` (session sentry-mirror) on an Apple M5 / 32
 | Memory | 35–88 MiB during a 10-minute 15/s soak, 177 MiB after 64-sender bursts; queue peaks 18 MB (translate) and 17 MB (mirror) |
 | Restart | 3.2 s from `docker restart` to the first answer; at 20/s, 57 of 800 requests got a network error, none a 5xx |
 | Fidelity | 49/49 real sentry-cocoa / RN envelopes and 40/40 sentry-go envelopes byte-identical at production with identical answers; mirror bodies identical except the rewritten envelope `dsn` (sentry-go sends one, mobile SDKs do not) |
-| Mirror completeness | Copies dropped `queue_full` during 64-sender bursts (3 370 of 15 038 with 4 workers and a mirror at p99 5 s); none dropped at 15/s |
+| Mirror completeness | Copies dropped `queue_full` during 64-sender bursts (3 370 of 15 038 with 4 workers, a 1 000-envelope queue per mirror and a mirror at p99 5 s; that count cap became 10 000 in review, so bursts now drop on `mirror.queue_bytes`); none dropped at 15/s |
 
 Gotchas found on the way:
 

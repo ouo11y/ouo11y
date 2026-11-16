@@ -35,7 +35,7 @@ func createDefaultConfig() component.Config {
 		MaxTranslateBytes:   DefaultMaxTranslateBytes,
 		TranslateQueueSize:  DefaultTranslateQueueSize,
 		TranslateQueueBytes: DefaultTranslateQueueBytes,
-		Mirror:              MirrorSettings{QueueSize: DefaultMirrorQueueSize, QueueBytes: DefaultMirrorQueueBytes, Timeout: DefaultMirrorTimeout, Workers: DefaultMirrorWorkers},
+		Mirror:              MirrorSettings{QueueBytes: DefaultMirrorQueueBytes, Timeout: DefaultMirrorTimeout},
 		State:               StateConfig{MaxSessions: 200000, TTL: 4 * time.Hour, ReplayHold: 10 * time.Minute, LogHold: time.Minute},
 	}
 }
