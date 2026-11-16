@@ -433,19 +433,19 @@ func TestRewriteHelpers(t *testing.T) {
 	}
 	// No dsn: same slice back. br: cannot be checked.
 	b := []byte(sampleEnvelope)
-	if out, changed, err := rewriteEnvelopeDSN(b, "", "https://k@h/1"); err != nil || changed || &out[0] != &b[0] {
+	if out, changed, err := rewriteEnvelopeDSN(b, "", "https://k@h/1", 1<<20); err != nil || changed || &out[0] != &b[0] {
 		t.Errorf("no-dsn body: changed=%v err=%v", changed, err)
 	}
-	if _, _, err := rewriteEnvelopeDSN(b, "br", "https://k@h/1"); err == nil {
+	if _, _, err := rewriteEnvelopeDSN(b, "br", "https://k@h/1", 1<<20); err == nil {
 		t.Error("br body: want an error (counted as body_not_rewritten)")
 	}
-	if _, _, err := rewriteEnvelopeDSN([]byte(strings.Repeat("x", dsnLineMax+10)+"\n{}"), "", "https://k@h/1"); err == nil {
+	if _, _, err := rewriteEnvelopeDSN([]byte(strings.Repeat("x", dsnLineMax+10)+"\n{}"), "", "https://k@h/1", 1<<20); err == nil {
 		t.Error("header line over dsnLineMax: want an error")
 	}
 }
 
 // The dsn rewrite decodes only the header line and streams the rest, so a
-// body far over max_translate_bytes is rewritten too, in every encoding.
+// body over 20 MiB is rewritten too, in every encoding, within the limit.
 func TestRewriteDSNAnySize(t *testing.T) {
 	rest := bytes.Repeat([]byte(`{"type":"attachment","length":1}`+"\nx\n"), int(DefaultMaxTranslateBytes/34)+1000)
 	plain := append([]byte(`{"event_id":"e","dsn":"https://old@prod/2"}`+"\n"), rest...)
@@ -472,7 +472,7 @@ func TestRewriteDSNAnySize(t *testing.T) {
 	for name, enc := range encode {
 		t.Run(name, func(t *testing.T) {
 			ce, _, _ := strings.Cut(name, " ")
-			out, changed, err := rewriteEnvelopeDSN(enc(plain), ce, dsn)
+			out, changed, err := rewriteEnvelopeDSN(enc(plain), ce, dsn, 2*DefaultMaxTranslateBytes)
 			if err != nil || !changed {
 				t.Fatalf("changed=%v err=%v", changed, err)
 			}
@@ -484,6 +484,19 @@ func TestRewriteDSNAnySize(t *testing.T) {
 				t.Errorf("rewritten body differs (%d vs %d bytes)", len(got), len(want))
 			}
 		})
+	}
+}
+
+// A compression bomb with a dsn stops at the limit: the copy goes out as
+// received (body_not_rewritten) instead of burning a core.
+func TestRewriteDSNBombStopsAtLimit(t *testing.T) {
+	plain := append([]byte(`{"dsn":"https://old@prod/2"}`+"\n"), make([]byte, 8<<20)...)
+	bomb := gz(t, plain)
+	if _, _, err := rewriteEnvelopeDSN(bomb, "gzip", "https://new@preview/9", 1<<20); err == nil {
+		t.Fatal("8 MiB decoded over a 1 MiB limit: want an error")
+	}
+	if _, changed, err := rewriteEnvelopeDSN(bomb, "gzip", "https://new@preview/9", 16<<20); err != nil || !changed {
+		t.Fatalf("within the limit: changed=%v err=%v", changed, err)
 	}
 }
 

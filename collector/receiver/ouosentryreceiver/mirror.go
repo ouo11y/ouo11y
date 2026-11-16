@@ -198,7 +198,7 @@ func (r *sentryReceiver) sendMirror(m *mirror, j mirrorJob) {
 		}
 	}()
 	start := time.Now()
-	out, rewrote, err := m.request(r.mirrors.ctx, j)
+	out, rewrote, err := m.request(r.mirrors.ctx, j, r.translateLimit())
 	if err != nil {
 		r.mirrorCount(ctx, m, "error", "request", 0)
 		return
@@ -238,7 +238,7 @@ const (
 
 // request builds the mirror request: same method, body and headers; project
 // id and public key replaced where the mirror sets them (spec section 2b).
-func (m *mirror) request(ctx context.Context, j mirrorJob) (*http.Request, rewriteResult, error) {
+func (m *mirror) request(ctx context.Context, j mirrorJob, limit int64) (*http.Request, rewriteResult, error) {
 	projectID := firstString(m.projectID, j.sentryID)
 	key := firstString(m.publicKey, j.key)
 	changeKey := key != j.key
@@ -266,7 +266,7 @@ func (m *mirror) request(ctx context.Context, j mirrorJob) (*http.Request, rewri
 			}
 		}
 		dsn := fmt.Sprintf("%s://%s@%s%s/%s", m.base.Scheme, key, m.base.Host, m.base.Path, projectID)
-		nb, changed, err := rewriteEnvelopeDSN(body, header.Get("Content-Encoding"), dsn)
+		nb, changed, err := rewriteEnvelopeDSN(body, header.Get("Content-Encoding"), dsn, limit)
 		switch {
 		case err != nil:
 			res = rewriteSkipped
@@ -329,9 +329,10 @@ func rewriteQueryKey(raw, key string) string {
 // rewriteEnvelopeDSN replaces the envelope header's `dsn` when it has one.
 // Only the header line (at most dsnLineMax bytes) is decoded to look; bodies
 // without a dsn (every mobile SDK observed) come back unchanged. A rewritten
-// body is streamed through a new encoder of the same Content-Encoding, so its
-// size never matters.
-func rewriteEnvelopeDSN(body []byte, encoding, dsn string) ([]byte, bool, error) {
+// body is streamed through a new encoder of the same Content-Encoding; a
+// decoded body over limit (max_translate_bytes, a compression bomb) is an
+// error, so the copy goes out as received.
+func rewriteEnvelopeDSN(body []byte, encoding, dsn string, limit int64) ([]byte, bool, error) {
 	dec, rawDeflate, err := newDecoder(body, encoding)
 	if err != nil {
 		return nil, false, err
@@ -341,7 +342,7 @@ func rewriteEnvelopeDSN(body []byte, encoding, dsn string) ([]byte, bool, error)
 		defer dec.Close()
 		src = dec
 	}
-	br := bufio.NewReaderSize(src, 4096)
+	br := bufio.NewReaderSize(io.LimitReader(src, limit+1), 4096)
 	line, hasRest, err := readLine(br, dsnLineMax)
 	if err != nil {
 		return nil, false, err
@@ -380,8 +381,12 @@ func rewriteEnvelopeDSN(body []byte, encoding, dsn string) ([]byte, bool, error)
 	_, _ = w.Write(nl)
 	if hasRest {
 		_, _ = w.Write([]byte{'\n'})
-		if _, err := io.Copy(w, br); err != nil {
+		n, err := io.Copy(w, br)
+		if err != nil {
 			return nil, false, err
+		}
+		if int64(len(line))+1+n > limit {
+			return nil, false, fmt.Errorf("decoded envelope larger than %d bytes", limit)
 		}
 	}
 	if enc != nil {

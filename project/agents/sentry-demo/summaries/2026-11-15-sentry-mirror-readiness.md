@@ -44,3 +44,7 @@ Reviewer session posted `Review: changes needed` on PR #213. Changes made:
 8. sentrytap in CI: not done, `.github/` is outside this session's paths; follow-up.
 
 Verified: `go vet`, `gofmt`, `go test -race -count=3` in the receiver; `go vet` + build of sentrytap; lychee offline.
+
+## Review round 2 (2026-11-16)
+
+The reviewer found that the streaming dsn rewrite had no bound on decoded size (a gzip bomb with a `dsn` pinned a mirror worker's core). It is now bounded by `max_translate_bytes`; over it, the copy goes out as received (`reason="body_not_rewritten"`). `TestRewriteDSNBombStopsAtLimit`. `go test -race -count=2` green.
