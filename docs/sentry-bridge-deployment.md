@@ -74,7 +74,7 @@ receivers:
     endpoint: 0.0.0.0:4320
     upstream_timeout: 30s
     passthrough_upstream: https://o123.ingest.sentry.io        # same host as `upstream`
-    mirror: { queue_size: 1000, queue_bytes: 268435456, timeout: 10s, workers: 4 }
+    mirror: { queue_bytes: 268435456, timeout: 10s }
     projects:
       - sentry_project_id: "4504"
         public_keys: ["<DSN public key>"]

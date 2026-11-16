@@ -74,14 +74,14 @@ ul{padding-left:20px}
 <tr><td>14</td><td>ouo copy: <code>ouoratelimit</code> keys clients by address; behind a proxy every device shares one 100/s bucket</td><td class="warn">ouo copy</td><td>2 692 translation drops in a 406/s single-address burst = <code>ouo_ratelimit_rejected_total</code> exactly</td><td>Set <code>client.key_from: x_forwarded_for</code> behind a proxy, or raise the client limit</td></tr>
 <tr><td>15</td><td>ouo copy: session state is in one process; a restart loses held replay segments and mid-session matching; two replicas degrade translation (never forwarding)</td><td class="warn">ouo copy</td><td>spec section 8, N4</td><td>One replica; restarts in quiet hours</td></tr>
 <tr><td>16</td><td>ouo copy: bridged video replay does not reach Muninn (sibling session's finding: <code>config.muninn.yaml</code> has no bridge, and the bridge emits the MVP <code>kind:"video"</code> chunk, not <code>ouo-video/1</code>)</td><td class="warn">ouo copy</td><td>side-session note</td><td>Receiver change, separate task; on the default (rum-api) config replay works</td></tr>
-<tr><td>17</td><td>Mirror completeness: under bursts the preview gets fewer envelopes than production (3 370 copies dropped <code>queue_full</code> over 3 bursts of 3 000); a mirror sees every answered request, also those production answered 429</td><td class="warn">preview only</td><td><a href="#fail">counters</a></td><td>By design; raise <code>mirror.workers</code> / <code>queue_size</code> for a more complete preview; watch <code>ouo_sentry_mirror_requests_total{outcome!="sent"}</code></td></tr>
+<tr><td>17</td><td>Mirror completeness: under bursts the preview gets fewer envelopes than production (3 370 copies dropped <code>queue_full</code> over 3 bursts of 3 000); a mirror sees every answered request, also those production answered 429</td><td class="warn">preview only</td><td><a href="#fail">counters</a></td><td>By design; since review the per-mirror count cap is 10 000 and <code>mirror.queue_bytes</code> is the only bound, so bursts now drop on bytes (raise it for a more complete preview); watch <code>ouo_sentry_mirror_requests_total{outcome!="sent"}</code></td></tr>
 </table></div>
 <p>Item types: <code>session</code>, <code>event</code>, <code>transaction</code>, <code>log</code>, <code>replay_video</code>, <code>feedback</code> and <code>user_report</code> are translated; everything else (<code>attachment</code>, <code>client_report</code>, <code>profile</code>, <code>span</code>, <code>check_in</code>, web replay, <code>sessions</code> aggregates …) is forwarded and mirrored only (<a href="../../../kb/vendor-internals/sentry/wire-format/ouo-receiver-gaps.md">kb: receiver gaps</a>). In this run the translator counted 1 797 <code>client_report</code> items as not translated.</p>
 
 <h2 id="fanout">Fan-out design (ADR-0028)</h2>
 <pre>SDK ──► bridge ──► production Sentry ──► answer ──► SDK      (unchanged; the only answer)
           │  after the answer is written, non-blocking:
-          ├──► mirror queue (per mirror, count + shared byte budget) ──► N workers ──► preview Sentry   (timeout, never retried)
+          ├──► mirror queue (per mirror, shared byte budget) ──► 4 workers ──► preview Sentry   (timeout, never retried)
           └──► translate queue (count + byte budget) ──► Loki / Tempo / replay
           primary unreachable ──► SDK connection aborted, nothing queued (the SDK's retry is mirrored)
           table miss ──► passthrough_upstream (production), untranslated, not mirrored</pre>
@@ -144,7 +144,7 @@ ul{padding-left:20px}
     max_request_body_size: 20971520                 # 20 MiB: mobile envelopes are far smaller
     upstream_timeout: 30s
     passthrough_upstream: https://oNNN.ingest.sentry.io   # the production DSN's host, exactly
-    mirror: { queue_size: 1000, queue_bytes: 268435456, timeout: 10s, workers: 4 }
+    mirror: { queue_bytes: 268435456, timeout: 10s }
     projects:
       - sentry_project_id: "&lt;prod project id&gt;"
         public_keys: ["&lt;prod DSN public key&gt;"]

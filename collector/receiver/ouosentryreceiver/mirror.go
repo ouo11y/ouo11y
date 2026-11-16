@@ -1,7 +1,9 @@
 package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver"
 
 import (
+	"bufio"
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
 	"context"
@@ -23,11 +25,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// Mirrors (spec section 2b, ADR-0027): every envelope the bridge answered is
+// Mirrors (spec section 2b, ADR-0028): every envelope the bridge answered is
 // also sent, asynchronously, to each mirror of its project. The SDK's answer
-// is the primary's; the hot path only clones the headers and does a
-// non-blocking channel send. Queues are bounded by count (per mirror) and by
-// bytes (all mirrors together); whatever does not fit is dropped and counted.
+// is the primary's; the hot path only does an atomic budget take and a
+// non-blocking channel send. The bound is the bytes waiting for all mirrors
+// together; whatever does not fit is dropped and counted.
+
+const (
+	// mirrorWorkers is the number of concurrent sends per mirror.
+	mirrorWorkers = 4
+	// mirrorQueueLen only sizes the channel; queue_bytes is the real bound.
+	mirrorQueueLen = 10000
+	// dsnLineMax bounds the envelope header line read to find a dsn.
+	dsnLineMax = 64 << 10
+)
 
 // byteBudget is a lock-free byte bound shared by the producers of a queue.
 type byteBudget struct {
@@ -48,6 +59,7 @@ func (b *byteBudget) give(n int64) { b.used.Add(-n) }
 // mirror is one resolved MirrorConfig of one project.
 type mirror struct {
 	name      string
+	project   string // ouo_project_id, labels the metrics with name
 	base      *url.URL
 	projectID string // "" = unchanged
 	publicKey string // "" = unchanged
@@ -66,16 +78,12 @@ type mirrorJob struct {
 
 // mirrorSet holds every mirror, their client and budget.
 type mirrorSet struct {
-	all     []*mirror
-	client  *http.Client
-	budget  *byteBudget
-	workers int
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
-	// closing guards the queues against sends after Shutdown closed them.
-	closing sync.RWMutex
-	closed  bool
+	all    []*mirror
+	client *http.Client
+	budget *byteBudget
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 func newMirrorSet(s MirrorSettings) *mirrorSet {
@@ -87,10 +95,6 @@ func newMirrorSet(s MirrorSettings) *mirrorSet {
 	if limit <= 0 {
 		limit = DefaultMirrorQueueBytes
 	}
-	workers := s.Workers
-	if workers <= 0 {
-		workers = DefaultMirrorWorkers
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &mirrorSet{
 		client: &http.Client{
@@ -101,7 +105,7 @@ func newMirrorSet(s MirrorSettings) *mirrorSet {
 				DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          64,
-				MaxIdleConnsPerHost:   workers,
+				MaxIdleConnsPerHost:   mirrorWorkers,
 				IdleConnTimeout:       90 * time.Second,
 				TLSHandshakeTimeout:   5 * time.Second,
 				ResponseHeaderTimeout: timeout,
@@ -109,23 +113,19 @@ func newMirrorSet(s MirrorSettings) *mirrorSet {
 			},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
-		budget:  &byteBudget{limit: limit},
-		workers: workers,
-		ctx:     ctx,
-		cancel:  cancel,
+		budget: &byteBudget{limit: limit},
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
-func (ms *mirrorSet) add(mc MirrorConfig, queueSize int) (*mirror, error) {
+func (ms *mirrorSet) add(mc MirrorConfig, ouoProjectID string) (*mirror, error) {
 	u, err := url.Parse(mc.Upstream)
 	if err != nil {
 		return nil, err
 	}
 	u.Path = strings.TrimRight(u.Path, "/")
-	if queueSize <= 0 {
-		queueSize = DefaultMirrorQueueSize
-	}
-	m := &mirror{name: mirrorName(mc), base: u, projectID: mc.SentryProjectID, publicKey: mc.PublicKey, queue: make(chan mirrorJob, queueSize)}
+	m := &mirror{name: mirrorName(mc), project: ouoProjectID, base: u, projectID: mc.SentryProjectID, publicKey: mc.PublicKey, queue: make(chan mirrorJob, mirrorQueueLen)}
 	ms.all = append(ms.all, m)
 	return m, nil
 }
@@ -133,7 +133,7 @@ func (ms *mirrorSet) add(mc MirrorConfig, queueSize int) (*mirror, error) {
 // start runs the workers of every mirror.
 func (r *sentryReceiver) startMirrors() {
 	for _, m := range r.mirrors.all {
-		for range r.mirrors.workers {
+		for range mirrorWorkers {
 			r.mirrors.wg.Go(func() {
 				for j := range m.queue {
 					r.sendMirror(m, j)
@@ -144,18 +144,10 @@ func (r *sentryReceiver) startMirrors() {
 	}
 }
 
-// stopMirrors closes the queues, lets the workers drain them until ctx
-// expires, then aborts what is still in flight.
+// stopMirrors lets the workers drain the queues closeQueues closed until
+// ctx expires, then aborts what is still in flight.
 func (r *sentryReceiver) stopMirrors(ctx context.Context) {
 	ms := r.mirrors
-	ms.closing.Lock()
-	if !ms.closed {
-		ms.closed = true
-		for _, m := range ms.all {
-			close(m.queue)
-		}
-	}
-	ms.closing.Unlock()
 	done := make(chan struct{})
 	go func() { ms.wg.Wait(); close(done) }()
 	select {
@@ -174,10 +166,10 @@ func (r *sentryReceiver) mirrorEnvelope(ctx context.Context, p *project, req *ht
 		return
 	}
 	ms := r.mirrors
-	ms.closing.RLock()
-	defer ms.closing.RUnlock()
+	r.closing.RLock()
+	defer r.closing.RUnlock()
 	for _, m := range p.mirrors {
-		if ms.closed {
+		if r.closed {
 			r.mirrorCount(ctx, m, "dropped", "shutdown", 0)
 			continue
 		}
@@ -206,16 +198,20 @@ func (r *sentryReceiver) sendMirror(m *mirror, j mirrorJob) {
 		}
 	}()
 	start := time.Now()
-	out, rewrote, err := m.request(r.mirrors.ctx, j, r.translateLimit())
+	out, rewrote, err := m.request(r.mirrors.ctx, j)
 	if err != nil {
 		r.mirrorCount(ctx, m, "error", "request", 0)
 		return
 	}
+	// A copy whose dsn could not be checked is sent as received; its send
+	// outcome carries the reason, so each copy is counted once.
+	note := ""
 	if rewrote == rewriteSkipped {
-		r.mirrorCount(ctx, m, "body_not_rewritten", "", 0)
+		note = "body_not_rewritten"
+		r.set.Logger.Debug("mirror copy sent without dsn rewrite", zap.String("mirror", m.name), zap.String("encoding", j.header.Get("Content-Encoding")))
 	}
 	resp, err := r.mirrors.client.Do(out)
-	r.mirrorDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attribute.String("mirror", m.name)))
+	r.mirrorDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attribute.String("mirror", m.name), attribute.String("ouo.project.id", m.project)))
 	if err != nil {
 		reason := "unreachable"
 		var ne net.Error
@@ -229,7 +225,7 @@ func (r *sentryReceiver) sendMirror(m *mirror, j mirrorJob) {
 	// Drain a bounded amount so the connection is reused.
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	resp.Body.Close()
-	r.mirrorCount(ctx, m, "sent", "", resp.StatusCode)
+	r.mirrorCount(ctx, m, "sent", note, resp.StatusCode)
 }
 
 type rewriteResult int
@@ -237,12 +233,12 @@ type rewriteResult int
 const (
 	rewriteNone    rewriteResult = iota // body sent as received
 	rewriteDone                         // envelope header dsn rewritten
-	rewriteSkipped                      // dsn could not be checked (encoding, size): body sent as received
+	rewriteSkipped                      // dsn could not be checked (encoding, corrupt, header line too long): body sent as received
 )
 
 // request builds the mirror request: same method, body and headers; project
 // id and public key replaced where the mirror sets them (spec section 2b).
-func (m *mirror) request(ctx context.Context, j mirrorJob, limit int64) (*http.Request, rewriteResult, error) {
+func (m *mirror) request(ctx context.Context, j mirrorJob) (*http.Request, rewriteResult, error) {
 	projectID := firstString(m.projectID, j.sentryID)
 	key := firstString(m.publicKey, j.key)
 	changeKey := key != j.key
@@ -270,7 +266,7 @@ func (m *mirror) request(ctx context.Context, j mirrorJob, limit int64) (*http.R
 			}
 		}
 		dsn := fmt.Sprintf("%s://%s@%s%s/%s", m.base.Scheme, key, m.base.Host, m.base.Path, projectID)
-		nb, changed, err := rewriteEnvelopeDSN(body, header.Get("Content-Encoding"), dsn, limit)
+		nb, changed, err := rewriteEnvelopeDSN(body, header.Get("Content-Encoding"), dsn)
 		switch {
 		case err != nil:
 			res = rewriteSkipped
@@ -331,14 +327,25 @@ func rewriteQueryKey(raw, key string) string {
 }
 
 // rewriteEnvelopeDSN replaces the envelope header's `dsn` when it has one.
-// Bodies without a dsn (every mobile SDK observed) come back unchanged.
-// A rewritten body is re-compressed with the same Content-Encoding.
-func rewriteEnvelopeDSN(body []byte, encoding, dsn string, limit int64) ([]byte, bool, error) {
-	plain, err := Decompress(body, encoding, limit)
+// Only the header line (at most dsnLineMax bytes) is decoded to look; bodies
+// without a dsn (every mobile SDK observed) come back unchanged. A rewritten
+// body is streamed through a new encoder of the same Content-Encoding, so its
+// size never matters.
+func rewriteEnvelopeDSN(body []byte, encoding, dsn string) ([]byte, bool, error) {
+	dec, rawDeflate, err := newDecoder(body, encoding)
 	if err != nil {
 		return nil, false, err
 	}
-	line, rest, hasRest := bytes.Cut(plain, []byte("\n"))
+	var src io.Reader = bytes.NewReader(body)
+	if dec != nil {
+		defer dec.Close()
+		src = dec
+	}
+	br := bufio.NewReaderSize(src, 4096)
+	line, hasRest, err := readLine(br, dsnLineMax)
+	if err != nil {
+		return nil, false, err
+	}
 	if !bytes.Contains(line, []byte(`"dsn"`)) {
 		return body, false, nil
 	}
@@ -354,38 +361,61 @@ func rewriteEnvelopeDSN(body []byte, encoding, dsn string, limit int64) ([]byte,
 	if err != nil {
 		return nil, false, err
 	}
-	var buf bytes.Buffer
-	buf.Grow(len(nl) + len(rest) + 1)
-	buf.Write(nl)
+	var out bytes.Buffer
+	out.Grow(len(body) + len(nl) - len(line))
+	var enc io.WriteCloser
+	switch {
+	case dec == nil:
+	case rawDeflate:
+		enc, _ = flate.NewWriter(&out, flate.DefaultCompression)
+	case strings.EqualFold(strings.TrimSpace(encoding), "deflate"):
+		enc = zlib.NewWriter(&out)
+	default:
+		enc = gzip.NewWriter(&out)
+	}
+	var w io.Writer = &out
+	if enc != nil {
+		w = enc
+	}
+	_, _ = w.Write(nl)
 	if hasRest {
-		buf.WriteByte('\n')
-		buf.Write(rest)
-	}
-	switch strings.ToLower(strings.TrimSpace(encoding)) {
-	case "", "identity":
-		return buf.Bytes(), true, nil
-	case "gzip", "x-gzip":
-		var z bytes.Buffer
-		zw := gzip.NewWriter(&z)
-		_, _ = zw.Write(buf.Bytes())
-		if err := zw.Close(); err != nil {
+		_, _ = w.Write([]byte{'\n'})
+		if _, err := io.Copy(w, br); err != nil {
 			return nil, false, err
 		}
-		return z.Bytes(), true, nil
-	case "deflate":
-		var z bytes.Buffer
-		zw := zlib.NewWriter(&z)
-		_, _ = zw.Write(buf.Bytes())
-		if err := zw.Close(); err != nil {
+	}
+	if enc != nil {
+		if err := enc.Close(); err != nil {
 			return nil, false, err
 		}
-		return z.Bytes(), true, nil
 	}
-	return nil, false, fmt.Errorf("cannot re-encode %q", encoding)
+	return out.Bytes(), true, nil
+}
+
+// readLine reads up to the first newline (not included), at most limit bytes.
+// hasRest reports that a newline was found.
+func readLine(br *bufio.Reader, limit int) (line []byte, hasRest bool, err error) {
+	for {
+		chunk, err := br.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > limit+1 {
+			return nil, false, fmt.Errorf("envelope header line longer than %d bytes", limit)
+		}
+		switch {
+		case err == nil:
+			return line[:len(line)-1], true, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		case errors.Is(err, io.EOF):
+			return line, false, nil
+		default:
+			return nil, false, err
+		}
+	}
 }
 
 func (r *sentryReceiver) mirrorCount(ctx context.Context, m *mirror, outcome, reason string, status int) {
-	attrs := []attribute.KeyValue{attribute.String("mirror", m.name), attribute.String("outcome", outcome)}
+	attrs := []attribute.KeyValue{attribute.String("mirror", m.name), attribute.String("ouo.project.id", m.project), attribute.String("outcome", outcome)}
 	if reason != "" {
 		attrs = append(attrs, attribute.String("reason", reason))
 	}

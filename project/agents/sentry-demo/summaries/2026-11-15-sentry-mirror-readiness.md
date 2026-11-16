@@ -29,3 +29,18 @@ Session sentry-mirror (sentry-demo), started from the orchestrating session for 
 - Before switching a production DSN: merge, deploy an image with this change, set `passthrough_upstream`, put the fallback proxy in front (deployment guide), check one event's IP in Sentry.
 - `sentry-sbx` was started by this session and left as found (stopped) at the end; project `pilot-preview` (id 9) stays in it.
 - No dependency was added to the repo. `sentry-go` was used only in a scratch module outside the repo.
+
+## Review round 1 (2026-11-16)
+
+Reviewer session posted `Review: changes needed` on PR #213. Changes made:
+
+1. With `passthrough_upstream` set, every request the bridge does not serve goes there: paths outside `/api/{id}/{endpoint}/` and a non-POST `/envelope/` included (were `404` / `405`). Tests added to `TestPassthrough`.
+2. `upstream: none` projects' other endpoints go to passthrough: kept, documented in spec section 2a and the ADR.
+3. The mirror's `dsn` rewrite decodes only the header line (64 KiB bound) and streams the re-encoding (gzip, zlib, raw deflate), so body size no longer matters. `TestRewriteDSNAnySize` covers a body over 20 MiB in all encodings. `Decompress` now shares `newDecoder`.
+4. `body_not_rewritten` is a `reason` on the copy's send outcome, so each copy counts once.
+5. One guard (`closing` / `closed` on the receiver) for the translate and mirror queues; a late handler drops with `reason="shutdown"` instead of panicking. `TestLateEnqueueAfterShutdown`.
+6. Dropped `mirror.queue_size` and `mirror.workers` (now 4 workers, a 10 000 channel cap; `queue_bytes` is the bound). Mirror metrics carry `ouo.project.id`, so two projects mirrored to one host stay separate series.
+7. The answer is flushed (`http.ResponseController`) before copies and translation are queued.
+8. sentrytap in CI: not done, `.github/` is outside this session's paths; follow-up.
+
+Verified: `go vet`, `gofmt`, `go test -race -count=3` in the receiver; `go vet` + build of sentrytap; lychee offline.

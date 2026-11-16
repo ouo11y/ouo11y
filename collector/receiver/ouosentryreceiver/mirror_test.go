@@ -2,10 +2,13 @@ package ouosentryreceiver
 
 import (
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -185,6 +188,7 @@ func TestMirrorFailuresNeverTouchThePrimary(t *testing.T) {
 		w.WriteHeader(429)
 	}
 	t.Cleanup(func() { close(release) })
+	body := gz(t, []byte(sampleEnvelope))
 	h := startReceiver(t, prod.URL,
 		withMirrors(
 			MirrorConfig{Name: "hang", Upstream: hang.URL},
@@ -192,11 +196,11 @@ func TestMirrorFailuresNeverTouchThePrimary(t *testing.T) {
 			MirrorConfig{Name: "throttle", Upstream: throttle.URL},
 		),
 		func(c *Config) {
-			c.Mirror = MirrorSettings{QueueSize: 5, QueueBytes: 1 << 20, Timeout: 500 * time.Millisecond, Workers: 1}
+			// Room for 8 copies: the hanging mirror fills it, the rest drop.
+			c.Mirror = MirrorSettings{QueueBytes: int64(8 * len(body)), Timeout: 500 * time.Millisecond}
 		})
 
 	const n = 40
-	body := gz(t, []byte(sampleEnvelope))
 	var slowest time.Duration
 	for range n {
 		start := time.Now()
@@ -222,10 +226,10 @@ func TestMirrorFailuresNeverTouchThePrimary(t *testing.T) {
 		h.counter(t, "ouo_sentry_mirror_requests_total", attribute.String("mirror", "throttle"), attribute.String("status_code", "429")) == 0 {
 		t.Error("the 500 and 429 mirrors were never answered")
 	}
-	// The hanging mirror: one in flight, 5 queued, the rest dropped; the
-	// in-flight ones time out.
+	// The hanging mirror: at most 8 copies held (in flight or queued), the
+	// rest dropped; the in-flight ones time out.
 	h.waitCounter(t, 1, "ouo_sentry_mirror_requests_total", attribute.String("mirror", "hang"), attribute.String("outcome", "error"), attribute.String("reason", "timeout"))
-	if d := h.counter(t, "ouo_sentry_mirror_requests_total", attribute.String("mirror", "hang"), attribute.String("outcome", "dropped"), attribute.String("reason", "queue_full")); d < n-10 {
+	if d := h.counter(t, "ouo_sentry_mirror_requests_total", attribute.String("mirror", "hang"), attribute.String("outcome", "dropped"), attribute.String("reason", "queue_bytes")); d < n-10 {
 		t.Errorf("hang mirror dropped %d, want at least %d", d, n-10)
 	}
 
@@ -252,10 +256,10 @@ func TestMirrorBudgetBoundsMemory(t *testing.T) {
 	hang.reply = func(w http.ResponseWriter) { <-release }
 	t.Cleanup(func() { close(release) }) // before hang.Close (cleanups run last-in first-out)
 	body := gz(t, []byte(sampleEnvelope))
-	// Room for two bodies in all: the queue (100) is not the limit, the bytes are.
+	// Room for two bodies in all: the bytes are the limit.
 	h := startReceiver(t, prod.URL, withMirrors(MirrorConfig{Name: "hang", Upstream: hang.URL}),
 		func(c *Config) {
-			c.Mirror = MirrorSettings{QueueSize: 100, QueueBytes: int64(2*len(body) + 1), Timeout: 5 * time.Second, Workers: 1}
+			c.Mirror = MirrorSettings{QueueBytes: int64(2*len(body) + 1), Timeout: 5 * time.Second}
 		})
 	for range 10 {
 		post(t, h.base+"/api/"+testProject+"/envelope/", body, sdkHeaders()).Body.Close()
@@ -336,6 +340,9 @@ func TestPassthrough(t *testing.T) {
 		{"minidump with query key", "POST", "/api/" + testProject + "/minidump/?sentry_key=" + testKey, nil, prod},
 		{"security of an unknown project", "POST", "/api/9999/security/?sentry_key=x", nil, fallback},
 		{"preflight of another endpoint", "OPTIONS", "/api/9999/store/", nil, fallback},
+		{"path outside the ingest routes", "POST", "/api/" + testProject + "/integration/otlp/v1/traces", auth, fallback},
+		{"endpoint name longer than the route allows", "POST", "/api/" + testProject + "/" + strings.Repeat("x", 40) + "/", auth, fallback},
+		{"GET of a known project's envelope route", "GET", "/api/" + testProject + "/envelope/", auth, fallback},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -426,11 +433,75 @@ func TestRewriteHelpers(t *testing.T) {
 	}
 	// No dsn: same slice back. br: cannot be checked.
 	b := []byte(sampleEnvelope)
-	if out, changed, err := rewriteEnvelopeDSN(b, "", "https://k@h/1", 1<<20); err != nil || changed || &out[0] != &b[0] {
+	if out, changed, err := rewriteEnvelopeDSN(b, "", "https://k@h/1"); err != nil || changed || &out[0] != &b[0] {
 		t.Errorf("no-dsn body: changed=%v err=%v", changed, err)
 	}
-	if _, _, err := rewriteEnvelopeDSN(b, "br", "https://k@h/1", 1<<20); err == nil {
+	if _, _, err := rewriteEnvelopeDSN(b, "br", "https://k@h/1"); err == nil {
 		t.Error("br body: want an error (counted as body_not_rewritten)")
+	}
+	if _, _, err := rewriteEnvelopeDSN([]byte(strings.Repeat("x", dsnLineMax+10)+"\n{}"), "", "https://k@h/1"); err == nil {
+		t.Error("header line over dsnLineMax: want an error")
+	}
+}
+
+// The dsn rewrite decodes only the header line and streams the rest, so a
+// body far over max_translate_bytes is rewritten too, in every encoding.
+func TestRewriteDSNAnySize(t *testing.T) {
+	rest := bytes.Repeat([]byte(`{"type":"attachment","length":1}`+"\nx\n"), int(DefaultMaxTranslateBytes/34)+1000)
+	plain := append([]byte(`{"event_id":"e","dsn":"https://old@prod/2"}`+"\n"), rest...)
+	const dsn = "https://new@preview/9"
+	want := append([]byte(`{"dsn":"https://new@preview/9","event_id":"e"}`+"\n"), rest...)
+	encode := map[string]func([]byte) []byte{
+		"":     func(b []byte) []byte { return b },
+		"gzip": func(b []byte) []byte { return gz(t, b) },
+		"deflate": func(b []byte) []byte {
+			var z bytes.Buffer
+			zw := zlib.NewWriter(&z)
+			_, _ = zw.Write(b)
+			_ = zw.Close()
+			return z.Bytes()
+		},
+		"deflate (raw)": func(b []byte) []byte {
+			var z bytes.Buffer
+			fw, _ := flate.NewWriter(&z, flate.BestSpeed)
+			_, _ = fw.Write(b)
+			_ = fw.Close()
+			return z.Bytes()
+		},
+	}
+	for name, enc := range encode {
+		t.Run(name, func(t *testing.T) {
+			ce, _, _ := strings.Cut(name, " ")
+			out, changed, err := rewriteEnvelopeDSN(enc(plain), ce, dsn)
+			if err != nil || !changed {
+				t.Fatalf("changed=%v err=%v", changed, err)
+			}
+			got, err := Decompress(out, ce, 1<<30)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("rewritten body differs (%d vs %d bytes)", len(got), len(want))
+			}
+		})
+	}
+}
+
+// A handler still waiting on its upstream when Shutdown closed the queues
+// drops its copy and translation instead of panicking.
+func TestLateEnqueueAfterShutdown(t *testing.T) {
+	preview := newFakeUpstream(t)
+	h := startReceiver(t, "http://127.0.0.1:1", withMirrors(MirrorConfig{Upstream: preview.URL}))
+	h.r.closeQueues()
+	req := httptest.NewRequest(http.MethodPost, "/api/"+testProject+"/envelope/", nil)
+	p := h.r.projects[testProject+"/"+testKey]
+	h.r.mirrorEnvelope(context.Background(), p, req, testProject, testKey, http.Header{}, []byte(sampleEnvelope))
+	h.r.enqueue(context.Background(), p, req, []byte(sampleEnvelope), time.Now())
+	if n := h.counter(t, "ouo_sentry_translate_dropped_total", attribute.String("reason", "shutdown")); n != 1 {
+		t.Errorf("translate dropped(shutdown) = %d, want 1", n)
+	}
+	if n := h.counter(t, "ouo_sentry_mirror_requests_total", attribute.String("reason", "shutdown")); n != 1 {
+		t.Errorf("mirror dropped(shutdown) = %d, want 1", n)
 	}
 }
 
@@ -451,7 +522,7 @@ func TestMirrorConfigValidate(t *testing.T) {
 		"mirror key with comma": func(c *Config) { c.Projects[0].Mirrors[0].PublicKey = "a,b" },
 		"duplicate mirror":      func(c *Config) { c.Projects[0].Mirrors = append(c.Projects[0].Mirrors, c.Projects[0].Mirrors[0]) },
 		"passthrough":           func(c *Config) { c.PassthroughUpstream = "none" },
-		"negative mirror queue": func(c *Config) { c.Mirror.QueueSize = -1 },
+		"negative mirror queue": func(c *Config) { c.Mirror.QueueBytes = -1 },
 		"negative queue bytes":  func(c *Config) { c.TranslateQueueBytes = -1 },
 	}
 	for name, mutate := range bad {

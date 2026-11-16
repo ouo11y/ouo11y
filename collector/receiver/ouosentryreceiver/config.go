@@ -29,14 +29,10 @@ const (
 	DefaultTranslateQueueSize = 10000
 	// DefaultTranslateQueueBytes bounds the bytes waiting for translation.
 	DefaultTranslateQueueBytes int64 = 256 << 20
-	// DefaultMirrorQueueSize is the number of envelopes waiting per mirror.
-	DefaultMirrorQueueSize = 1000
 	// DefaultMirrorQueueBytes bounds the bytes waiting for all mirrors together.
 	DefaultMirrorQueueBytes int64 = 256 << 20
 	// DefaultMirrorTimeout bounds one mirror round trip.
 	DefaultMirrorTimeout = 10 * time.Second
-	// DefaultMirrorWorkers is the number of concurrent sends per mirror.
-	DefaultMirrorWorkers = 4
 	// UpstreamNone answers locally instead of forwarding (cutover mode).
 	UpstreamNone = "none"
 )
@@ -107,7 +103,8 @@ type ProjectConfig struct {
 
 // MirrorConfig is one secondary Sentry that gets a copy of a project's envelopes.
 type MirrorConfig struct {
-	// Name labels the mirror's metrics (default: the upstream host).
+	// Name labels the mirror's metrics, next to the project's ouo_project_id
+	// (default: the upstream host).
 	Name string `mapstructure:"name"`
 	// Upstream is the mirror's ingest base URL (scheme://host[:port][/path]).
 	Upstream string `mapstructure:"upstream"`
@@ -121,14 +118,10 @@ type MirrorConfig struct {
 
 // MirrorSettings bounds the mirror queues.
 type MirrorSettings struct {
-	// QueueSize is the number of envelopes waiting per mirror.
-	QueueSize int `mapstructure:"queue_size"`
 	// QueueBytes bounds the bytes waiting for all mirrors together.
 	QueueBytes int64 `mapstructure:"queue_bytes"`
 	// Timeout bounds one mirror round trip.
 	Timeout time.Duration `mapstructure:"timeout"`
-	// Workers is the number of concurrent sends per mirror.
-	Workers int `mapstructure:"workers"`
 }
 
 // StateConfig bounds the correlation state.
@@ -152,8 +145,8 @@ func (cfg *Config) Validate() error {
 	if cfg.UpstreamTimeout < 0 || cfg.MaxTranslateBytes < 0 || cfg.TranslateQueueSize < 0 || cfg.TranslateQueueBytes < 0 {
 		errs = append(errs, errors.New("upstream_timeout, max_translate_bytes, translate_queue_size and translate_queue_bytes must not be negative"))
 	}
-	if m := cfg.Mirror; m.QueueSize < 0 || m.QueueBytes < 0 || m.Timeout < 0 || m.Workers < 0 {
-		errs = append(errs, errors.New("mirror queue_size, queue_bytes, timeout and workers must not be negative"))
+	if m := cfg.Mirror; m.QueueBytes < 0 || m.Timeout < 0 {
+		errs = append(errs, errors.New("mirror queue_bytes and timeout must not be negative"))
 	}
 	if cfg.PassthroughUpstream != "" && !validUpstream(cfg.PassthroughUpstream) {
 		errs = append(errs, errors.New("passthrough_upstream must be an http(s) base URL without query"))
