@@ -23,10 +23,6 @@ data:
       grpc_server_max_recv_msg_size: 67108864
       grpc_server_max_send_msg_size: 67108864
 
-    frontend_worker:
-      grpc_client_config:
-        max_send_msg_size: 67108864
-
     common:
       instance_addr: 127.0.0.1
       path_prefix: /loki

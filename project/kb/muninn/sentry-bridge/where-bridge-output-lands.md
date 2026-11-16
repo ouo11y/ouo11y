@@ -18,5 +18,5 @@ The bridge emits one log record per segment whose body is the MVP JSON chunk (`k
 
 ## Watch out
 
-- Open PR ouo11y/ouo11y#208 (remove rum-api) makes `config.yaml` = spec wire + bridge and sends bridged replay segments to `debug`: from then on Sentry replays are stored nowhere until the receiver emits `ouo-video/1`. It also deletes `compose.muninn.yaml`, which makes this overlay moot.
+- Open PR ouo11y/ouo11y#208 (remove rum-api) makes `config.yaml` = spec wire + bridge and sends bridged replay segments to `debug`: from then on Sentry replays are stored nowhere until the receiver emits `ouo-video/1`. It also deletes `compose.muninn.yaml` and rum-api, which makes dead: this overlay (`config.muninn-sentry.yaml`), `deploy/scripts/sentry-demo.sh`'s rum-api checks (verify-bridge.py reads sessions and replays from rum-api) and its `OUO_MUNINN_URL` guard (no `--muninn` flag any more), and the `rumapi-down` phase of `deploy/scripts/sentry-backpressure.sh`. Whichever of the two merges second removes or ports them.
 - The bridge answers the SDK before it translates (`receiver.go`, `forward` then `enqueue`), so the spec's COL-4 ("2xx only after the disk queue write") cannot hold for bridged replays: a full or broken replay queue is a counted drop (`consumer_replay`), never a 503 to the SDK. With a real upstream, Sentry still has the segment.

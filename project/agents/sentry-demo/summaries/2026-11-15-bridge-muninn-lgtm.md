@@ -6,10 +6,10 @@ Question: with the Sentry bridge (`ouosentry`, :4320) in front of an unchanged S
 
 - **Found**: the `--muninn` stack's collector (`config.muninn.yaml`) had no bridge (port 4320 published and advertised, nothing listening). Bridged replay is the MVP `kind: "video"` JSON chunk, which Muninn's wire refuses and ADR-0019 forbids translating in the collector.
 - **`deploy/compose/collector/config.muninn-sentry.yaml`**, merged over `config.muninn.yaml` by a second `--config` in `compose.muninn.yaml`: bridge errors, sessions, logs, vitals and breadcrumbs to Loki, transactions to Tempo (span metrics to Mimir), bridged video to rum-api; spec-wire replay to Muninn unchanged. Transitional: delete it when the bridge emits `ouo-video/1` or when PR #208 lands.
-- **`examples/tools/sentryreplay.py`** (+ `test_sentryreplay.py`, 5 tests in the CI `unittest discover`): replays a sentrytap capture in real time with timestamps moved to now and fresh ids, rewrites msgpack replay items, saves what it sent as a capture; `--passes/--concurrency/--gap 0` for load.
+- **`examples/tools/sentryreplay.py`** (+ `test_sentryreplay.py`, 6 tests in the CI `unittest discover`): replays a sentrytap capture in real time with timestamps moved to now and fresh ids, rewrites msgpack replay items, saves what it sent as a capture; `--passes/--concurrency/--gap 0` for load.
 - **`deploy/scripts/sentry-demo.sh`**: replay, `verify-bridge.py`, Mimir checks, optional `tests/e2e/muninn` and load. **`deploy/scripts/sentry-backpressure.sh`** + **`tests/e2e/muninn/load.mjs`**: baseline, Loki, Muninn, rum-api down.
 - **`verify-bridge.py`**: errors follow bridge spec section 6 (an info `captureMessage` is a `sentry.message`); `--no-backend` for replayed captures.
-- **Loki gRPC message size** (`deploy/compose/loki/config.yaml`, Helm Loki configmap): 4 MiB to 64 MiB. With a few thousand bridged sessions, a 5 000-line split was 5.3 MB and rum-api's session list hung 60 s.
+- **Loki gRPC server message size** (`server.grpc_server_max_{recv,send}_msg_size` in `deploy/compose/loki/config.yaml` and the Helm Loki configmap): 4 MiB to 64 MiB; the querier's client side already allows 100 MiB. With a few thousand bridged sessions, a 5 000-line split was 5.3 MB and rum-api's session list hung 60 s.
 
 ## Verified, and how
 

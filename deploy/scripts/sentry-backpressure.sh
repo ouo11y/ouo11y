@@ -90,7 +90,8 @@ dc stop loki >/dev/null 2>&1
 bridge_load loki-down | tee "$OUT/loki-down.result"
 log "starting Loki, waiting for its queue to drain"
 dc start loki >/dev/null 2>&1
-until [[ "$(curl -s -m5 "$OUO_LOKI_URL/ready")" == ready ]]; do sleep 5; done
+for i in $(seq 1 60); do [[ "$(curl -s -m5 "$OUO_LOKI_URL/ready")" == ready ]] && break; sleep 5; done
+[[ "$(curl -s -m5 "$OUO_LOKI_URL/ready")" == ready ]] || { echo "Loki not ready 5 min after start" >&2; exit 1; }
 sleep 60
 echo "{\"phase\":\"loki-down\",\"sessions_in_loki_after_restart\":\"$(sessions_in_loki "$OUT/loki-down.json")\"}"
 

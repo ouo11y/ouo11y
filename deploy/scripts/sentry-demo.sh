@@ -6,8 +6,9 @@
 #
 # 1. replay   examples/tools/sentryreplay.py sends a recorded Sentry SDK journey (default: the
 #             golden iOS capture of @sentry/react-native 8.32.0, unchanged SDK, sessions, errors,
-#             a crash, logs, transactions and replay_video segments) to the bridge on :4320, with
-#             in real time (2.5 min), every timestamp moved to now and fresh ids; what it sent is saved as a sentrytap capture.
+#             a crash, logs, transactions and replay_video segments) to the bridge on :4320 in real
+#             time (2.5 min), with every timestamp moved to now and fresh ids; what it sent is saved
+#             as a sentrytap capture.
 # 2. verify   examples/sentry-mobile/scripts/verify-bridge.py derives sessions, errors, logs,
 #             transactions and replay segments from that capture and finds each of them in
 #             rum-api, Loki, Tempo and rum-api's replay store (mp4 bytes compared by sha256 and
