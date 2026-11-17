@@ -99,7 +99,7 @@ enum Journey {
         case "crash":
             after(3) {
                 note("crash")
-                UnsafeMutablePointer<Int>(bitPattern: 8)!.pointee = 1
+                crashForSymbolication()
             }
         case "early":
             after(0.2) {
@@ -157,4 +157,12 @@ enum Journey {
         for v in view.subviews { out += dump(v, depth: depth + 1) }
         return out
     }
+}
+
+/// The crash of action `crash`, in a function of its own: identical closures (`crash`, `early`)
+/// are merged by the optimizer and lose their line in the dSYM. tests/e2e/symbolication asserts
+/// that the crash resolves to this function, file and line: keep the write on the line below the
+/// signature, or update the script's expectations.
+@inline(never) func crashForSymbolication() {
+    UnsafeMutablePointer<Int>(bitPattern: 8)!.pointee = 1
 }
