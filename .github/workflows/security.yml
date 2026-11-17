@@ -5,7 +5,9 @@
 #                is part of the scan). Reports only vulnerabilities reachable from our code,
 #                which govulncheck lists with the version that fixes them: any finding fails.
 #   npm audit    runtime dependencies of the workspaces (what ships in the SDKs and the plugin)
-#                fail at high and above; dev tooling is listed in the summary, not gating.
+#                fail at high and above, except the advisories without a patched release listed
+#                in .github/scripts/npm-audit-gate.mjs; dev tooling is listed in the summary,
+#                not gating.
 #
 # Runs on pull requests that touch Go or npm dependencies or code, every Monday (new advisories
 # appear without code changes), and on demand. Renovate (.github/renovate.json5) opens the
@@ -82,5 +84,9 @@ jobs:
             npm audit --audit-level=high 2>&1 | tail -6 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # Gating on high and above; .github/scripts/npm-audit-gate.mjs holds the advisories without
+      # a patched release that are ignored (each dated, with when to drop it).
       - name: Runtime dependencies, high and above (gating)
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          npm audit --omit=dev --json > audit.json || true
+          node .github/scripts/npm-audit-gate.mjs < audit.json
