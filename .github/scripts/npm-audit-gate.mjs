@@ -25,14 +25,18 @@ if (report.error) {
   console.error(`npm audit failed: ${JSON.stringify(report.error)}`);
   process.exit(1);
 }
+if (report.auditReportVersion !== 2 || typeof report.vulnerabilities !== 'object' || !report.vulnerabilities) {
+  console.error('npm audit output is not an auditReportVersion 2 report; refusing to pass');
+  process.exit(1);
+}
 
 const failing = [];
 const ignored = [];
-for (const [pkg, vuln] of Object.entries(report.vulnerabilities ?? {})) {
+for (const [pkg, vuln] of Object.entries(report.vulnerabilities)) {
   for (const via of vuln.via) {
     if (typeof via === 'string' || !GATING.has(via.severity)) continue;
     const id = via.url?.split('/').pop();
-    (IGNORED[id] ? ignored : failing).push(`${pkg} ${via.severity} ${id}: ${via.title}`);
+    (Object.hasOwn(IGNORED, id) ? ignored : failing).push(`${pkg} ${via.severity} ${id}: ${via.title}`);
   }
 }
 for (const line of ignored) console.log(`ignored: ${line}`);
