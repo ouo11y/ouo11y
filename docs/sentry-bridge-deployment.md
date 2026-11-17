@@ -110,8 +110,8 @@ for Loki, Tempo and Mimir. Measured on 2026-11-17
   Sentry SDKs reuse their connection. With nginx's default 60 s timeouts a blackholed bridge
   made every request wait 60 s (p50 60.0 s; 8 of 24 clients timed out, 5 of those 8 envelopes had
   reached production anyway, so the SDK's retry duplicates them, and 3 had not). A 2 s slow bridge
-  added 2 s to every request. With the timeouts below, a blackholed bridge costs at most the read
-  timeout (p50 +66 ms at 100 ms) and a refused one costs nothing.
+  added 2 s to every request. With the timeouts below, a blackholed bridge costs about the read
+  timeout (p50 66–77 ms, p99 103–169 ms on the loaded test host) and a refused one costs nothing.
 - **`passthrough_upstream` must stay unset** on a mirror-fed bridge: otherwise every mirrored
   envelope of another project on the same ingest host reaches production a second time
   (spec section 2a).
@@ -120,15 +120,21 @@ for Loki, Tempo and Mimir. Measured on 2026-11-17
   moving between Wi-Fi and cellular splits its session from that envelope on (see "What breaks
   with two replicas" below). Hashing on the DSN key is correct but sends a whole app to one
   instance, which is one bridge again. Sentry SDKs send no device or session header nginx could
-  hash on; the ids are inside the body. Scale the one bridge up, and give it a `backup` standby.
+  hash on; the ids are inside the body. Scale the one bridge up, and give it a `backup` standby
+  for a dead primary (not a flapping one: each failover splits sessions between two instances
+  with cold state; failover was not measured).
 - **Rate limits behind nginx.** Set `client.key_from: x_forwarded_for` on `ouoratelimit`
-  (`OUO_RATELIMIT_CLIENT_KEY`) and have nginx send `X-Forwarded-For`; otherwise every device
-  shares the proxy's one client bucket (100/s by default) and translation drops past it.
+  (`OUO_RATELIMIT_CLIENT_KEY`); otherwise every device shares the proxy's one client bucket
+  (100/s by default) and translation drops past it. Have nginx *replace* the header with the
+  address it saw (`$remote_addr`; behind a load balancer, `set_real_ip_from` +
+  `real_ip_header X-Forwarded-For` first): appending (`$proxy_add_x_forwarded_for`) keeps the
+  device's own value as the first hop, so a device sending a new value each time gets a new
+  bucket each time and can drain the project bucket for everyone.
 
 ```nginx
 upstream ouo_bridge {
     server 127.0.0.1:4320;                # the bridge next to nginx: a dead one refuses at once
-    server ouo-bridge-standby:4320 backup;
+    server ouo-bridge-standby:4320 backup;  # for a dead primary, not a flapping one (unmeasured)
     keepalive 16;
     keepalive_timeout 30s;                # below the bridge's idle timeout (1 min)
 }
@@ -137,7 +143,7 @@ server {
     client_body_buffer_size 1m;           # the mirror needs the body; keep it in memory
     location ~ ^/api/[0-9]+/envelope/$ {
         mirror /_ouo_mirror;
-        mirror_request_body on;           # required: the bridge needs the body
+        mirror_request_body on;           # the default; keep it on: the bridge needs the body
         # ... the same proxy_pass and headers to production as location / ...
     }
     location = /_ouo_mirror {
@@ -145,7 +151,7 @@ server {
         proxy_pass http://ouo_bridge$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;  # replace, never append: the rate-limit key
         proxy_connect_timeout 50ms;       # each bounds what a dead or slow bridge adds
         proxy_send_timeout 100ms;         # to the device's next request on the connection
         proxy_read_timeout 100ms;
@@ -159,7 +165,8 @@ when the bridge stalls; the copies it loses are counted nowhere on the bridge (w
 error log for `upstream timed out` on `/_ouo_mirror`, or compare Sentry's accepted count with
 `ouo_sentry_envelopes_total{outcome="accepted_local"}`). `mirror_request_body on` makes nginx
 read the whole body before it proxies to production, which is nginx's default
-(`proxy_request_buffering on`) anyway.
+(`proxy_request_buffering on`) anyway. The production location keeps whatever
+`X-Forwarded-For` handling it has today; only the mirror's header feeds the rate limiter.
 
 ## What the bridge keeps in memory
 
