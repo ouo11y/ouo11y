@@ -1,0 +1,17 @@
+# Grafana: the UI. It reads Loki and Tempo directly (provisioning/datasources), and runs your
+# plugin from ../plugin/dist (guide 03): its backend reads Loki and Muninn inside this network.
+# Port 3000, admin / testing567: development credentials, public.
+services:
+  grafana:
+    image: grafana/grafana:13.2.5
+    ports:
+      - "${OUO_GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: testing567
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: myorg-sessions-app   # your build is not signed
+      MUNINN_READ_TOKEN: mrt_dev_0000000000000000   # read by provisioning/plugins; equals Muninn's
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ../../plugin/dist:/var/lib/grafana/plugins/myorg-sessions-app:ro
+    depends_on: [loki, tempo, muninn]

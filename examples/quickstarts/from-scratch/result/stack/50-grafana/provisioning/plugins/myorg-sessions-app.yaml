@@ -1,0 +1,13 @@
+# Turns your plugin on in org 1 and gives its backend where to read (guide 03).
+# jsonData is readable by every signed-in user; the read token goes in secureJsonData.
+apiVersion: 1
+
+apps:
+  - type: myorg-sessions-app
+    org_id: 1
+    disabled: false
+    jsonData:
+      lokiUrl: http://loki:3100
+      muninnUrl: http://muninn:3400
+    secureJsonData:
+      muninnReadToken: $MUNINN_READ_TOKEN

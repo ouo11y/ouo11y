@@ -1,0 +1,35 @@
+# OpenTelemetry Collector: the only ingest. Browsers and phones post OTLP to 4318 with the
+# project credential; it forwards spans to Tempo, events to Loki, and replay chunks to Muninn
+# (with a reference record in Loki). Ports: 4318 OTLP/HTTP (public), 13133 health (loopback).
+services:
+  otel-collector:
+    # The stock contrib distribution, pinned: it has every component config.yaml uses, the
+    # replay disk queue (file_storage) included. ghcr.io/ouo11y/collector adds a per-client
+    # rate limiter; its released 0.5.0 has no file_storage yet, so this guide uses contrib.
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"
+    environment:
+      MUNINN_INGEST_TOKEN: mit_dev_0000000000000000   # must equal Muninn's ingest token
+    volumes:
+      - ./config.yaml:/etc/otelcol/config.yaml:ro
+      - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
+      - replay-queue:/var/lib/otelcol/replay-queue
+    depends_on:
+      replay-queue-init:
+        condition: service_completed_successfully
+      tempo: {condition: service_started}
+      loki: {condition: service_started}
+      muninn: {condition: service_started}
+
+  # The collector runs as user 10001, and a new volume belongs to root: hand it over once.
+  replay-queue-init:
+    image: busybox:1.37
+    command: ["chown", "10001:10001", "/var/lib/otelcol/replay-queue"]
+    volumes:
+      - replay-queue:/var/lib/otelcol/replay-queue
+
+volumes:
+  replay-queue:   # chunks waiting for Muninn survive a collector restart

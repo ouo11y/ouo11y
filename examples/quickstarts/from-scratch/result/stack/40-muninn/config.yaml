@@ -1,0 +1,14 @@
+# Muninn on a local directory. Every key and its default:
+# https://github.com/ouo11y/ouo11y/blob/main/services/muninn/config.example.yaml
+server:
+  http_listen_port: 3400
+multitenancy_enabled: false   # every request is tenant "anonymous"
+auth:
+  ingest_token: ${MUNINN_INGEST_TOKEN}
+  read_token: ${MUNINN_READ_TOKEN}
+storage:
+  backend: filesystem
+  filesystem:
+    directory: /data
+retention:
+  default: 720h               # replays older than 30 days are removed
