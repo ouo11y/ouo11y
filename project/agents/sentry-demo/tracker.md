@@ -10,6 +10,7 @@
 | 2026-10-23 | Batch 2: examples per path (N23) with trace-continuity `verify` (N24), mobile vitals end to end (A4), SDK range goldens 8.32.0 / 7.11.0 (N3), client setup notes (N5); all three examples 14/14 on an env, sentry-mobile also against self-hosted Sentry; PRs #43 and batch 2 PR 2; [summary](summaries/2026-10-23-b2-bridge-examples.md) |
 | 2026-11-15 | Production DSN readiness of the bridge: 17-risk audit, mirrors + passthrough (ADR-0028), byte-bounded queues, panic recovery; end to end against self-hosted Sentry with a preview project as mirror (49/49 and 40/40 byte-identical, +3–4 ms p50, 12 000 × 200 under burst and soak with the mirror killed). [summary](summaries/2026-11-15-sentry-mirror-readiness.md), [report](reports/sentry-mirror-readiness.html) |
 
+| 2026-11-17 | Hybrid fan-out (nginx `mirror` to a bridge with `upstream: none`): with nginx defaults a blackholed bridge holds every keep-alive device 60 s; with 50/100/100 ms mirror timeouts the worst case is ~+100 ms; `passthrough_upstream` on a mirror-fed bridge duplicates (120 → 180); one instance; XFF now reaches `ouoratelimit`. [summary](summaries/2026-11-17-sentry-hybrid-mirror.md), [report](reports/sentry-hybrid-mirror.html) |
 ## Open
 
 - Android: not built (no Android SDK on this Mac).

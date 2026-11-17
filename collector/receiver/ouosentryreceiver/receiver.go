@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -54,10 +55,28 @@ type job struct {
 	body       []byte
 	receivedAt time.Time
 	clientAddr string
+	// forwardedFor is the request's X-Forwarded-For, handed down as client
+	// metadata so ouoratelimit's `key_from: x_forwarded_for` can tell the
+	// devices behind a proxy apart.
+	forwardedFor []string
 	// origin identifies the sending device's network path (X-Forwarded-For
 	// chain and peer address) for the startup log rule; never trusted for
 	// anything else.
 	origin string
+}
+
+// clientInfo is the client context the job's telemetry enters the pipelines
+// with: the ouo project as auth (like basicauth), the peer address and the
+// X-Forwarded-For header as metadata (like include_metadata: true).
+func (j job) clientInfo() client.Info {
+	info := client.Info{Auth: projectAuth(j.project.OuoProjectID)}
+	if ip := net.ParseIP(j.clientAddr); ip != nil {
+		info.Addr = &net.IPAddr{IP: ip}
+	}
+	if len(j.forwardedFor) > 0 {
+		info.Metadata = client.NewMetadata(map[string][]string{"X-Forwarded-For": j.forwardedFor})
+	}
+	return info
 }
 
 // originKey is the job's origin, or its client address without one.
@@ -592,7 +611,7 @@ func (r *sentryReceiver) enqueue(ctx context.Context, p *project, req *http.Requ
 		r.drop(ctx, p.OuoProjectID, "queue_bytes")
 		return
 	}
-	j := job{project: p, encoding: req.Header.Get("Content-Encoding"), body: body, receivedAt: start, clientAddr: clientIP(req.RemoteAddr), origin: requestOrigin(req)}
+	j := job{project: p, encoding: req.Header.Get("Content-Encoding"), body: body, receivedAt: start, clientAddr: clientIP(req.RemoteAddr), forwardedFor: req.Header.Values("X-Forwarded-For"), origin: requestOrigin(req)}
 	select {
 	case r.queue <- j:
 	default:

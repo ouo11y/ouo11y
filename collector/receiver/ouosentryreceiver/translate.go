@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"net"
 	"net/url"
 	"sort"
 	"strconv"
@@ -912,11 +911,7 @@ func (t *translation) sessionSpanAttrs(a pcommon.Map, x *sess, match, userID str
 // client auth context.
 func (t *translation) consume(ctx context.Context) {
 	logsNext, tracesNext := t.r.consumers()
-	info := client.Info{Auth: projectAuth(t.j.project.OuoProjectID)}
-	if ip := net.ParseIP(t.j.clientAddr); ip != nil {
-		info.Addr = &net.IPAddr{IP: ip}
-	}
-	cctx := client.NewContext(ctx, info)
+	cctx := client.NewContext(ctx, t.j.clientInfo())
 	if t.hasLogs {
 		t.applyDevice(t.logs.ResourceLogs().At(0).Resource().Attributes())
 	}
