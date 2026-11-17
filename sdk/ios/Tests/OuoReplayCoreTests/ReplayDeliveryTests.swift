@@ -78,8 +78,13 @@ import Testing
         var lost: [String] = []
         d.onLoss = { id in lock.withLock { lost.append(id) } }
         #expect(d.put(Data([1, 2, 3, 4]), streamId: stream, sequence: sequence))
+        // `queuedCount` reads on the queue's thread, after the step that removed the record and counted it.
         await eventually("answered") { d.queuedCount == 0 && transport.count >= responses.count }
-        // Loss callbacks are asynchronous.
+        // Loss callbacks come later, on the delivery's queue: wait for one per chunk counted lost.
+        let s = d.stats
+        let losses = sequence == nil ? 0 : s.partialRejected + s.rejectedStatus + s.evicted
+        await eventually("losses reported") { lock.withLock { lost.count } >= losses }
+        // And a little longer, so a callback that should not come (an end record's) has had its chance.
         try? await Task.sleep(nanoseconds: 30_000_000)
         return (d, transport, lock.withLock { lost })
     }
@@ -218,13 +223,28 @@ import Testing
         let d = delivery(HangingTransport(), maxQueueBytes: 2500)
         let adapter = StubAdapter()
         let s = ReplayStream(sessionId: "s", scope: testScope, adapter: adapter, sink: d)
-        d.onLoss = { s.chunkLost(streamId: $0) }
+        let lock = NSLock()
+        var reported = 0
+        d.onLoss = { id in
+            s.chunkLost(streamId: id)
+            lock.withLock { reported += 1 }
+        }
         let filler = String(repeating: "x", count: 600)
-        for i in 0..<8 {
-            s.look(StubLook(content: filler), at: Int64(i))
+        func chunk(_ t: Int64) {
+            s.look(StubLook(content: filler), at: t)
             s.flush()
         }
-        await eventually("stream partial") { s.isPartial }
+        // A put evicts before it returns; the stream hears of it later, on the delivery's queue.
+        func lossesReported() async { await eventually("losses reported") { lock.withLock { reported } == d.stats.evicted } }
+        for i in 0..<8 { chunk(Int64(i)) }
+        await lossesReported()
+        #expect(s.isPartial)
+        // A loss reported before a look of the loop was already answered by that look's keyframe:
+        // one more chunk, and no look until its eviction has reached the stream.
+        let evicted = d.stats.evicted
+        chunk(8)
+        #expect(d.stats.evicted > evicted)
+        await lossesReported()
         let before = adapter.keyframeRequests
         s.look(StubLook(content: "after"), at: 100)
         #expect(adapter.keyframeRequests == before + 1)
