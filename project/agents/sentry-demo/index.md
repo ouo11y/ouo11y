@@ -10,9 +10,11 @@ Owns `examples/sentry-mobile`: an Expo (React Native) iOS app instrumented with 
   - [2026-10-17-bridge-vs-sdk.md](summaries/2026-10-17-bridge-vs-sdk.md) bridge vs ouo SDK comparison on one journey, parallel-mode demo fixes
   - [2026-10-18-sentry-self-hosted.md](summaries/2026-10-18-sentry-self-hosted.md) self-hosted Sentry as the bridge's real upstream (N2), Sentry MCP, F4 side by side
   - [2026-11-15-sentry-mirror-readiness.md](summaries/2026-11-15-sentry-mirror-readiness.md) bridge in front of a production DSN: risk list, mirrors and passthrough (ADR-0028), measured overhead, go/no-go
+  - [2026-11-17-sentry-hybrid-mirror.md](summaries/2026-11-17-sentry-hybrid-mirror.md) hybrid fan-out: nginx mirror to a bridge with `upstream: none`, latency coupling, duplicates, scaling, XFF fix
   - [2026-10-23-b2-bridge-examples.md](summaries/2026-10-23-b2-bridge-examples.md) batch 2: three examples with trace-continuity `verify`, mobile vitals, SDK range goldens, client setup notes, live run against self-hosted Sentry
 - `project/reports/` HTML reports
   - [sdk-overhead-ios.html](reports/sdk-overhead-ios.html) CPU, memory, start, network, JS frames and main-thread stalls of five SDK mixes on the iOS simulator, with the client claim
   - [bridge-vs-sdk.html](reports/bridge-vs-sdk.html) field-by-field comparison of what the Sentry bridge and the ouo RN SDK deliver, gap register (a/b/c) with effort, pitch guidance
   - [sentry-mirror-readiness.html](reports/sentry-mirror-readiness.html) production DSN readiness: risk list, fan-out design, end to end against self-hosted Sentry with a mirror, latency, burst, soak, failure injection, config to use
+  - [sentry-hybrid-mirror.html](reports/sentry-hybrid-mirror.html) hybrid fan-out: production on nginx, the bridge on a mirror; measured latency per failure and timeout, duplicates, N instances, nginx snippet, go/no-go
   - [sentry-self-hosted-n2-f4.html](reports/sentry-self-hosted-n2-f4.html) bridge in front of self-hosted Sentry (byte-identical, Sentry's answers, ouo checks), memory, Sentry MCP, the unmasked replay in Sentry's player and ouo's plugin side by side

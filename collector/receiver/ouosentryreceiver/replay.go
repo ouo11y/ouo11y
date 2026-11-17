@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"sync"
 	"time"
 
@@ -441,11 +440,7 @@ func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegme
 	a.PutStr(attrReplayEncoding, "json")
 	a.PutBool(attrReplayChunk, true)
 
-	info := client.Info{Auth: projectAuth(j.project.OuoProjectID)}
-	if ip := net.ParseIP(j.clientAddr); ip != nil {
-		info.Addr = &net.IPAddr{IP: ip}
-	}
-	if err := logsNext.ConsumeLogs(client.NewContext(ctx, info), ld); err != nil {
+	if err := logsNext.ConsumeLogs(client.NewContext(ctx, j.clientInfo()), ld); err != nil {
 		r.drop(ctx, j.project.OuoProjectID, "consumer_replay")
 		r.set.Logger.Debug("replay chunk rejected by the pipeline", zap.Error(err))
 	}
