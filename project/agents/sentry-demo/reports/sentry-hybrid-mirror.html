@@ -31,12 +31,12 @@ ul{padding-left:20px}
 <body><main>
 <body><main>
 <h1>Hybrid Sentry fan-out: production on nginx, the bridge on a mirror</h1>
-<p class="sub">2026-11-17, sentry-demo (session sentry-hybrid). Branch <code>claude/sentry-hybrid-eval</code> (PR #213 + #214 merged locally, plus the fix below). Rig on the founder's Mac (Apple M5, 32 GB, Docker VM 20 GB shared with other stacks, host load average 15 to 28, at times 40): nginx 1.27.3 → production, <code>mirror</code> → toxiproxy 2.9 → ouo-collector in env <code>sentry-hybrid-eval</code> (<code>ouosentry</code>, <code>upstream: none</code>, mirror to self-hosted Sentry 26.10 project 9 as Preview), then Loki / Tempo / Mimir. Production was a <code>sentrytap -sink</code> (stable, for the matrix) and self-hosted Sentry 26.10 project 2 (confirmation rounds). Driver: <code>sentrytap replay</code>, golden capture <code>ios-rn-8.32.0/journey</code> re-keyed, 8 keep-alive senders paced at 40 envelopes/s unless stated.</p>
+<p class="sub">2026-11-17, sentry-demo (session sentry-hybrid). Branch <code>claude/sentry-hybrid-mirror</code> (PR #213 + #214 merged locally, plus the fix below). Rig on the founder's Mac (Apple M5, 32 GB, Docker VM 20 GB shared with other stacks, host load average 15 to 28, at times 40): nginx 1.27.3 → production, <code>mirror</code> → toxiproxy 2.9 → ouo-collector in env <code>sentry-hybrid-eval</code> (<code>ouosentry</code>, <code>upstream: none</code>, mirror to self-hosted Sentry 26.10 project 9 as Preview), then Loki / Tempo / Mimir. Production was a <code>sentrytap -sink</code> (stable, for the matrix) and self-hosted Sentry 26.10 project 2 (confirmation rounds). Driver: <code>sentrytap replay</code>, golden capture <code>ios-rn-8.32.0/journey</code> re-keyed, 8 keep-alive senders paced at 40 envelopes/s unless stated.</p>
 <nav><a href="#verdict">Verdict</a><a href="#q0">Mirrors with upstream none</a><a href="#q1">1 Latency coupling</a><a href="#q2">2 Duplicates</a><a href="#q3">3 Statelessness</a><a href="#q4">4 Scaling</a><a href="#q5">5 Untested</a><a href="#nginx">nginx snippet</a><a href="#go">Go / no-go</a></nav>
 
 <h2 id="verdict">Verdict</h2>
 <div class="verdict">
-<p><b class="warn">Go, with conditions.</b> The hybrid keeps production on its own path: in every run with tight mirror timeouts, production answered every request 200 whatever the bridge did (healthy, slow, refused, blackholed). The claim <i>"a collector failure can only lose copies, never production data"</i> is <b class="bad">false with nginx's default timeouts</b>: nginx reads a keep-alive connection's next request only when the mirror subrequest has ended, so a blackholed bridge held every device's next envelope for 60 s, 8 of 24 clients timed out, and 3 of those envelopes never reached production. It is <b class="ok">true in effect with connect 50 ms / send 100 ms / read 100 ms</b>: the worst case is then about +100 ms on a device's next request, and a dead bridge is free.</p>
+<p><b class="warn">Go, with conditions.</b> The hybrid keeps production on its own path: in every run with tight mirror timeouts, production answered every request 200 whatever the bridge did (healthy, slow, refused, blackholed). The claim <i>"a collector failure can only lose copies, never production data"</i> is <b class="bad">false with nginx's default timeouts</b>: nginx reads a keep-alive connection's next request only when the mirror subrequest has ended, so a blackholed bridge held every device's next envelope for 60 s, 8 of 24 clients timed out, and 3 of those envelopes never reached production. It is <b class="ok">true in effect with connect 50 ms / send 100 ms / read 100 ms</b>: a blackholed bridge then adds about the read timeout to a device's next request (p50 66–77 ms, p99 103–169 ms on the loaded host), and a refused one is free.</p>
 <p>Three conditions: the mirror location's timeouts as below; <code>passthrough_upstream</code> unset on the mirror-fed bridge; one bridge instance (scale up, a <code>backup</code> standby), with <code>key_from: x_forwarded_for</code> and the fix in this PR so the rate limiter does not put every phone in nginx's bucket.</p>
 </div>
 <div class="cards">
@@ -99,7 +99,7 @@ ul{padding-left:20px}
 <li><b><code>ouoratelimit key_from: x_forwarded_for</code></b>: did not work for bridged telemetry before this PR. The receiver handed its output on with <code>client.Info.Addr</code> = the TCP peer (nginx) and no metadata, so the limiter fell back to nginx's address and every phone shared one 100/s bucket. <b>Fixed here</b>: the request's <code>X-Forwarded-For</code> goes into <code>client.Info.Metadata</code> (<code>TestForwardedForReachesThePipeline</code>, fails without the fix). Through nginx with 20 device addresses and <code>key_from: x_forwarded_for</code>: 1 200 envelopes, 0 <code>ouo_ratelimit_rejected</code>, 0 translate drops. The same run with <code>key_from: address</code> could not be repeated on the saturated host (<b class="warn">not re-measured</b>); the 2026-11-15 one-address measurement dropped 1 223 / 398 / 501 logs / traces / replay batches out of 600 envelopes.</li>
 <li><b>Rolling restarts</b>: while the bridge restarts (3.2 s measured on 2026-11-15) the mirror gets refused connections, which cost the device nothing with the timeouts above; the copies of that window are lost for Preview and ouo, and the restarted instance rebuilds session state from the next envelopes. With an nginx <code>backup</code> standby the copies go to the standby, whose state is cold: same effect, shorter gap.</li>
 </ul>
-<p><b>Recommendation: one instance, scaled up, with a <code>backup</code> standby.</b> Measured on this shared, overloaded Mac: lossless at 40 envelopes/s with the 100 ms read timeout (0 of 400 copies lost; 3 457 of 3 460 Preview copies over the session); 11 % of copies lost at ~70/s from 32 unpaced senders at host load 18–28. The CPU-bound ceiling of one bridge on the same Mac was ~300 envelopes/s at 130 % CPU (2026-11-15, forwarding mode, which also does the round trip to Sentry). So <b>one instance is enough up to ~40 envelopes/s measured lossless here, and up to about 300/s by the earlier CPU ceiling</b>, the latter <b class="warn">to be re-measured</b> on the target VM with a dedicated core and the pilot's real envelope rate (from production Sentry's accepted-outcomes stats) before go.</p>
+<p><b>Recommendation: one instance, scaled up, with a <code>backup</code> standby for a dead primary</b> (failover not measured; with <code>proxy_next_upstream off</code> the copy that hits the failure is lost, and a primary that stalls on and off splits sessions between two cold instances). Measured on this shared, overloaded Mac: lossless at 40 envelopes/s with the 100 ms read timeout (0 of 400 copies lost; 3 457 of 3 460 Preview copies over the session); 11 % of copies lost at ~70/s from 32 unpaced senders at host load 18–28. The CPU-bound ceiling of one bridge on the same Mac was ~300 envelopes/s at 130 % CPU (2026-11-15, forwarding mode, which also does the round trip to Sentry). So <b>one instance is enough up to ~40 envelopes/s measured lossless here, and up to about 300/s by the earlier CPU ceiling</b>, the latter <b class="warn">to be re-measured</b> on the target VM with a dedicated core and the pilot's real envelope rate (from production Sentry's accepted-outcomes stats) before go.</p>
 
 <h2 id="q5">5. Untested, marked unverified</h2>
 <ul>
@@ -113,7 +113,7 @@ ul{padding-left:20px}
 <pre>
 upstream ouo_bridge {
     server 127.0.0.1:4320;                # the bridge next to nginx: a dead one refuses at once
-    server ouo-bridge-standby:4320 backup;
+    server ouo-bridge-standby:4320 backup;  # for a dead primary, not a flapping one (unmeasured)
     keepalive 16;
     keepalive_timeout 30s;                # below the bridge's idle timeout (1 min)
 }
@@ -122,7 +122,7 @@ server {
     client_body_buffer_size 1m;           # the mirror needs the body; keep it in memory
     location ~ ^/api/[0-9]+/envelope/$ {
         mirror /_ouo_mirror;
-        mirror_request_body on;           # required: the bridge needs the body
+        mirror_request_body on;           # the default; keep it on: the bridge needs the body
         # ... the same proxy_pass and headers to production as location / ...
     }
     location = /_ouo_mirror {
@@ -130,7 +130,7 @@ server {
         proxy_pass http://ouo_bridge$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;  # replace, never append: the rate-limit key
         proxy_connect_timeout 50ms;
         proxy_send_timeout 100ms;
         proxy_read_timeout 100ms;
@@ -138,7 +138,7 @@ server {
     }
 }
 </pre>
-<p>Bridge side: <code>upstream: none</code>, the Preview mirror with its own <code>sentry_project_id</code> and <code>public_key</code>, <b>no</b> <code>passthrough_upstream</code>, <code>ouoratelimit</code> <code>client.key_from: x_forwarded_for</code>. Same text in <code>docs/sentry-bridge-deployment.md</code>, section "Hybrid".</p>
+<p>Bridge side: <code>upstream: none</code>, the Preview mirror with its own <code>sentry_project_id</code> and <code>public_key</code>, <b>no</b> <code>passthrough_upstream</code>, <code>ouoratelimit</code> <code>client.key_from: x_forwarded_for</code>. The mirror location <b>replaces</b> <code>X-Forwarded-For</code> with <code>$remote_addr</code> (behind a load balancer: <code>real_ip</code> first): appending would keep the device's own value as the first hop, the rate limiter's key, so a device could pick a fresh bucket per request and drain the project bucket. Same text in <code>docs/sentry-bridge-deployment.md</code>, section "Hybrid".</p>
 
 <h2 id="go">Go / no-go checklist</h2>
 <div class="tw"><table>
@@ -148,7 +148,8 @@ server {
 <tr><td>3</td><td>Mirror location with 50 / 100 / 100 ms timeouts and <code>proxy_next_upstream off</code>; production location unchanged</td><td class="ok">measured</td></tr>
 <tr><td>4</td><td>Bridge next to nginx (refused, not blackholed, when it dies); upstream <code>keepalive_timeout 30s</code></td><td class="ok">measured</td></tr>
 <tr><td>5</td><td><code>passthrough_upstream</code> unset on the mirror-fed bridge</td><td class="ok">measured</td></tr>
-<tr><td>6</td><td>Exactly one active bridge (+ <code>backup</code> standby), no hash pool</td><td class="ok">by code and design</td></tr>
+<tr><td>6</td><td>Exactly one active bridge, no hash pool</td><td class="ok">by code and design</td></tr>
+<tr><td>6a</td><td><code>backup</code> standby takes over from a dead primary (a flapping primary moves sessions between two cold instances)</td><td class="warn">unverified (failover not measured)</td></tr>
 <tr><td>7</td><td>Pilot's envelope rate known and under the measured ceiling on the target VM</td><td class="warn">unverified</td></tr>
 <tr><td>8</td><td>Preview answers 200 to a rewritten copy (project id, key, <code>dsn</code>)</td><td class="ok">measured (same Sentry version)</td></tr>
 <tr><td>9</td><td>Preview on a different Sentry version than production</td><td class="warn">unverified</td></tr>

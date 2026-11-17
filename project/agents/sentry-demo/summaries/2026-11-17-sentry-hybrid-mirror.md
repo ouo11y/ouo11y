@@ -1,6 +1,6 @@
 # 2026-11-17 Hybrid Sentry fan-out: nginx mirror to the bridge
 
-Session sentry-hybrid (sentry-demo), started from the orchestrating session. Branch `claude/sentry-hybrid-eval`, cut from PR #213's branch with PR #214's merged in locally (neither merged yet).
+Session sentry-hybrid (sentry-demo), started from the orchestrating session. Branch `claude/sentry-hybrid-mirror` (PR #215), on PR #213's branch; the measurements ran on a local branch with PR #214 merged in too (neither merged yet).
 
 ## Done
 
@@ -25,3 +25,7 @@ Session sentry-hybrid (sentry-demo), started from the orchestrating session. Bra
 
 - Rig files (nginx template, toxiproxy, `sentrytap -sink` as production) lived in the session scratchpad; the report has every setting needed to rebuild it. Docker had no free address pool for a new network: the rig joined the env's network.
 - Env `sentry-hybrid-eval` torn down; `sentry-sbx` stopped again (as found). No dependency added.
+
+## Review round 1 (2026-11-17)
+
+Reviewer session review-215 posted `Review: changes needed` (code approved). Changes: the mirror location replaces `X-Forwarded-For` with `$remote_addr` (appending let a device choose its own rate-limit key); blackholed cost worded as p50 66–77 / p99 103–169 ms, not "at most the read timeout"; `backup` standby marked unverified, for a dead primary only; `mirror_request_body` comment; branch name; kb probe wording; spec 2a sentence trimmed.
