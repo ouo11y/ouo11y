@@ -1,0 +1,72 @@
+{
+    "version": 1,
+    "platform": "android",
+    "mechanism": "jvm",
+    "timestamp_ms": 1794713452797,
+    "session_id": "sample-session",
+    "frames": [
+        {
+            "module": "a.b",
+            "function": "run",
+            "filename": "r8-map-id-97ca67fff79478e71a4e763f9428da83130e13579e0a8a8ccad202f9016fc293",
+            "lineno": 80
+        },
+        {
+            "module": "android.os.Handler",
+            "function": "handleCallback",
+            "filename": "Handler.java",
+            "lineno": 959
+        },
+        {
+            "module": "android.os.Handler",
+            "function": "dispatchMessage",
+            "filename": "Handler.java",
+            "lineno": 100
+        },
+        {
+            "module": "android.os.Looper",
+            "function": "loopOnce",
+            "filename": "Looper.java",
+            "lineno": 232
+        },
+        {
+            "module": "android.os.Looper",
+            "function": "loop",
+            "filename": "Looper.java",
+            "lineno": 317
+        },
+        {
+            "module": "android.app.ActivityThread",
+            "function": "main",
+            "filename": "ActivityThread.java",
+            "lineno": 8705
+        },
+        {
+            "module": "java.lang.reflect.Method",
+            "function": "invoke",
+            "filename": "Method.java"
+        },
+        {
+            "module": "com.android.internal.os.RuntimeInit$MethodAndArgsCaller",
+            "function": "run",
+            "filename": "RuntimeInit.java",
+            "lineno": 580
+        },
+        {
+            "module": "com.android.internal.os.ZygoteInit",
+            "function": "main",
+            "filename": "ZygoteInit.java",
+            "lineno": 886
+        }
+    ],
+    "images": [],
+    "session_started_ms": 1794713452567,
+    "exception": {
+        "name": "java.lang.IllegalStateException",
+        "reason": "negative price -1"
+    },
+    "thread": {
+        "main": true
+    },
+    "mapping_id": "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1"
+}

@@ -34,5 +34,7 @@ for (const dir of sources) {
 }
 // The licence of the code copied from sentry-java travels with it.
 cpSync(join(source, "NOTICE"), join(target, "NOTICE"));
+// The R8 mapping id step (ADR-0027), for the app's build.gradle: apply(from = ".../android/vendor/ouo-mapping.gradle").
+cpSync(join(source, "gradle", "ouo-mapping.gradle"), join(target, "ouo-mapping.gradle"));
 files = count(target);
 console.log(`[ouo] sync-android: ${files} Kotlin files copied into ${target}`);

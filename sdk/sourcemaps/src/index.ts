@@ -333,7 +333,7 @@ export async function upload(a: Artifact, o: UploadOptions): Promise<UploadResul
  */
 async function put(
   o: UploadOptions,
-  kind: "sourcemap" | "dsym",
+  kind: "sourcemap" | "dsym" | "proguard",
   id: string,
   q: URLSearchParams,
   contentType: string,
@@ -498,6 +498,44 @@ export async function uploadDSYM(file: string, o: UploadOptions): Promise<DSYMRe
     else dsyms.push({ debug_id: s.uuid, arch: s.arch });
   }
   return { file, status, dsyms, ...(errors.length > 0 ? { error: errors.join("; ") } : {}) };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface ProguardResult {
+  file: string;
+  mappingId?: string;
+  status: number;
+  error?: string;
+}
+
+/**
+ * PUTs an R8 / ProGuard `mapping.txt` (gzip) to Muninn as debug file kind `proguard` under the
+ * build's mapping id (ADR-0027): the id `gradle/ouo-mapping.gradle` wrote into the APK and into
+ * `build/outputs/ouo/<variant>/mapping-id.txt`. Pass the id or that file (`idFile`).
+ */
+export async function uploadProguard(file: string, id: { mappingId?: string; idFile?: string }, o: UploadOptions): Promise<ProguardResult> {
+  let mappingId = id.mappingId;
+  try {
+    if (!mappingId && id.idFile) mappingId = (await readFile(id.idFile, "utf8")).trim();
+  } catch (e) {
+    return { file, status: 0, error: `mapping id file: ${(e as Error).message}` };
+  }
+  if (!mappingId || !UUID_RE.test(mappingId)) return { file, status: 0, error: `mapping id must be a UUID (got ${JSON.stringify(mappingId ?? "")})` };
+  mappingId = mappingId.toLowerCase();
+  let body: Buffer;
+  try {
+    body = await readFile(file);
+  } catch (e) {
+    return { file, mappingId, status: 0, error: (e as Error).message };
+  }
+  // A mapping starts with R8's "# compiler" header or a class line ("a.B -> c:"); anything else is the wrong file.
+  const head = body.subarray(0, 4096).toString("utf8");
+  if (!/^(#|\S+ -> \S+:\s*$)/m.test(head) || !head.includes(" -> ")) return { file, mappingId, status: 0, error: "not an R8 / ProGuard mapping" };
+  const q = new URLSearchParams();
+  if (o.release) q.set("release", o.release);
+  const r = await put(o, "proguard", mappingId, q, "text/plain", gzipSync(body));
+  return { file, mappingId, status: r.status, ...(r.error ? { error: r.error } : {}) };
 }
 
 /** Deletes the maps so they are never deployed (and drops the bundles' sourceMappingURL lines). */

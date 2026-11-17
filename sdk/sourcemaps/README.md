@@ -26,6 +26,11 @@ React Native: the debug id has to go in while Metro writes the bundle, before He
   ```bash
   npx ouo-sourcemaps upload-dsym build/MyApp.xcarchive/dSYMs --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --project my-app
   ```
+- `upload-proguard <mapping.txt> --id-file <mapping-id.txt>` (or `--id <uuid>`) PUTs an Android R8 / ProGuard mapping to `<url>/api/v1/projects/<project>/debug-files/proguard/<mapping id>`, the id the Gradle step `ouo-mapping.gradle` wrote into the APK ([ADR-0027](../../docs/adr/0027-r8-mappings-and-retrace.md), [docs/symbolication.md](../../docs/symbolication.md#android-r8--proguard)):
+
+  ```bash
+  npx ouo-sourcemaps upload-proguard app/build/outputs/mapping/release/mapping.txt --id-file app/build/outputs/ouo/release/mapping-id.txt --url "$OUO_SOURCEMAPS_URL" --token "$OUO_UPLOAD_TOKEN" --project my-app
+  ```
 - Environment variables: `OUO_SOURCEMAPS_URL`, `OUO_UPLOAD_TOKEN`, `OUO_PROJECT_ID`, `OUO_RELEASE`.
 
 Bundler setups (Vite, webpack, Next.js) are in [docs/sourcemaps.md](../../docs/sourcemaps.md).

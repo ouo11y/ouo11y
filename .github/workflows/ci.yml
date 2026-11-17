@@ -471,6 +471,13 @@ jobs:
       - name: replay-core and signals-core unit tests, the replay and signals libraries, the instrumented tests compiled
         working-directory: sdk/android
         run: ./gradlew --console=plain :replay-core:test :signals-core:test :replay:assembleRelease :signals:assembleRelease :replay:compileDebugAndroidTestKotlin
+      - name: the R8 mapping id (ADR-0027) is in the minified sample APK and next to its mapping
+        working-directory: sdk/android
+        run: |
+          ./gradlew --console=plain :sample:assembleRelease
+          id=$(cat sample/build/outputs/ouo/release/mapping-id.txt)
+          test -s sample/build/outputs/mapping/release/mapping.txt
+          unzip -p sample/build/outputs/apk/release/sample-release.apk assets/ouo-debug-meta.properties | grep -qx "mapping_id=$id"
       - name: the Expo module compiled inside examples/ouo-mobile (prebuild, no APK)
         env:
           CI: "1"

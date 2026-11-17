@@ -505,6 +505,14 @@ describe("Android reports (sdk/android Signals)", () => {
       ].join("\n"),
     );
     expect(isReactNativeFatal(r)).toBe(false);
+    expect(a["ouo.exception.mapping_id"]).toBeUndefined();
+  });
+
+  it("sends the R8 mapping id with the JVM frames it retraces (ADR-0027)", () => {
+    const id = "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1";
+    expect(nativeCrashAttributes(parseNativeCrash(JSON.stringify({ ...jvm, mapping_id: id }))!)["ouo.exception.mapping_id"]).toBe(id);
+    const term = parseNativeCrash(JSON.stringify({ ...jvm, mechanism: "termination", exception: undefined, frames: [], termination: { cause: "memory" }, mapping_id: id }))!;
+    expect(nativeCrashAttributes(term)["ouo.exception.mapping_id"]).toBeUndefined();
   });
 
   it("treats React Native's JavascriptException as the JS fatal it wraps", () => {

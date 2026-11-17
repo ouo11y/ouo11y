@@ -103,6 +103,14 @@ files in `sdk/ios/Sources/OuoReplayCore/OTLP`, with the same names, rules and by
 Every entry point catches what it throws (ERR-1): `ReplayFaultTest` injects an adapter that throws
 or returns garbage, a disk and a collector that fail, and malformed options.
 
+- **R8 mapping id** ([ADR-0027](../../docs/adr/0027-r8-mappings-and-retrace.md)): `gradle/ouo-mapping.gradle`, applied by
+  the app, writes a fresh UUID per minified build into the APK (`ouo-debug-meta.properties`) and
+  into `build/outputs/ouo/<variant>/mapping-id.txt`; `Signals` reads it at `init` and puts it in
+  every report (`mapping_id`), which the React Native SDK sends as `ouo.exception.mapping_id`. CI
+  uploads `mapping.txt` under it with `ouo-sourcemaps upload-proguard` ([docs/symbolication.md](../../docs/symbolication.md#android-r8--proguard)).
+  `sample/` is a minified app that applies it and crashes through inlined code (`--ez crash true`),
+  to verify it on an emulator.
+
 ## Use (React Native)
 
 Nothing to do: `initRUM({ replay: { enabled: true } })` starts it through the Expo module on both
@@ -119,6 +127,7 @@ cd sdk/android
 ./gradlew :replay-core:test :signals-core:test  # JVM unit tests, seconds
 ./gradlew :replay:assembleRelease              # the Android library
 ./gradlew :replay:connectedAndroidTest         # pixel test on a running emulator (ANDROID_SERIAL)
+./gradlew :sample:assembleRelease              # the R8 sample, with its mapping and mapping id
 ```
 
 CI (`ci.yml`, job `android`, on the Mac runner) runs the unit tests, builds the library and its

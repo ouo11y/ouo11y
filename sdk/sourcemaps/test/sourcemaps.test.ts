@@ -7,7 +7,7 @@ import vm from "node:vm";
 import { gunzipSync } from "node:zlib";
 import { build } from "tsup";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { debugIdFor, deleteMaps, findArtifacts, findDSYMs, inject, machoSlices, splitTrailing, upload, uploadDSYM, urlPathOf } from "../src/index";
+import { debugIdFor, deleteMaps, findArtifacts, findDSYMs, inject, machoSlices, splitTrailing, upload, uploadDSYM, uploadProguard, urlPathOf } from "../src/index";
 
 const FIXTURES = path.resolve(__dirname, "fixtures");
 const MAP = JSON.stringify({ version: 3, sources: ["../src/a.ts"], names: [], mappings: "AAAA" });
@@ -345,6 +345,24 @@ describe("ouo-sourcemaps", () => {
       expect(got[0]!.url).toBe("/api/v1/projects/p/debug-files/dsym/af6a9aa7-dee9-35d6-90c3-f007eceb1efc");
     });
 
+    it("PUTs an R8 mapping under its mapping id (ADR-0027)", async () => {
+      const d = await mkdtemp(path.join(tmpdir(), "ouo-r8-"));
+      const mapping = path.join(d, "mapping.txt");
+      await writeFile(mapping, "# compiler: R8\ncom.shop.Basket -> a.a:\n    1:5:void add(int):10:14 -> a\n");
+      await writeFile(path.join(d, "mapping-id.txt"), "FC5959F4-0D6C-4BB9-8EDF-9788FBD76AF1\n");
+      const { url, got } = await server((n) => (n === 0 ? 201 : 409));
+      const r = await uploadProguard(mapping, { idFile: path.join(d, "mapping-id.txt") }, { url, token: "ut", project: "android-app", release: "1.0" });
+      expect(r).toEqual({ file: mapping, mappingId: "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1", status: 201 });
+      expect(got[0]!.url).toBe("/api/v1/projects/android-app/debug-files/proguard/fc5959f4-0d6c-4bb9-8edf-9788fbd76af1?release=1.0");
+      expect(got[0]!.encoding).toBe("gzip");
+      expect(got[0]!.raw).toEqual(await readFile(mapping));
+      expect((await uploadProguard(mapping, { mappingId: "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1" }, { url, token: "ut", project: "android-app" })).error).toMatch(/HTTP 409: proguard fc5959f4/);
+      expect((await uploadProguard(mapping, { mappingId: "nope" }, { url, token: "t", project: "p" })).error).toMatch(/must be a UUID/);
+      await writeFile(path.join(d, "x.txt"), "hello");
+      expect((await uploadProguard(path.join(d, "x.txt"), { mappingId: "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1" }, { url, token: "t", project: "p" })).error).toBe("not an R8 / ProGuard mapping");
+      expect(got).toHaveLength(2);
+    });
+
     describe("the CLI", () => {
       let cli = "";
       beforeAll(async () => {
@@ -387,6 +405,18 @@ describe("ouo-sourcemaps", () => {
         expect(r.code).toBe(0);
         expect(r.out).toContain("uploaded af6a9aa7-dee9-35d6-90c3-f007eceb1efc (x86_64)");
         expect(r.out).toContain("uploaded 3ccbba5f-01c6-36b3-9475-412655ac7ffe (arm64)");
+      });
+
+      it("uploads an R8 mapping with --id", async () => {
+        const d = await mkdtemp(path.join(tmpdir(), "ouo-r8-"));
+        const mapping = path.join(d, "mapping.txt");
+        await writeFile(mapping, "# compiler: R8\na.B -> c:\n");
+        const { url } = await server();
+        const id = "fc5959f4-0d6c-4bb9-8edf-9788fbd76af1";
+        const r = await run(["upload-proguard", mapping, "--id", id, "--url", url, "--token", "t", "--project", "android-app"]);
+        expect(r.code).toBe(0);
+        expect(r.out).toContain(`uploaded ${id}`);
+        expect((await run(["upload-proguard", mapping, "--url", url, "--token", "t", "--project", "p"])).err).toContain("--id or --id-file is required");
       });
     });
 

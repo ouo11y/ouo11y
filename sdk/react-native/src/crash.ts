@@ -68,6 +68,8 @@ export interface NativeCrashReport {
   termination?: { cause: string };
   frames: NativeCrashFrame[];
   images: NativeCrashImage[];
+  /** Android: the build's R8 mapping id (ADR-0027), when the app applies `gradle/ouo-mapping.gradle`. */
+  mapping_id?: string;
 }
 
 export function parseNativeCrash(raw: string): NativeCrashReport | undefined {
@@ -221,6 +223,8 @@ export function nativeCrashAttributes(r: NativeCrashReport): Attrs {
     if (r.signal.address) attrs["ouo.crash.address"] = r.signal.address;
   }
   if (r.thread?.main !== undefined) attrs["ouo.crash.thread_main"] = r.thread.main;
+  // Which R8 mapping retraces the JVM frames (ADR-0027); only with frames to retrace.
+  if (typeof r.mapping_id === "string" && r.mapping_id !== "" && attrs["ouo.crash.frames"] !== undefined) attrs["ouo.exception.mapping_id"] = r.mapping_id;
   return attrs;
 }
 

@@ -442,12 +442,12 @@ Checked by a suite that runs against a real Muninn with a filesystem store and a
 
 ## 13. Debug files
 
-Decided in [ADR-0026](../adr/0026-debug-files-and-erasure-without-rum-api.md). A debug file is a build artefact a client's CI uploads so that stacks can be resolved on read: a JavaScript source map (`sourcemap`), one Mach-O DWARF slice of a dSYM (`dsym`), later an R8 mapping (`proguard`). Muninn stores it opaque and write-once; it never parses one. Resolution is `ouo-go/symbolicate`'s job.
+Decided in [ADR-0026](../adr/0026-debug-files-and-erasure-without-rum-api.md). A debug file is a build artefact a client's CI uploads so that stacks can be resolved on read: a JavaScript source map (`sourcemap`), one Mach-O DWARF slice of a dSYM (`dsym`), an R8 / ProGuard `mapping.txt` (`proguard`, [ADR-0027](../adr/0027-r8-mappings-and-retrace.md)). Muninn stores it opaque and write-once; it never parses one. Resolution is `ouo-go/symbolicate`'s job.
 
 ### 13.1 Identifiers and layout
 
 - **kind**: `sourcemap`, `dsym` or `proguard`.
-- **debug id**: a UUID, lowercase with dashes (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`). Muninn accepts the 32-hex and uppercase spellings and normalises them. For a source map it is the id `ouo-sourcemaps inject` wrote; for a map without one, the CLI derives it from the SHA-256 of the map (the first 16 bytes as a UUID, version nibble 4, variant 10); for a dSYM it is the slice's `LC_UUID`.
+- **debug id**: a UUID, lowercase with dashes (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`). Muninn accepts the 32-hex and uppercase spellings and normalises them. For a source map it is the id `ouo-sourcemaps inject` wrote; for a map without one, the CLI derives it from the SHA-256 of the map (the first 16 bytes as a UUID, version nibble 4, variant 10); for a dSYM it is the slice's `LC_UUID`; for an R8 mapping it is the mapping id the Gradle step wrote into the APK.
 - **file** (optional): the script's URL path, normalised as rum-api did: a full URL loses scheme, host, query and fragment; a bare name gets a leading `/`; then `path.Clean`.
 
 ```
