@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bridge, Muninn and LGTM</title>
+<style>
+:root{--bg:#ffffff;--fg:#1c1e21;--muted:#5c6370;--line:#e3e6ea;--card:#f7f8fa;--ok:#1e8e3e;--warn:#b7791f;--bad:#c0392b;--acc:#2f6fed;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--acc:#5b8cff}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e6e8eb;--muted:#9aa3ad;--line:#2b2f36;--card:#1d2026;--acc:#5b8cff}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5}
+main{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
+h1{font-size:1.7rem;margin:0 0 4px}h2{font-size:1.2rem;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:4px}h3{font-size:1rem;margin:18px 0 6px}
+.sub{color:var(--muted);margin:0 0 18px}
+nav{margin:8px 0 20px;font-size:.92rem;display:flex;flex-wrap:wrap;gap:4px 14px}nav a,a{color:var(--acc);text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card b{display:block;font-size:1.45rem;line-height:1.2}.card span{color:var(--muted);font-size:.84rem}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem;margin:8px 0}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em}
+td code,li code,p code{overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;white-space:pre}
+.tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}.na{background:var(--muted)}
+.note{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;margin:12px 0}
+.alert{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:8px;padding:10px 14px;margin:12px 0}
+.key{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:10px 14px;margin:12px 0}
+.muted{color:var(--muted)}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:12px 0}
+.flow div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:.88rem}
+.flow b{display:block;margin-bottom:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sentry bridge, Muninn and LGTM in one collector</h1>
+<p class="sub">sentry-demo agent, 2026-11-15, on <code>origin/main</code> a8301a00 plus this change. One ouo-env stack (<code>--muninn</code>), unchanged <code>@sentry/react-native</code> 8.32.0 traffic replayed from the golden iOS capture, every signal looked up in its store, then back-pressure runs with each backend stopped in turn.</p>
+<nav><a href="#answer">Answer</a><a href="#urgent">Before the cutover</a><a href="#matrix">Lands in / verified by</a><a href="#pressure">Back-pressure</a><a href="#plan">Plan: bridged replay into Muninn</a><a href="#missing">Missing</a><a href="#repro">Reproduce</a></nav>
+
+<h2 id="answer">Answer</h2>
+<div class="key"><b>Yes, with one exception: replay.</b> Errors, crashes, sessions, logs, breadcrumbs, mobile vitals (Loki), transactions (Tempo), span metrics and the bridge's own counters (Mimir) and spec-wire replay (Muninn) all flow through one collector config at once. Bridged <b>replay</b> does not reach Muninn: the bridge emits the MVP video chunk, which Muninn's wire does not accept and ADR-0019 forbids translating in the collector. In this stack bridged replays go to rum-api, where today's plugin plays them. A down Loki, Muninn or rum-api never slowed the bridge's answer to the SDK.</div>
+<div class="cards">
+<div class="card"><b>58 / 58</b><span>demo checks (30 bridge vs. capture, 3 Mimir, 25 Muninn spec wire)</span></div>
+<div class="card"><b>20 / 20</b><span>replay segments stored, sha256-identical, decodable (rum-api)</span></div>
+<div class="card"><b>&lt; 200 ms</b><span>bridge p99 answer, every outage phase, 600 envelopes each</span></div>
+<div class="card"><b>&lt; 100 MiB</b><span>collector memory peak under every load phase</span></div>
+<div class="card"><b>60 s &rarr; 1 s</b><span>session list after the Loki gRPC size fix</span></div>
+<div class="card"><b>200 / 200</b><span>256 KiB chunks queued on disk while Muninn was down, all in Muninn 15 s after restart</span></div>
+</div>
+<p>What made it possible: the <code>--muninn</code> collector config on <code>main</code> had no bridge at all (port 4320 was published and advertised, nothing listened). <code>deploy/compose/collector/config.muninn-sentry.yaml</code> is now merged over <code>config.muninn.yaml</code> (two <code>--config</code> flags), so one collector runs both paths:</p>
+<div class="flow">
+<div><b>OTLP :4318 (ouo SDKs)</b>logs/in &rarr; <code>routing/replay</code>: scope <code>ouo.replay</code> &rarr; Muninn (disk queue, fsync) + reference in Loki; everything else &rarr; Loki. Traces &rarr; Tempo, metrics &rarr; Mimir.</div>
+<div><b>Sentry bridge :4320 (unchanged Sentry SDK)</b>logs/sentry (limiter, project stamp) &rarr; <code>routing/sentry</code>: video chunk &rarr; <code>ouoreplay</code> &rarr; rum-api; everything else &rarr; the same <code>logs</code> pipeline &rarr; Loki. Transactions join the <code>traces</code> pipeline &rarr; Tempo &rarr; span metrics &rarr; Mimir.</div>
+<div><b>Sentry itself</b>The bridge forwards every envelope byte for byte and answers with Sentry's answer (or answers locally with upstream <code>none</code>, as here); translation runs afterwards on its own workers. The sibling session's fan-out work is not part of this stack.</div>
+</div>
+
+<h2 id="urgent">Before the production cutover</h2>
+<div class="alert"><b>The rate limiter will drop ouo's copy of most bridged traffic behind a reverse proxy.</b> The bridge hands the pipeline a client context with the TCP peer address and no request metadata (<code>translate.go:915</code>, <code>replay.go:444</code> in <code>ouosentryreceiver</code>). <code>ouoratelimit</code>'s client key reads <code>X-Forwarded-For</code> from that metadata (<code>OUO_RATELIMIT_CLIENT_KEY=x_forwarded_for</code>, set on the VM) and falls back to the address, so behind Caddy every phone shares <b>one</b> client bucket: 100 calls/s, burst 300, and an envelope costs one to three calls (logs, traces, replay). Measured from one address: all 600 envelopes answered 200 (Sentry gets everything), but <code>ouo_sentry_translate_dropped_total</code> rose by 1 223 logs, 398 traces and 501 replay calls, and only 14 to 23 of 40 sessions reached Loki per phase. With the limits raised: 40 / 40 in every phase.<br><br>
+Options: (a) the receiver copies <code>X-Forwarded-For</code> into <code>client.Info.Metadata</code> (receiver code; left to the session that owns it); (b) for tomorrow, raise <code>OUO_RATELIMIT_CLIENT_RATE</code> / <code>_BURST</code> on the VM, or take <code>ouoratelimit</code> out of the bridge's logs pipeline, since Sentry's own answer already throttles the SDK. Size <code>OUO_RATELIMIT_PROJECT_RATE</code> (1 000/s, burst 5 000 per project) against the app's peak envelopes per second times about two. Alert on <code>ouo_sentry_translate_dropped_total</code> and <code>ouo_ratelimit_rejected_total</code>.</div>
+<div class="alert"><b>Loki's 4 MiB gRPC limit breaks session lists at bridge volume (fixed here).</b> After the load runs (a few thousand bridged sessions), rum-api's session list, one Loki query of up to 5 000 lines, hung for 60 s and the plugin's Sessions page failed. Loki's log: <code>received message larger than max (5306405 vs. 4194304)</code>: the querier could not hand a 5.3 MB split back to its frontend, because a bridged mobile record carries about 1 KiB of structured metadata. <code>deploy/compose/loki/config.yaml</code> (and the Helm chart's Loki configmap, which mirrors it) now raises <code>server.grpc_server_max_{recv,send}_msg_size</code> to 64 MiB (the frontend's server side was the limit; the querier's client already allows 100 MiB): the same query answers 200 in 1.0 s, and a 24 h session list in 1.7 s. The VM install uses this file, so production needs it too; any reader that asks Loki for thousands of lines (the BFF readers in <code>ouo-go</code>) hits the same wall without it.</div>
+<div class="note"><b>Open PR ouo11y/ouo11y#208</b> (remove rum-api) makes <code>config.yaml</code> the spec wire plus the bridge, as here, but routes bridged replay segments to the <code>debug</code> exporter: once it merges, Sentry replays are stored nowhere until the <a href="#plan">plan</a> below lands. It also deletes <code>compose.muninn.yaml</code>, which makes this change's overlay moot (nothing to merge by hand: drop the overlay file).</div>
+
+<h2 id="matrix">Lands in / verified by</h2>
+<p class="muted">Journey: golden capture <code>ios-rn-8.32.0</code>, 60 envelopes, 4 sessions (errored, crashed, healthy terminated, healthy open), 3 errors + 1 message, 1 crash, 19 transactions, 34 log entries, 4 replays / 20 segments. Replayed in real time with timestamps moved to now and fresh ids (<code>examples/tools/sentryreplay.py</code>), checked by <code>examples/sentry-mobile/scripts/verify-bridge.py</code> against what was sent.</p>
+<div class="tablewrap"><table>
+<tr><th>Signal (Sentry item)</th><th>Lands in</th><th>Verified by</th><th>Result</th></tr>
+<tr><td>Sessions (<code>session</code>)</td><td>Loki (session events), folded by rum-api</td><td>verify-bridge: every started session listed, status and end reason as Sentry's; plugin Sessions page</td><td><span class="tag ok">4 / 4</span> errored, crashed, healthy, open</td></tr>
+<tr><td>Errors (<code>event</code>, level error)</td><td>Loki <code>event_name="exception"</code></td><td>verify-bridge count vs. capture</td><td><span class="tag ok">3 / 3</span> + 1 <code>captureMessage</code> as <code>sentry.message</code> (spec section 6)</td></tr>
+<tr><td>Crash (<code>event</code> fatal, Mach exception)</td><td>Loki, <code>severity_text=FATAL</code>; session crashed</td><td>verify-bridge</td><td><span class="tag ok">1 / 1</span></td></tr>
+<tr><td>Logs (<code>log</code>), console breadcrumbs</td><td>Loki <code>log</code>, <code>console</code> records with session</td><td>verify-bridge</td><td><span class="tag ok">15 / 15</span> logs, 20 console lines, 35 / 35 with a session</td></tr>
+<tr><td>Network breadcrumbs (replay recordings)</td><td>Loki <code>http.request</code></td><td>verify-bridge</td><td><span class="tag ok">28 / 28</span></td></tr>
+<tr><td>Transactions and spans (<code>transaction</code>)</td><td>Tempo, <code>session.id</code> on every app span</td><td>verify-bridge, trace by trace</td><td><span class="tag ok">19 / 19</span></td></tr>
+<tr><td>Span metrics of those transactions</td><td>Mimir <code>traces_spanmetrics_*{service="sentry-demo"}</code> (Tempo metrics generator)</td><td>sentry-demo.sh step 3</td><td><span class="tag ok">96 calls</span> only for fresh spans (real-time replay)</td></tr>
+<tr><td>Mobile vitals (transaction measurements)</td><td>Loki events <code>ouo.app.start</code>, <code>ouo.screen.display</code>, <code>app.jank</code>, <code>ouo.stall</code>; not Mimir metrics</td><td>Plugin session page: cold start 3.43 s, TTID p50 565 ms, frames 2 slow / 193</td><td><span class="tag ok">shown</span></td></tr>
+<tr><td>Bridge self-telemetry</td><td>Mimir <code>ouo_sentry_envelopes_total</code>, <code>_items_total</code>, <code>_translate_dropped_total</code></td><td>sentry-demo.sh step 3</td><td><span class="tag ok">present</span></td></tr>
+<tr><td>Replay (<code>replay_video</code>)</td><td><b>rum-api</b> replay store (MVP video chunk), not Muninn</td><td>verify-bridge: every segment stored, sha256 equal to the SDK's mp4, decoded by AVFoundation; plugin player ("Sentry replay, segment 1/13")</td><td><span class="tag warn">20 / 20, not in Muninn</span></td></tr>
+<tr><td>Spec-wire replay (ouo web SDK, same collector)</td><td>Muninn + reference record in Loki</td><td><code>tests/e2e/muninn/run.mjs</code> against this stack</td><td><span class="tag ok">25 / 25</span> incl. queue while Muninn down, tombstones</td></tr>
+<tr><td>Debug files (dSYM, source maps)</td><td>Not bridge traffic: the client's CI uploads them to Muninn's one public route (ADR-0026); <code>sentry-cli</code> uploads go to Sentry's API, which the bridge does not proxy</td><td>not exercised here</td><td><span class="tag na">n/a</span></td></tr>
+<tr><td>User feedback</td><td>Loki <code>feedback</code> (bridge spec 9c)</td><td>not in this capture; covered by <code>ci-journey.py</code> in CI</td><td><span class="tag na">n/a</span></td></tr>
+<tr><td>Trace continuity to the backend</td><td>Tempo, one trace app &rarr; backend</td><td>impossible on a replay (no backend is called); covered by <code>ci-journey.py</code> and the simulator run</td><td><span class="tag na">n/a</span></td></tr>
+</table></div>
+
+<h2 id="pressure">Back-pressure: does a down backend slow the bridge?</h2>
+<p><code>deploy/scripts/sentry-backpressure.sh</code>: per phase 10 journeys (600 envelopes) on 8 threads with no pauses, collector memory sampled every 2 s; Muninn phase adds 200 spec-wire chunks of 256 KiB on <code>/v1/logs</code>. Run B recreated the collector with the rate limits at 100 000 to see the outages alone; run A kept the defaults.</p>
+<div class="tablewrap"><table>
+<tr><th>Phase</th><th>Bridge answers</th><th>Bridge latency p50 / p99 / max</th><th>Collector memory peak</th><th>Data after the backend came back (run B)</th><th>Run A (default limits)</th></tr>
+<tr><td>Baseline</td><td>600 &times; 200</td><td>9.6 / 96.5 / 146 ms</td><td>48 MiB</td><td>40 / 40 sessions in Loki, 40 / 40 replays in rum-api</td><td>p99 60 ms; 14 / 40 sessions in Loki</td></tr>
+<tr><td>Loki stopped</td><td>600 &times; 200</td><td>12.3 / 94.1 / 156 ms</td><td>69 MiB</td><td>40 / 40 sessions in Loki (exporter queue and retry)</td><td>p99 35 ms; 21 / 40</td></tr>
+<tr><td>Muninn stopped + 200 chunks</td><td>600 &times; 200; chunks 200 &times; 200 (p99 585 ms: fsync)</td><td>19.3 / 181 / 233 ms</td><td>93 MiB, disk queue 54 MB</td><td>200 / 200 chunks in Muninn 15 s after restart; 40 / 40 sessions in Loki</td><td>p99 42 ms; chunks 47 &times; 200, 153 &times; 429 (client bucket), all 47 delivered</td></tr>
+<tr><td>rum-api stopped</td><td>600 &times; 200</td><td>7.6 / 126 / 197 ms</td><td>97 MiB</td><td>40 / 40 sessions with their video replay in rum-api</td><td>p99 24 ms</td></tr>
+</table></div>
+<p>Why the answer cannot wait on a backend: the bridge answers (or forwards to Sentry and copies its answer) first, then puts the envelope on a bounded in-memory queue with a non-blocking send (<code>receiver.go</code> <code>enqueue</code>: full queue = counted drop <code>queue_full</code>). Translation runs on its own workers; a pipeline error is a counted drop (<code>consumer_logs</code>, <code>consumer_traces</code>, <code>consumer_replay</code>). The latency spread between phases is the Mac's load (a self-hosted Sentry ran next to it), not the outage: the slowest phase is the one that also pushed 50 MB through fsync.</p>
+<div class="note"><b>Limits of this test.</b> Each outage lasted 1 to 2 minutes. The LGTM exporters keep an in-memory queue (1 000 batches) and retry for 5 minutes, and <code>ouoreplay</code> the same: a longer Loki or rum-api outage, or a collector restart during one, loses that data (Sentry keeps it when the bridge forwards). Only Muninn's spec-wire queue is on disk. Bridged replays can never use the disk queue's back-pressure: the SDK already has its 200 before the queue is written (spec COL-4 cannot hold for the bridge).</div>
+
+<h2 id="plan">Plan: bridged replay into Muninn</h2>
+<p>Scoped, not built here: it is receiver Go code, owned by the session working on the bridge, and ADR-0019 already decided the direction ("a Sentry receiver for the spec wire is built with the others"). About one session of work for steps 1 to 4.</p>
+<ol>
+<li><b>Receiver emits <code>ouo-video/1</code></b> (<code>replay.go</code> <code>emitReplay</code>), as <a href="../../../../docs/specs/mobile-replay.md">mobile-replay.md</a> defines it for the RN SDK: scope <code>ouo.replay</code>, <code>event_name</code> <code>ouo.replay.chunk</code>, body = one JSON header line (<code>t</code>, <code>type: "video"</code>, <code>end</code>, <code>w</code>, <code>h</code>, <code>scale</code>, <code>fps</code>, <code>frames</code>, <code>mp4</code> length, <code>touches</code>), a newline, the mp4 bytes. Attributes: <code>session.id</code> as 32 lowercase hex (Muninn's syntax; today the bridge keeps Sentry's dashed uppercase <code>sid</code>, so the session id differs between Loki and Muninn unless both change together), <code>ouo.replay.id</code> = Sentry <code>replay_id</code>, <code>ouo.replay.stream.id</code> = a deterministic hash of the replay id (retries must give the same identity: MUN-13 dedupes), <code>sequence</code> and <code>segment.index</code> = <code>segment_id</code>, <code>keyframe</code> true, <code>start_time</code> / <code>end_time</code>, <code>format</code> <code>ouo-video/1</code>, <code>encoding</code> <code>identity</code>, <code>sha256</code>, <code>byte_size</code> (over 1 MiB: drop and count), <code>masked</code>, <code>mode</code> from <code>replay_type</code> (<code>buffer</code> with <code>trigger</code> <code>error</code>), <code>ouo.replay.source.vendor</code> <code>sentry</code>, <code>source.id</code> the replay id.</li>
+<li><b>End records</b>: on a session's <code>exited</code> / <code>crashed</code> / <code>abnormal</code> update, emit <code>ouo.replay.ended</code> (<code>partial</code> unless every segment up to the last was emitted) so Muninn can mark the stream finished.</li>
+<li><b>Config</b>: <code>logs/sentry</code> exports to <code>routing/replay</code> (a connector can be the exporter of several pipelines), and <code>routing/sentry</code>, <code>ouoreplay</code> and the <code>debug</code> sink go. The reference copy in Loki then comes for free (COL-6).</li>
+<li><b>Tests</b>: receiver unit tests check every attribute against Muninn's rules (section 3) and that a retried segment gives the same bytes; the golden test's expected output changes; <code>sentry-demo.sh</code> checks Muninn's manifest per replay (20 segments, the mp4 after the header equal to the SDK's by sha256) instead of rum-api.</li>
+<li><b>Reader</b> (separate, plugin side): <code>@ouo11y/kit</code> lists <code>ouo-video/1</code> as "the video player is not wired to ouo-video/1 yet"; the same player serves the RN SDK's video, so this is shared work, not bridge work.</li>
+</ol>
+<p>Accepted limit: the bridge cannot give the SDK Muninn's back-pressure (503 on a full queue), because Sentry's answer is what the SDK gets. A full replay queue is a counted drop, and Sentry still has the segment when the bridge forwards.</p>
+
+<h2 id="missing">What is missing</h2>
+<ul>
+<li>Bridged replay in Muninn (plan above). After PR #208 merges, bridged replay is lost until then.</li>
+<li>Bridge client key behind a proxy (urgent box above).</li>
+<li>Disk-backed queues for Loki and Tempo: in memory today, as in <code>config.yaml</code>.</li>
+<li>Android Sentry traffic: only iOS goldens exist; Android payloads are still unverified (bridge spec status line).</li>
+<li>Session id spelling: Sentry's dashed uppercase <code>sid</code> in Loki vs. Muninn's 32 lowercase hex; settle it with step 1 of the plan.</li>
+<li><code>ouo-env up</code> fails while the shared Traefik's 3 s health check times out on a loaded Mac; the stack was started with the exact compose command ouo-env generated.</li>
+</ul>
+
+<h2 id="repro">Reproduce</h2>
+<pre>deploy/envs/ouo-env up &lt;env&gt; --muninn
+deploy/scripts/sentry-demo.sh --env &lt;env&gt; --with-muninn-e2e      # about 5 minutes
+deploy/scripts/sentry-backpressure.sh --env &lt;env&gt;                # about 10 minutes
+python3 -I -m unittest discover -s examples/tools                 # replayer unit tests</pre>
+<p class="muted">Set <code>OUO_SENTRY_URL=http://localhost:&lt;sentry port&gt;</code> to bypass the proxy (<code>ouo-env url &lt;env&gt;</code> prints the "Sentry DSN host"). Files: <code>deploy/compose/collector/config.muninn-sentry.yaml</code>, <code>deploy/compose/compose.muninn.yaml</code>, <code>examples/tools/sentryreplay.py</code>, <code>deploy/scripts/sentry-demo.sh</code>, <code>deploy/scripts/sentry-backpressure.sh</code>, <code>tests/e2e/muninn/load.mjs</code>. Knowledge: <a href="../../../kb/muninn/sentry-bridge/index.md">project/kb/muninn/sentry-bridge/</a>.</p>
+</main>
+</body>
+</html>

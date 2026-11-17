@@ -8,7 +8,7 @@ rum-api and decoded with AVFoundation (macOS) to prove it is playable video.
 
   scripts/verify-bridge.py --capture <dir A> [--rum http://localhost:8091] [--loki http://localhost:3103]
                            [--tempo http://localhost:3203] [--read-token rt_dev_...] [--service sentry-demo]
-                           [--out report.json]
+                           [--no-backend] [--out report.json]
 
 Exit 0 when every check passes. Standard library only (plus `swift` for the mp4 probe).
 """
@@ -104,6 +104,8 @@ def main():
     ap.add_argument("--read-token", default="rt_dev_0000000000000000")
     ap.add_argument("--service", default="sentry-demo")
     ap.add_argument("--backend-service", default="demo-backend")
+    ap.add_argument("--no-backend", action="store_true",
+                    help="skip the backend trace check: the capture was replayed (examples/tools/sentryreplay.py), so no backend was called")
     ap.add_argument("--out")
     a = ap.parse_args()
 
@@ -126,7 +128,13 @@ def main():
                 e["init"] |= bool(s.get("init"))
             elif typ == "event":
                 ev = json.loads(p)
-                if (ev.get("exception") or {}).get("values") or ev.get("level") in ("error", "fatal"):
+                # Bridge spec section 6: an exception record when the level is error or fatal, or
+                # absent with exception values, or lower with one non-synthetic exception value
+                # (`captureMessage` at info carries a synthetic one: a sentry.message, not an error).
+                vals = (ev.get("exception") or {}).get("values") or []
+                lvl = ev.get("level")
+                real = any(not (v.get("mechanism") or {}).get("synthetic") for v in vals)
+                if lvl in ("error", "fatal") or (lvl is None and vals) or (lvl is not None and real):
                     errors.append((ts(ev.get("timestamp")), ev.get("level") == "fatal"))
             elif typ == "transaction":
                 tx = json.loads(p)
@@ -246,7 +254,7 @@ def main():
             if any(s.get("parentSpanId") in app_ids for s in backend_spans):
                 joined += 1
     check("every Sentry transaction is a trace in Tempo with session.id on all app spans", found == len(tx_traces), f"{found}/{len(tx_traces)}")
-    if backend_traces:
+    if backend_traces and not a.no_backend:
         check("every transaction that called the backend is one trace with the backend's spans (traceparent)",
               joined == len(backend_traces), f"{joined}/{len(backend_traces)}")
 

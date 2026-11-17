@@ -1,0 +1,80 @@
+# Sentry bridge layer on top of config.muninn.yaml (transitional; see below).
+#
+# The collector merges this file over config.muninn.yaml (compose.muninn.yaml passes both
+# with --config; maps merge, lists are replaced, so the traces and logs pipelines are
+# restated whole). The result is one collector that runs the spec wire and the Sentry
+# bridge (ADR-0008, :4320) together:
+#
+#   ouosentry :4320 -> memory_limiter -> ouoratelimit -> resource/project -> routing/sentry
+#     errors, sessions, logs, vitals, breadcrumbs  -> logs        (transform/events, batch) -> Loki
+#     transactions, spans                          -> traces      (batch)                    -> Tempo -> span metrics -> Mimir
+#     replay_video segments (ouo.replay.chunk)     -> logs/sentry-replay                     -> ouoreplay -> rum-api
+#
+# Why the replays go to rum-api and not Muninn: the bridge emits the MVP JSON envelope
+# (`kind: "video"`, base64 mp4, docs/specs/mobile-replay.md), which Muninn's spec wire
+# (docs/specs/muninn.md section 3) does not accept, and ADR-0019 rules out translating it
+# in the collector. Bridged replays reach Muninn when the Sentry receiver emits
+# `ouo-video/1` records itself (project/agents/sentry-demo/reports/bridge-muninn-lgtm.html,
+# "Plan"). Delete this file then: config.muninn.yaml gains `ouosentry` in its logs/in and
+# traces receivers and nothing else.
+#
+# A full Muninn queue, a down Muninn or a down Loki never slows the bridge's answer to the
+# SDK: the bridge answers (or forwards to Sentry) first and translates afterwards, on its
+# own workers and bounded queue (docs/specs/sentry-bridge.md, section 3).
+#
+# Environment (on top of config.muninn.yaml's):
+#   OUO_INGEST_TOKEN     bearer the ouoreplay exporter sends to rum-api (must equal rum-api's)
+#   OUO_SENTRY_UPSTREAM, OUO_SENTRY_PROJECT_ID, OUO_SENTRY_PUBLIC_KEY, OUO_SENTRY_SERVICE_NAME
+#                        as in config.yaml (default upstream none: answer locally)
+
+receivers:
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    upstream_timeout: 30s
+    projects:
+      - sentry_project_id: "${env:OUO_SENTRY_PROJECT_ID:-1}"
+        public_keys: ["${env:OUO_SENTRY_PUBLIC_KEY:-publickey0000000000000000000000}"]
+        upstream: ${env:OUO_SENTRY_UPSTREAM:-none}
+        ouo_project_id: demo
+        service_name: ${env:OUO_SENTRY_SERVICE_NAME:-sentry-demo}
+
+connectors:
+  routing/sentry:
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: log.attributes["ouo.replay.chunk"] == true
+        pipelines: [logs/sentry-replay]
+
+exporters:
+  # Replay chunks -> rum-api's internal sink, as in config.yaml.
+  ouoreplay:
+    endpoint: http://rum-api:8080
+    ingest_token: ${env:OUO_INGEST_TOKEN}
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 5m
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp, ouosentry]
+      processors: [memory_limiter, ouoratelimit, resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    logs:
+      receivers: [routing/replay, routing/sentry]
+      processors: [transform/events, batch]
+      exporters: [otlp_http/loki]
+    # The bridge's output carries the project in the client context (auth.username), like
+    # an OTLP request, so the same limiter, buckets and project stamp apply before routing.
+    logs/sentry:
+      receivers: [ouosentry]
+      processors: [memory_limiter, ouoratelimit, resource/project]
+      exporters: [routing/sentry]
+    logs/sentry-replay:
+      receivers: [routing/sentry]
+      exporters: [ouoreplay]

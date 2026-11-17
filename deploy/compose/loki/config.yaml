@@ -7,6 +7,13 @@ server:
   http_listen_port: 3100
   grpc_listen_port: 9096
   log_level: warn
+  # The querier hands each split's result to the query frontend over gRPC, and the frontend
+  # server refuses messages over 4 MiB (the default; the querier's client allows 100 MiB). At that
+  # default, a 5 000-line page of mobile records (about 1 KiB of structured metadata each,
+  # the Sentry bridge's) is refused ("received message larger than max") and the query
+  # hangs until its timeout. Measured 2026-11-15: 5.3 MB for one split.
+  grpc_server_max_recv_msg_size: 67108864
+  grpc_server_max_send_msg_size: 67108864
 
 common:
   instance_addr: 127.0.0.1

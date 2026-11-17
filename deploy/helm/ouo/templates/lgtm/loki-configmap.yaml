@@ -18,6 +18,10 @@ data:
       http_listen_port: 3100
       grpc_listen_port: 9096
       log_level: warn
+      # 64 MiB: a 5 000-line split of mobile records is over the 4 MiB default
+      # between querier and frontend, and the query hangs (deploy/compose/loki/config.yaml).
+      grpc_server_max_recv_msg_size: 67108864
+      grpc_server_max_send_msg_size: 67108864
 
     common:
       instance_addr: 127.0.0.1

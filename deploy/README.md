@@ -161,6 +161,9 @@ deploy/scripts/smoke.sh        # edge rules + 1 trace, 1 log, 1 metric, 1 replay
 deploy/scripts/e2e.sh          # synthetic session matrix (tests/e2e/scenario.mjs) + rum-api / Grafana assertions
 deploy/scripts/qa-edge.sh <env> # edge QA on an ouo-env env (tests/e2e/edge-qa.mjs): 401 counter, rate limits incl. empty
                                # exports and X-Forwarded-For, stock OTel SDK, browser CORS, plugin Viewer, RN background end
+deploy/scripts/sentry-demo.sh --env <env>          # --muninn env: Sentry SDK journey through the bridge, checked in
+                               # Loki / Tempo / Mimir / rum-api; --with-muninn-e2e adds the spec-wire replay e2e
+deploy/scripts/sentry-backpressure.sh --env <env>  # the bridge's answer with Loki, Muninn or rum-api stopped
 ```
 
 `smoke.sh` sends OTLP/JSON to the collector's `/v1/{traces,logs,metrics}` with the Basic
@@ -233,6 +236,8 @@ deploy/compose/grafana/provisioning/datasources  loki / tempo / mimir with fixed
 deploy/compose/grafana/provisioning/plugins      ouo11y-rum-app enabled, rumApiUrl + secureJsonData.readToken
 deploy/data/rum-api/                            replay chunks written by rum-api (gitignored)
 deploy/scripts/wait-ready.sh, smoke.sh, e2e.sh  readiness, edge + round-trip smoke, e2e scenario runner (OUO_*_URL overrides; `ouo-env env <env>` prints them)
+deploy/scripts/sentry-demo.sh, sentry-backpressure.sh  Sentry bridge + Muninn + LGTM demo and outage runs on a --muninn env
+deploy/compose/collector/config.muninn-sentry.yaml  Sentry bridge layer merged over config.muninn.yaml (transitional)
 deploy/envs/                                    ouo-env: named local envs behind one Traefik proxy (README)
 deploy/vm/                                      Caddy TLS override, install.sh, systemd unit, README
 deploy/helm/                                    Kubernetes chart (helm agent)

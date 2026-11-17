@@ -1,8 +1,11 @@
 # Opt-in: the spec-wire replay path (ADR-0019, docs/specs/muninn.md). Muninn stores replay
 # chunks in MinIO, and the collector runs collector/config.muninn.yaml: replay chunks are
 # OTLP log records on :4318 /v1/logs, routed to Muninn through a disk queue, with a
-# reference copy in Loki. The MVP replay receiver (:4319), the Sentry bridge (:4320) and
-# rum-api's replay sink are not used; rum-api still runs for the plugin's other pages.
+# reference copy in Loki. The MVP replay receiver (:4319) is not used. The Sentry bridge
+# (:4320) runs as a layer on top (collector/config.muninn-sentry.yaml): its errors,
+# sessions, logs and traces go to Loki and Tempo like the spec wire's, and its video
+# replays still go to rum-api's replay sink until the bridge emits ouo-video/1. rum-api
+# also runs for the plugin's other pages.
 #
 #   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.muninn.yaml up -d
 #   deploy/envs/ouo-env up <env> --muninn          (the same through ouo-env)
@@ -71,8 +74,11 @@ services:
         condition: service_completed_successfully
 
   otel-collector:
+    # Two files, merged in order: the spec wire, then the Sentry bridge layer.
+    command: ["--config=/etc/otelcol/config.yaml", "--config=/etc/otelcol/config.sentry.yaml"]
     volumes: !override
       - ./collector/config.muninn.yaml:/etc/otelcol/config.yaml:ro
+      - ./collector/config.muninn-sentry.yaml:/etc/otelcol/config.sentry.yaml:ro
       - ./collector/projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
       # The replay exporter's disk queue (COL-4); survives collector restarts.
       - replay-queue:/var/lib/otelcol/replay-queue
