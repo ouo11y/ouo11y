@@ -16,12 +16,16 @@ Per main run:
   peak_mb         peak phys_footprint; steady_mb: median footprint in the idle tail.
   net             per destination: requests, wire bytes up (as sent, compressed), decoded bytes up
                   (Content-Encoding removed), bytes down. sdk_* sums every destination but the
-                  backend. replay_kb_min: replay uploads (ouo /v1/replay, Sentry envelopes with a
-                  replay item) per minute of run.
+                  backend. replay_kb_min: replay uploads (ouo `ouo.replay.*` OTLP log records, which
+                  proxy.py labels `replay`; Sentry envelopes with a replay item) per minute of run.
   dropped_pct     JS frames dropped, against the refresh interval measured from the rAF histogram.
   disk_kb         app container after the run, by SDK (path names).
 Soak: memory growth (MB/h, least squares over t >= 5 min, or the last 80 % of a shorter soak). Offline: disk and memory after a run with
 SDK traffic refused; recover: SDK bytes sent by the next (online, idle) launch.
+
+empty_cells: the cells of meta.json with no usable main run (every run excluded or without
+perf.json). bench.sh fails the benchmark when the list is not empty: a cell without data must
+never pass as a cell that costs nothing.
 """
 import argparse
 import glob
@@ -408,6 +412,7 @@ def main():
         cells[c] = {k: summarize([r.get(k) for r in rs]) for k in KEYS}
         cells[c]["replay_missing_runs"] = sum(1 for r in all_main if r["cell"] == c and r.get("replay_missing"))
         cells[c]["runs_total"] = sum(1 for r in all_main if r["cell"] == c)
+        cells[c]["runs_used"] = sum(1 for r in rs if r["ok"])
         cells[c]["refresh_hz"] = statistics.median([r["refresh_hz"] for r in rs if r.get("refresh_hz")] or [0]) or None
         labels = sorted({l for r in rs for l in r.get("net", {})})
         cells[c]["net"] = {l: {f: statistics.median([r["net"].get(l, {}).get(f, 0) for r in rs]) for f in ("req", "up", "up_decoded", "down")} for l in labels}
@@ -425,7 +430,8 @@ def main():
             keep = {k: r.get(k) for k in ("growth_mb_h", "soak_start_mb", "soak_end_mb", "peak_mb", "steady_mb", "disk_sentry_kb",
                                           "disk_ouo_kb", "sdk_req", "sdk_up_kb", "net", "series", "disk_files", "problems")}
             extra.setdefault(r["kind"], {})[r["cell"]] = keep
-    result = {"meta": meta, "cells": cells, "vs_none": vs_none, "tiers": tiers, **extra,
+    empty = [c for c in meta["cells"] if not cells[c]["runs_used"]]
+    result = {"meta": meta, "cells": cells, "vs_none": vs_none, "tiers": tiers, "empty_cells": empty, **extra,
               "runs": [{k: v for k, v in r.items() if k not in ("series",)} | ({"series": r["series"]} if r["kind"] == "main" and r["round"] == 1 and "series" in r else {})
                        for r in runs],
               "problems": [f"{r['kind']}/{r['cell']}/run{r['round']}: {p}" for r in runs for p in r["problems"]]
@@ -441,6 +447,8 @@ def main():
               f"{f('sdk_req',0):>4} {f('sdk_up_kb',0):>7} {f('sdk_up_decoded_kb',0):>7} {f('replay_kb_min',0):>8} {f('dropped_pct',2):>6}")
     for p in result["problems"]:
         print("PROBLEM", p)
+    if empty:
+        print("NO DATA for cell(s):", " ".join(empty))
     if a.json:
         json.dump(result, open(a.json, "w"))
 
