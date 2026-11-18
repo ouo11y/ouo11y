@@ -34,7 +34,7 @@ in a project table that does not match. Before switching a production DSN:
        proxy_pass http://ouo-sentry-bridge:4320;
        proxy_connect_timeout 2s;
        proxy_read_timeout 35s;                                 # above the bridge's upstream_timeout
-       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-For $remote_addr;          # replace, never append: the rate-limit key
        error_page 502 503 504 = @sentry;                       # only nginx's own errors: the bridge's
      }                                                         # (Sentry's) 5xx answers pass through
      location @sentry {
@@ -45,6 +45,10 @@ in a project table that does not match. Before switching a production DSN:
    }
    ```
 
+   The bridge location *replaces* `X-Forwarded-For` with the address nginx saw (behind a load
+   balancer, `set_real_ip_from` + `real_ip_header X-Forwarded-For` first): with
+   `key_from: x_forwarded_for`, `ouoratelimit` keys on the first hop, and an appended header
+   leaves that hop to the device (see "Rate limits behind nginx" under "Hybrid").
    The bridge aborts the connection when Sentry itself is unreachable; nginx then tries Sentry
    directly and, if that fails too, answers `502`, which is what the SDK would get from Sentry's
    own load balancer. A request whose answer timed out after Sentry stored it may reach Sentry
