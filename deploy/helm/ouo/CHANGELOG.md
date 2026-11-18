@@ -7,6 +7,23 @@ release-please from conventional commits (`feat(chart): ...`, `fix(chart): ...`)
 
 ## Unreleased
 
+## [0.3.0](https://github.com/ouo11y/ouo11y/compare/chart-v0.2.0...chart-v0.3.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **muninn:** debug files and erasure without rum-api (ADR-0026) ([#197](https://github.com/ouo11y/ouo11y/issues/197))
+
+### Added
+
+* **deploy:** run ouo on an existing Loki/Tempo/Mimir, rum-api tenant header ([a623f8d](https://github.com/ouo11y/ouo11y/commit/a623f8d5e2b86c58d42fbec9388c128693d350ab))
+* **muninn:** debug files and erasure without rum-api (ADR-0026) ([#197](https://github.com/ouo11y/ouo11y/issues/197)) ([1011542](https://github.com/ouo11y/ouo11y/commit/1011542023dce3953d4a5f728c70eec0e8b4016d))
+
+
+### Fixed
+
+* **plugin:** Viewers can no longer delete replays through the plugin proxy (N30) ([617a35d](https://github.com/ouo11y/ouo11y/commit/617a35dcf505f3188166e22c2e4dcda57d15f237))
+
 ## 0.2.0 (2026-10-31)
 
 First published version of the chart (0.1.0 and 0.1.1 were never pushed).
