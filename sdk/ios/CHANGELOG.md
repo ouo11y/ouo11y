@@ -7,6 +7,24 @@ New entries are written by release-please from conventional commits (`feat(ios):
 
 ## Unreleased
 
+## [0.4.0](https://github.com/ouo11y/ouo11y/compare/ios-v0.3.0...ios-v0.4.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184))
+
+### Added
+
+* **ios:** a feedback frame follows the feedback, the plugin says screenshot ([93bc1bd](https://github.com/ouo11y/ouo11y/commit/93bc1bd0664ecc81b6759e83b15efb7504dc4a41))
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184)) ([edd3fa2](https://github.com/ouo11y/ouo11y/commit/edd3fa28889c4252de4c12e9a08c8091d177ca13))
+
+
+### Fixed
+
+* **ios:** disk queues keep no wall-clock age, names keep put order ([eda5e32](https://github.com/ouo11y/ouo11y/commit/eda5e3206601fc440a61a3dd96d442a92f005a3d))
+* **sdk:** mobile delivery retries only 429 and 502-504, React Native outbox keeps no age ([1959cc0](https://github.com/ouo11y/ouo11y/commit/1959cc04057b84bd503f8d7ced31aeb3218b8e15))
+
 ## 0.3.0 (2026-10-31)
 
 First version published to the mirror `ouo11y/ouo11y-ios` (0.2.0 was never tagged). Products
