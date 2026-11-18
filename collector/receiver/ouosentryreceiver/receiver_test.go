@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/ouo11y/ouo11y/collector/receiver/ouosentryreceiver/internal/metadata"
 )
@@ -66,6 +70,7 @@ func (f *fakeUpstream) requests() []seenRequest {
 
 type harness struct {
 	r        *sentryReceiver
+	metrics  *sdkmetric.ManualReader
 	base     string
 	mu       sync.Mutex
 	envs     []*Envelope
@@ -87,6 +92,8 @@ func startReceiver(t *testing.T, upstream string, mutate ...func(*Config)) *harn
 		t.Fatalf("config: %v", err)
 	}
 	set := receivertest.NewNopSettings(metadata.Type)
+	reader := sdkmetric.NewManualReader()
+	set.MeterProvider = sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	logs, err := createLogs(context.Background(), set, cfg, new(consumertest.LogsSink))
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +102,7 @@ func startReceiver(t *testing.T, upstream string, mutate ...func(*Config)) *harn
 		t.Fatal(err)
 	}
 	r := logs.(*sentryReceiver)
-	h := &harness{r: r, envCount: make(chan struct{}, 100)}
+	h := &harness{r: r, metrics: reader, envCount: make(chan struct{}, 100)}
 	r.onEnvelope = func(_ job, e *Envelope) {
 		h.mu.Lock()
 		h.envs = append(h.envs, e)
@@ -331,10 +338,15 @@ func TestRoutingAndLimits(t *testing.T) {
 	h := startReceiver(t, up.URL, func(c *Config) { c.ServerConfig.MaxRequestBodySize = 1024 })
 	auth := map[string]string{"X-Sentry-Auth": "Sentry sentry_key=" + testKey}
 
-	resp := post(t, h.base+"/api/"+testProject+"/store/", []byte("{}"), auth)
+	resp := post(t, h.base+"/api/"+testProject+"/nope/x", []byte("{}"), auth)
 	resp.Body.Close()
 	if resp.StatusCode != 404 {
-		t.Errorf("store endpoint: %d, want 404", resp.StatusCode)
+		t.Errorf("unknown route: %d, want 404", resp.StatusCode)
+	}
+	resp = post(t, h.base+"/api/9999/store/", []byte("{}"), auth)
+	resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("store endpoint of an unknown project without passthrough: %d, want 404", resp.StatusCode)
 	}
 	req, _ := http.NewRequest(http.MethodGet, h.base+"/api/"+testProject+"/envelope/", nil)
 	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != 405 {
@@ -395,6 +407,54 @@ func TestConfigValidate(t *testing.T) {
 		mutate(c)
 		if c.Validate() == nil {
 			t.Errorf("%s: Validate accepted it", name)
+		}
+	}
+}
+
+// xffLogs records the X-Forwarded-For metadata the pipeline would see.
+type xffLogs struct {
+	consumertest.LogsSink
+	mu   sync.Mutex
+	xff  [][]string
+	addr []string
+}
+
+func (x *xffLogs) ConsumeLogs(ctx context.Context, ld plog.Logs) error {
+	info := client.FromContext(ctx)
+	x.mu.Lock()
+	x.xff = append(x.xff, info.Metadata.Get("X-Forwarded-For"))
+	x.addr = append(x.addr, fmt.Sprint(info.Addr))
+	x.mu.Unlock()
+	return x.LogsSink.ConsumeLogs(ctx, ld)
+}
+
+// Behind a proxy (nginx, a mirror) every request comes from the proxy's
+// address: the device's address reaches ouoratelimit's `key_from:
+// x_forwarded_for` only as client metadata.
+func TestForwardedForReachesThePipeline(t *testing.T) {
+	h := startReceiver(t, UpstreamNone)
+	rec := &xffLogs{}
+	h.r.setLogs(rec)
+	hdr := sdkHeaders()
+	hdr["X-Forwarded-For"] = "203.0.113.7, 10.1.2.3"
+	resp := post(t, h.base+"/api/"+testProject+"/envelope/", gz(t, []byte(sampleEnvelope)), hdr)
+	resp.Body.Close()
+	h.waitEnvelopes(t, 1)
+	deadline := time.Now().Add(3 * time.Second)
+	for rec.LogRecordCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.xff) == 0 {
+		t.Fatal("no logs reached the pipeline")
+	}
+	for i, v := range rec.xff {
+		if len(v) != 1 || v[0] != "203.0.113.7, 10.1.2.3" {
+			t.Errorf("logs %d: X-Forwarded-For metadata %q", i, v)
+		}
+		if rec.addr[i] != "127.0.0.1" {
+			t.Errorf("logs %d: addr %q, want the peer 127.0.0.1", i, rec.addr[i])
 		}
 	}
 }

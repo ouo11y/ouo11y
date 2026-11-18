@@ -30,11 +30,13 @@ func createDefaultConfig() component.Config {
 	sc.NetAddr.Endpoint = DefaultEndpoint
 	sc.MaxRequestBodySize = DefaultMaxRequestBodySize
 	return &Config{
-		ServerConfig:       sc,
-		UpstreamTimeout:    DefaultUpstreamTimeout,
-		MaxTranslateBytes:  DefaultMaxTranslateBytes,
-		TranslateQueueSize: DefaultTranslateQueueSize,
-		State:              StateConfig{MaxSessions: 200000, TTL: 4 * time.Hour, ReplayHold: 10 * time.Minute, LogHold: time.Minute},
+		ServerConfig:        sc,
+		UpstreamTimeout:     DefaultUpstreamTimeout,
+		MaxTranslateBytes:   DefaultMaxTranslateBytes,
+		TranslateQueueSize:  DefaultTranslateQueueSize,
+		TranslateQueueBytes: DefaultTranslateQueueBytes,
+		Mirror:              MirrorSettings{QueueBytes: DefaultMirrorQueueBytes, Timeout: DefaultMirrorTimeout},
+		State:               StateConfig{MaxSessions: 200000, TTL: 4 * time.Hour, ReplayHold: 10 * time.Minute, LogHold: time.Minute},
 	}
 }
 

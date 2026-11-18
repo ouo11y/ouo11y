@@ -10,9 +10,10 @@ Scope: envelopes from the Sentry mobile SDKs, `sentry.cocoa` (iOS), `sentry.java
 
 ```
 POST /api/{sentry_project_id}/envelope/        port 4320 (ouosentry receiver in ouo-collector)
+*    /api/{sentry_project_id}/{endpoint}/       store, minidump, security, ...: forwarded only (section 2a)
 ```
 
-- Auth, in this order, and all present ones must agree: `X-Sentry-Auth: Sentry sentry_key=<public key>, ...`, query `?sentry_key=<public key>`, envelope header `dsn`. The pair `(sentry_project_id, public key)` must exist in the project table, else `403 {"detail":"unknown project or key"}` and nothing is forwarded.
+- Auth, in this order, and all present ones must agree: `X-Sentry-Auth: Sentry sentry_key=<public key>, ...`, query `?sentry_key=<public key>`, envelope header `dsn`. The pair `(sentry_project_id, public key)` must exist in the project table, else the request goes to `passthrough_upstream` when it is set (section 2a), or is answered `403 {"detail":"unknown project or public key"}` and not forwarded.
 - Body: `Content-Encoding` `gzip`, `deflate` or none is translated. Any other encoding (for example `br`) is forwarded but not translated, and counted with reason `encoding`.
 - Body limit: `max_request_body_size` (default 100 MiB), `413` above it, not forwarded. Bodies above `max_translate_bytes` (default 20 MiB) are forwarded but not translated.
 - CORS: none. Mobile SDKs send no `Origin` (verified); the receiver adds no CORS headers, so browsers cannot use it, which is fine while the browser SDK is out of scope.
@@ -30,6 +31,32 @@ For a known project with an upstream:
 5. Upstream non-`2xx`: not translated.
 
 With `upstream: none` the receiver answers `200 {"id":"<envelope event_id or empty>"}` and enqueues.
+
+Steps 1 and 2 add the time of one upstream round trip, plus reading the whole body first (store and forward: the body must be complete before it is forwarded unchanged and translated). The translation queue is also bounded in bytes, `translate_queue_bytes` (default 256 MiB, reason `queue_bytes`). A translator panic drops that envelope (reason `panic`); forwarding is not affected.
+
+## 2a. Passthrough and other ingest endpoints ([ADR-0028](../adr/0028-sentry-bridge-mirrors-and-passthrough.md))
+
+`passthrough_upstream` (optional, an http(s) base URL, normally the production Sentry ingest host): every request the bridge does not serve itself goes there unchanged, as in section 2 steps 1 to 3, and is neither translated nor mirrored; counted `outcome = passthrough`. That covers an unknown or missing public key, an unknown project id, every other ingest endpoint (`/api/{id}/store/`, `minidump`, `security`, `unreal`, any method) of an unknown project or of an `upstream: none` project (production keeps getting what the bridge does not translate), any path outside `/api/{id}/{endpoint}/` (for example `/api/{id}/integration/otlp/v1/traces`), and a method other than `POST` on `/envelope/`. Other ingest endpoints of a project with an upstream go to that upstream the same way (key from `X-Sentry-Auth` or the `sentry_key` query). Without `passthrough_upstream` the answers stay `403` (envelope), `404` (other endpoints and paths) and `405` (non-`POST` envelope). With it, the bridge answers nothing itself except a body over `max_request_body_size` (`413`), so it is never the reason an SDK deletes an envelope. Sentry SDKs delete an envelope on a `4xx` other than `429`, so a bridge in front of production should set it.
+
+A bridge fed by a proxy `mirror` (the hybrid deployment of `docs/sentry-bridge-deployment.md`: the proxy has already sent the original to production) must leave `passthrough_upstream` unset: with it, every mirrored envelope the table does not match (another project's DSN on the same ingest host, a rotated key) goes to production a second time (measured 2026-11-17: 120 envelopes in, 180 at production). The receiver cannot tell a mirror-fed bridge from a bridge at the edge with `upstream: none`, where passthrough is what keeps unknown DSNs alive, so the configuration does not reject the combination.
+
+## 2b. Mirrors ([ADR-0028](../adr/0028-sentry-bridge-mirrors-and-passthrough.md))
+
+A project row may list `mirrors`, secondary Sentry upstreams that get a copy of the project's envelopes:
+
+```yaml
+mirrors:
+  - name: preview                         # metric label, default the upstream host
+    upstream: https://sentry-preview.example.com
+    sentry_project_id: "7"                # optional: the mirror's own project id
+    public_key: "<preview DSN public key>" # optional: the mirror's own key
+```
+
+1. When the bridge has answered an envelope (any status from the primary, or `upstream: none`) and flushed that answer to the SDK, it queues one copy per mirror and returns. The primary's answer is the only one the SDK sees; queueing is a non-blocking channel send.
+2. Primary unreachable (section 2 step 3): the SDK connection is aborted and no copy is queued; the SDK's retry is mirrored.
+3. A copy is the same method, path, query, body bytes and headers as the primary request (hop-by-hop headers removed, the same `X-Forwarded-For`). With `sentry_project_id` or `public_key` set and different, exactly these are rewritten: the project id in the path; the `sentry_key` value in `X-Sentry-Auth`, `Authorization` and the query string, with `sentry_secret` dropped; the envelope header `dsn`, to `<scheme>://<public_key>@<mirror host>[path]/<sentry_project_id>`, only when the envelope has one (a gzip or deflate body is re-encoded the same way, streamed, up to `max_translate_bytes` decoded; `Content-Length` follows). To look for the `dsn` only the envelope header line is decoded, at most 64 KiB. A body without a `dsn` stays byte-identical. A body whose header cannot be read (encoding `br`, a corrupt stream, a header line over 64 KiB, or with a `dsn` and more than `max_translate_bytes` decoded) is sent unchanged, and its send is counted with `reason = body_not_rewritten`.
+4. Queues: one per mirror, all mirrors together holding at most `mirror.queue_bytes` (default 256 MiB; each queue also stops at 10 000 envelopes); 4 concurrent sends per mirror, each bounded by `mirror.timeout` (default 10 s), with a connection pool of their own. A copy that does not fit is dropped (`queue_bytes`, `queue_full`); a failed send (`timeout`, `unreachable`) is counted and not retried. Shutdown closes the translate and mirror queues together; a handler still waiting on its upstream then drops its copy and its translation (`reason = shutdown`). The queues drain until the collector's shutdown deadline, then what is in flight is aborted.
+5. Metrics: `ouo_sentry_mirror_requests_total{mirror, ouo.project.id, outcome, reason, status_code}`, one count per copy, with outcome `sent` (with the mirror's status), `error` or `dropped`; `ouo_sentry_mirror_duration_seconds{mirror, ouo.project.id}`; `ouo_sentry_queue_bytes{queue = translate | mirror}`.
 
 ## 3. Envelope parsing
 
@@ -302,7 +329,7 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 
 Checked against the Phase 8a rev 2 components in `collector/` and `deploy/compose/collector/config.yaml`.
 
-**Project context.** On the OTLP and replay paths, `basicauth` puts the project id in `client.Info.Auth` as `username`. `resource/project` stamps `ouo.project.id` from it, and `ouoratelimit` keys its project bucket on it. The Sentry path has no Basic credential. After the project table lookup, the receiver therefore puts an auth value with `username = <ouo_project_id>` into `client.Info` on the context it hands to its consumers. Both processors then work unchanged. The receiver also sets `client.Info.Addr` to the client address.
+**Project context.** On the OTLP and replay paths, `basicauth` puts the project id in `client.Info.Auth` as `username`. `resource/project` stamps `ouo.project.id` from it, and `ouoratelimit` keys its project bucket on it. The Sentry path has no Basic credential. After the project table lookup, the receiver therefore puts an auth value with `username = <ouo_project_id>` into `client.Info` on the context it hands to its consumers. Both processors then work unchanged. The receiver also sets `client.Info.Addr` to the client address (the TCP peer) and, when the request carries one, puts its `X-Forwarded-For` header into `client.Info.Metadata`, as `include_metadata: true` does on the OTLP receivers, so `ouoratelimit` with `key_from: x_forwarded_for` keys each device behind a proxy separately instead of keying every device on the proxy's address.
 
 **Replay records.** These are the records the `ouoreplay` exporter already consumes, as the `ouoreplay` receiver writes them:
 - body: the chunk JSON as bytes;
@@ -318,6 +345,9 @@ receivers:
     max_request_body_size: 20971520
     upstream_timeout: 10s
     translate_queue_size: 10000
+    translate_queue_bytes: 268435456
+    passthrough_upstream: https://o123.ingest.sentry.io  # optional (section 2a)
+    mirror: { queue_bytes: 268435456, timeout: 10s }   # section 2b
     state: { max_sessions: 200000, ttl: 4h, replay_hold: 10m, replay_hold_max_bytes: 268435456, log_hold: 1m }
     projects:
       - sentry_project_id: "4504"
@@ -327,6 +357,8 @@ receivers:
         service_name: mobile-store-ios
         sentry_ui_url: https://acme.sentry.io
         copy_tags: false                            # true: error tags as ouo.sentry.tag.<key> (section 6a)
+        mirrors:                                    # optional (section 2b)
+          - { name: preview, upstream: https://sentry-preview.example.com, sentry_project_id: "7", public_key: "<preview key>" }
 
 connectors:
   routing/sentry:
@@ -359,7 +391,7 @@ The `ouoreplay` receiver's chunk validation and the `ouoreplay` exporter must ac
 
 Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment until correlation state moves to a shared store (Phase 11). It exports directly to the backends (the main collector requires a Basic project credential). Client-address affinity is not enough for phones that change networks. Operator guide with the failure modes and a Kubernetes manifest: [sentry-bridge-deployment.md](../sentry-bridge-deployment.md).
 
-Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`, `log_unresolved_overflow`, `user_report_unresolved_overflow`), `ouo_sentry_session_match_total{rule}`.
+Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `passthrough`, `accepted_local`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `queue_bytes`, `panic`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`, `log_unresolved_overflow`, `user_report_unresolved_overflow`), `ouo_sentry_session_match_total{rule}`, and the mirror metrics of section 2b.
 
 ## 11. rum-api: video replay kind
 
@@ -421,4 +453,5 @@ Done on 2026-10-14 for iOS; results in `project/reports/sentry-bridge-verificati
 4. **End to end**: `sentrytap compare A B` must report every request byte-identical with identical responses; `examples/sentry-mobile/scripts/verify-bridge.py` derives sessions, errors, transactions and replays from the raw envelopes and checks rum-api, Loki, Tempo and every mp4 (sha256 and AVFoundation decode). A run with the fake Sentry stopped checks that the SDK retries and that ouo records each event once.
 5. **Real upstream** (N2, 2026-10-18, and again 2026-10-23 for the parity fixes): self-hosted Sentry 26.10 as the upstream, `examples/sentry-mobile` on the iOS Simulator with real taps; counts compared with Sentry's own (`project/kb-archive/sentry-self-hosted.md`). The N2 capture is the golden fixture `ios-rn-8.30.0/selfhosted`; `ios-rn-8.30.0/journey` is also replayed with every replay item and replay id removed, for sessions without a replay.
 6. **SDK versions** (2026-10-23, N3): golden journeys of 7.11.0 and 8.32.0 next to 8.30.0, tested by `versions_test.go`; captured while `examples/sentry-mobile/scripts/verify.py` checked the same run end to end.
-7. **Not done yet**: Android, native sentry-cocoa without React Native, a quota-limited Sentry (real `429`).
+7. **Mirrors and passthrough** (2026-11-15, ADR-0028): unit and failure-injection tests (`mirror_test.go`: a hanging, a `500` and a `429` mirror next to a healthy primary, the byte budget, primary down, credential rewrite, translator panic), and an end-to-end run with self-hosted Sentry 26.10 as the primary and a recording upstream as the mirror (`project/agents/sentry-demo/reports/sentry-mirror-readiness.html`).
+8. **Not done yet**: Android, native sentry-cocoa without React Native, a quota-limited Sentry (real `429`).

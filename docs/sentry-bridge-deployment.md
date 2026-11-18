@@ -8,6 +8,170 @@ side setup is in [sentry-client-setup.md](sentry-client-setup.md).
 as one replica until that state moves to a shared store (roadmap Phase 11, checklist N4). The
 OTLP and replay receivers have no such limit; only the bridge does.
 
+## Putting a production app behind the bridge
+
+The bridge forwards every envelope to Sentry unchanged and returns Sentry's answer, so the app
+sees no difference while the bridge runs. The risks are in the cases where it does not run, and
+in a project table that does not match. Before switching a production DSN:
+
+1. **Set `passthrough_upstream` to the production Sentry ingest host** (spec section 2a). Without
+   it, an envelope whose key or project is not in the table gets `403`, and Sentry SDKs delete an
+   envelope on any `4xx` but `429`: a typo or a rotated key loses production data. With it, the
+   bridge forwards whatever it does not recognise, untranslated, and Sentry answers.
+2. **Put a fallback in front of the bridge.** When the bridge is down (crash, rollout with
+   `Recreate`, node drain), a load balancer answers `502` / `503`, and a `5xx` may make the SDK
+   drop the envelope; a refused connection makes it cache and retry, but the SDK cache is small
+   (sentry-cocoa and sentry-java keep 30 envelopes by default). Route the DSN host through a proxy
+   that falls back to Sentry directly when the bridge does not answer. Because the bridge is
+   transparent, the fallback changes nothing for Sentry; only the ouo copy misses that window.
+   nginx:
+
+   ```nginx
+   server {
+     listen 443 ssl; server_name sentry-bridge.example.com;   # the DSN host
+     client_max_body_size 100m;                                # body is buffered, so it can be sent again
+     location /api/ {
+       proxy_pass http://ouo-sentry-bridge:4320;
+       proxy_connect_timeout 2s;
+       proxy_read_timeout 35s;                                 # above the bridge's upstream_timeout
+       proxy_set_header X-Forwarded-For $remote_addr;          # replace, never append: the rate-limit key
+       error_page 502 503 504 = @sentry;                       # only nginx's own errors: the bridge's
+     }                                                         # (Sentry's) 5xx answers pass through
+     location @sentry {
+       proxy_pass https://o123.ingest.sentry.io;               # the production ingest host
+       proxy_ssl_server_name on;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+     }
+   }
+   ```
+
+   The bridge location *replaces* `X-Forwarded-For` with the address nginx saw (behind a load
+   balancer, `set_real_ip_from` + `real_ip_header X-Forwarded-For` first): with
+   `key_from: x_forwarded_for`, `ouoratelimit` keys on the first hop, and an appended header
+   leaves that hop to the device (see "Rate limits behind nginx" under "Hybrid").
+   The bridge aborts the connection when Sentry itself is unreachable; nginx then tries Sentry
+   directly and, if that fails too, answers `502`, which is what the SDK would get from Sentry's
+   own load balancer. A request whose answer timed out after Sentry stored it may reach Sentry
+   twice; Sentry drops the duplicate by event id.
+
+   If the DSN host is a name you control (recommended), rollback is a DNS or proxy change, not
+   an app release.
+3. **DSN.** Keep the public key and project id; change only the host (and drop any path prefix:
+   the bridge serves `/api/{id}/...` at its root). Mobile SDKs need a valid TLS certificate for that
+   host (iOS ATS refuses plain http). Do not use the SDK `tunnel` option: it posts to an arbitrary
+   path the bridge does not serve. `upstream` must be the exact ingest host of the original DSN
+   (`oNNN.ingest.sentry.io`, `oNNN.ingest.us.sentry.io`, `oNNN.ingest.de.sentry.io` or your
+   self-hosted host): regions differ.
+4. **Client IP.** The bridge appends the device address to `X-Forwarded-For`. Check one event in
+   Sentry after the switch: its user IP and geo must be the device's, not the bridge's. If they are
+   the bridge's, the proxy in front of the bridge must pass the client address on.
+5. **Upstream timeout.** Keep `upstream_timeout` (default 30 s) below the SDK's own request timeout
+   so the SDK gets an aborted connection (and retries) rather than timing out itself.
+6. **Mirrors** (a second Sentry, spec section 2b) are optional and can never change the answer to
+   the SDK. Watch `ouo_sentry_mirror_requests_total{outcome!="sent"}` for what the mirror missed.
+
+What a production cut-over looks like in the collector config:
+
+```yaml
+receivers:
+  ouosentry:
+    endpoint: 0.0.0.0:4320
+    upstream_timeout: 30s
+    passthrough_upstream: https://o123.ingest.sentry.io        # same host as `upstream`
+    mirror: { queue_bytes: 268435456, timeout: 10s }
+    projects:
+      - sentry_project_id: "4504"
+        public_keys: ["<DSN public key>"]
+        upstream: https://o123.ingest.sentry.io
+        ouo_project_id: mobile-store
+        service_name: mobile-store-ios
+        mirrors:
+          - name: preview
+            upstream: https://sentry-preview.example.com
+            sentry_project_id: "2"                              # the preview's project
+            public_key: "<preview DSN public key>"
+```
+
+**Memory.** The bridge holds each request body while it forwards it (store and forward, up to
+`max_request_body_size`, default 100 MiB per request), the translation queue (`translate_queue_bytes`,
+default 256 MiB) and the mirror queues (`mirror.queue_bytes`, default 256 MiB), plus the session
+state. The `memory_limiter` processor protects the pipelines, not the HTTP handler: size the pod
+limit above the two queue budgets plus about 256 MiB, and lower `max_request_body_size` to 20 MiB
+for a mobile-only project (replay segments and attachments are far below it; Sentry's own limit
+for an attachment is 100 MiB, so anything larger is rejected by Sentry anyway).
+
+## Hybrid: production stays on nginx, the bridge gets a mirror
+
+When production must not depend on the collector at all, keep the existing ingest proxy's
+`proxy_pass` to production Sentry exactly as it is and add one nginx `mirror` of the envelope
+endpoint to a bridge running with `upstream: none` (it answers `200` at once and queues). The
+bridge then sends its own copy to a Preview Sentry (`mirrors`, spec section 2b) and translates
+for Loki, Tempo and Mimir. Measured on 2026-11-17
+([report](../project/agents/sentry-demo/reports/sentry-hybrid-mirror.html)):
+
+- **nginx couples the client to the mirror.** The client's answer is not delayed, but nginx does
+  not read the next request of a keep-alive connection until the mirror subrequest ends, and
+  Sentry SDKs reuse their connection. With nginx's default 60 s timeouts a blackholed bridge
+  made every request wait 60 s (p50 60.0 s; 8 of 24 clients timed out, 5 of those 8 envelopes had
+  reached production anyway, so the SDK's retry duplicates them, and 3 had not). A 2 s slow bridge
+  added 2 s to every request. With the timeouts below, a blackholed bridge costs about the read
+  timeout (p50 66–77 ms, p99 103–169 ms on the loaded test host) and a refused one costs nothing.
+- **`passthrough_upstream` must stay unset** on a mirror-fed bridge: otherwise every mirrored
+  envelope of another project on the same ingest host reaches production a second time
+  (spec section 2a).
+- **One bridge, not a pool.** Hashing nginx's `upstream` on `$remote_addr` (or the first
+  `X-Forwarded-For` hop) keeps a device on one bridge only while its address holds: a phone
+  moving between Wi-Fi and cellular splits its session from that envelope on (see "What breaks
+  with two replicas" below). Hashing on the DSN key is correct but sends a whole app to one
+  instance, which is one bridge again. Sentry SDKs send no device or session header nginx could
+  hash on; the ids are inside the body. Scale the one bridge up, and give it a `backup` standby
+  for a dead primary (not a flapping one: each failover splits sessions between two instances
+  with cold state; failover was not measured).
+- **Rate limits behind nginx.** Set `client.key_from: x_forwarded_for` on `ouoratelimit`
+  (`OUO_RATELIMIT_CLIENT_KEY`); otherwise every device shares the proxy's one client bucket
+  (100/s by default) and translation drops past it. Have nginx *replace* the header with the
+  address it saw (`$remote_addr`; behind a load balancer, `set_real_ip_from` +
+  `real_ip_header X-Forwarded-For` first): appending (`$proxy_add_x_forwarded_for`) keeps the
+  device's own value as the first hop, so a device sending a new value each time gets a new
+  bucket each time and can drain the project bucket for everyone.
+
+```nginx
+upstream ouo_bridge {
+    server 127.0.0.1:4320;                # the bridge next to nginx: a dead one refuses at once
+    server ouo-bridge-standby:4320 backup;  # for a dead primary, not a flapping one (unmeasured)
+    keepalive 16;
+    keepalive_timeout 30s;                # below the bridge's idle timeout (1 min)
+}
+server {
+    # ... the existing listen / ssl / server_name and location / { proxy_pass <production> } ...
+    client_body_buffer_size 1m;           # the mirror needs the body; keep it in memory
+    location ~ ^/api/[0-9]+/envelope/$ {
+        mirror /_ouo_mirror;
+        mirror_request_body on;           # the default; keep it on: the bridge needs the body
+        # ... the same proxy_pass and headers to production as location / ...
+    }
+    location = /_ouo_mirror {
+        internal;
+        proxy_pass http://ouo_bridge$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header X-Forwarded-For $remote_addr;  # replace, never append: the rate-limit key
+        proxy_connect_timeout 50ms;       # each bounds what a dead or slow bridge adds
+        proxy_send_timeout 100ms;         # to the device's next request on the connection
+        proxy_read_timeout 100ms;
+        proxy_next_upstream off;          # a lost copy is fine; a retry costs the device time
+    }
+}
+```
+
+The bridge in `upstream: none` mode answers in a few milliseconds, so 100 ms only loses copies
+when the bridge stalls; the copies it loses are counted nowhere on the bridge (watch nginx's
+error log for `upstream timed out` on `/_ouo_mirror`, or compare Sentry's accepted count with
+`ouo_sentry_envelopes_total{outcome="accepted_local"}`). `mirror_request_body on` makes nginx
+read the whole body before it proxies to production, which is nginx's default
+(`proxy_request_buffering on`) anyway. The production location keeps whatever
+`X-Forwarded-For` handling it has today; only the mirror's header feeds the rate limiter.
+
 ## What the bridge keeps in memory
 
 Sentry SDKs do not put a session id on most items. The bridge learns which session an item
@@ -91,6 +255,7 @@ data:
       ouosentry:
         endpoint: 0.0.0.0:4320
         upstream_timeout: 30s
+        passthrough_upstream: https://o123.ingest.sentry.io   # never lose an unmatched envelope
         projects:
           - sentry_project_id: "4504"
             public_keys: ["<DSN public key>"]
@@ -185,7 +350,7 @@ spec:
           livenessProbe: { httpGet: { path: /, port: 13133 } }
           resources:
             requests: { cpu: 250m, memory: 256Mi }
-            limits: { memory: 768Mi }
+            limits: { memory: 1Gi }      # queue budgets (2 x 256 MiB) + state + headroom
           volumeMounts:
             - { name: config, mountPath: /etc/otelcol }
       volumes:

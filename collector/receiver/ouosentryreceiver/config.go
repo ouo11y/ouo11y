@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -26,6 +27,12 @@ const (
 	DefaultUpstreamTimeout = 30 * time.Second
 	// DefaultTranslateQueueSize is the number of envelopes waiting for translation.
 	DefaultTranslateQueueSize = 10000
+	// DefaultTranslateQueueBytes bounds the bytes waiting for translation.
+	DefaultTranslateQueueBytes int64 = 256 << 20
+	// DefaultMirrorQueueBytes bounds the bytes waiting for all mirrors together.
+	DefaultMirrorQueueBytes int64 = 256 << 20
+	// DefaultMirrorTimeout bounds one mirror round trip.
+	DefaultMirrorTimeout = 10 * time.Second
 	// UpstreamNone answers locally instead of forwarding (cutover mode).
 	UpstreamNone = "none"
 )
@@ -52,6 +59,16 @@ type Config struct {
 	MaxTranslateBytes int64 `mapstructure:"max_translate_bytes"`
 	// TranslateQueueSize is the bounded queue between forwarding and translation.
 	TranslateQueueSize int `mapstructure:"translate_queue_size"`
+	// TranslateQueueBytes bounds the bytes held by that queue.
+	TranslateQueueBytes int64 `mapstructure:"translate_queue_bytes"`
+	// PassthroughUpstream, when set, receives every request the project table
+	// does not match (unknown or missing key, unknown project, other ingest
+	// endpoints of unknown projects), unchanged and untranslated, instead of
+	// the 403 / 404 answer. It is the production Sentry, so that a missing
+	// table row never costs an event (spec section 2a).
+	PassthroughUpstream string `mapstructure:"passthrough_upstream"`
+	// Mirror bounds the asynchronous copies sent to the projects' mirrors.
+	Mirror MirrorSettings `mapstructure:"mirror"`
 	// Projects maps Sentry projects and public keys to upstreams and ouo projects.
 	Projects []ProjectConfig `mapstructure:"projects"`
 	// State bounds the session correlation state (spec section 8).
@@ -79,6 +96,32 @@ type ProjectConfig struct {
 	// CopyTags copies the error events' tags as ouo.sentry.tag.<key>. Off by
 	// default: tags are app-chosen content (spec section 12).
 	CopyTags bool `mapstructure:"copy_tags"`
+	// Mirrors get an asynchronous copy of every envelope the bridge answered
+	// (spec section 2b). They never change or delay the answer to the SDK.
+	Mirrors []MirrorConfig `mapstructure:"mirrors"`
+}
+
+// MirrorConfig is one secondary Sentry that gets a copy of a project's envelopes.
+type MirrorConfig struct {
+	// Name labels the mirror's metrics, next to the project's ouo_project_id
+	// (default: the upstream host).
+	Name string `mapstructure:"name"`
+	// Upstream is the mirror's ingest base URL (scheme://host[:port][/path]).
+	Upstream string `mapstructure:"upstream"`
+	// SentryProjectID replaces the project id in the path and envelope dsn
+	// (default: unchanged).
+	SentryProjectID string `mapstructure:"sentry_project_id"`
+	// PublicKey replaces sentry_key in X-Sentry-Auth, Authorization, the query
+	// string and the envelope dsn (default: unchanged).
+	PublicKey string `mapstructure:"public_key"`
+}
+
+// MirrorSettings bounds the mirror queues.
+type MirrorSettings struct {
+	// QueueBytes bounds the bytes waiting for all mirrors together.
+	QueueBytes int64 `mapstructure:"queue_bytes"`
+	// Timeout bounds one mirror round trip.
+	Timeout time.Duration `mapstructure:"timeout"`
 }
 
 // StateConfig bounds the correlation state.
@@ -99,8 +142,14 @@ func (cfg *Config) Validate() error {
 	if cfg.ServerConfig.NetAddr.Endpoint == "" {
 		errs = append(errs, errors.New("endpoint must not be empty"))
 	}
-	if cfg.UpstreamTimeout < 0 || cfg.MaxTranslateBytes < 0 || cfg.TranslateQueueSize < 0 {
-		errs = append(errs, errors.New("upstream_timeout, max_translate_bytes and translate_queue_size must not be negative"))
+	if cfg.UpstreamTimeout < 0 || cfg.MaxTranslateBytes < 0 || cfg.TranslateQueueSize < 0 || cfg.TranslateQueueBytes < 0 {
+		errs = append(errs, errors.New("upstream_timeout, max_translate_bytes, translate_queue_size and translate_queue_bytes must not be negative"))
+	}
+	if m := cfg.Mirror; m.QueueBytes < 0 || m.Timeout < 0 {
+		errs = append(errs, errors.New("mirror queue_bytes and timeout must not be negative"))
+	}
+	if cfg.PassthroughUpstream != "" && !validUpstream(cfg.PassthroughUpstream) {
+		errs = append(errs, errors.New("passthrough_upstream must be an http(s) base URL without query"))
 	}
 	if len(cfg.Projects) == 0 {
 		errs = append(errs, errors.New("at least one project is required"))
@@ -123,10 +172,26 @@ func (cfg *Config) Validate() error {
 			}
 			seen[key] = true
 		}
-		if p.Upstream != UpstreamNone {
-			u, err := url.Parse(p.Upstream)
-			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" {
-				errs = append(errs, fmt.Errorf("%s: upstream must be an http(s) base URL without query, or %q", where, UpstreamNone))
+		if p.Upstream != UpstreamNone && !validUpstream(p.Upstream) {
+			errs = append(errs, fmt.Errorf("%s: upstream must be an http(s) base URL without query, or %q", where, UpstreamNone))
+		}
+		names := map[string]bool{}
+		for j, m := range p.Mirrors {
+			mw := fmt.Sprintf("%s.mirrors[%d]", where, j)
+			if !validUpstream(m.Upstream) {
+				errs = append(errs, fmt.Errorf("%s: upstream must be an http(s) base URL without query", mw))
+				continue
+			}
+			if m.SentryProjectID != "" && !sentryProjectIDRe.MatchString(m.SentryProjectID) {
+				errs = append(errs, fmt.Errorf("%s: sentry_project_id must be numeric", mw))
+			}
+			if strings.ContainsAny(m.PublicKey, " ,=&@/") {
+				errs = append(errs, fmt.Errorf("%s: public_key must be a bare DSN public key", mw))
+			}
+			if n := mirrorName(m); names[n] {
+				errs = append(errs, fmt.Errorf("%s: duplicate mirror name %q", mw, n))
+			} else {
+				names[n] = true
 			}
 		}
 		if !ouoProjectIDRe.MatchString(p.OuoProjectID) {
@@ -137,4 +202,21 @@ func (cfg *Config) Validate() error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// validUpstream reports whether s is an http(s) base URL without query.
+func validUpstream(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.RawQuery == ""
+}
+
+// mirrorName is the mirror's metric label.
+func mirrorName(m MirrorConfig) string {
+	if m.Name != "" {
+		return m.Name
+	}
+	if u, err := url.Parse(m.Upstream); err == nil {
+		return u.Host
+	}
+	return m.Upstream
 }

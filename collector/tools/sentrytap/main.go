@@ -1,13 +1,15 @@
 // Command sentrytap records Sentry SDK traffic for the Sentry bridge
 // (ADR-0008, docs/specs/sentry-bridge.md section 14).
 //
-// Three modes:
+// Four modes:
 //
 //	sentrytap -listen :4400 -dir caps/A -forward http://localhost:4342   record, then forward raw bytes and record the response
 //	sentrytap -listen :4401 -dir caps/B -sink                            record and answer like Sentry (200 {"id":...})
 //	sentrytap compare caps/A caps/B                                      prove B received exactly what A saw
+//	sentrytap replay -dir caps -target http://localhost:4320 -n 1000 -c 8 send a capture again, print latency percentiles
 //
-// The sink can impersonate Sentry's throttling: -status 429 -rate-limits "60::organization" -retry-after 60.
+// The sink can impersonate Sentry's throttling: -status 429 -rate-limits "60::organization" -retry-after 60,
+// and a slow or hanging upstream: -delay 30s.
 //
 // Each request is stored as <dir>/<NNNNNN>/request.json (method, path, raw
 // query, headers, body length and sha256), body.bin (raw bytes as received,
@@ -62,6 +64,7 @@ type tap struct {
 	status     int
 	rateLimits string
 	retryAfter string
+	delay      time.Duration
 	client     *http.Client
 	seq        atomic.Int64
 	mu         sync.Mutex
@@ -78,6 +81,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "compare" {
 		os.Exit(compare(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "replay" {
+		os.Exit(replay(os.Args[2:]))
+	}
 	listen := flag.String("listen", ":4400", "listen address")
 	dir := flag.String("dir", "captures", "capture directory")
 	forward := flag.String("forward", "", "forward to this base URL (scheme://host:port), keeping path and query")
@@ -85,6 +91,7 @@ func main() {
 	status := flag.Int("status", 200, "sink: status code to answer")
 	rateLimits := flag.String("rate-limits", "", "sink: X-Sentry-Rate-Limits header value")
 	retryAfter := flag.String("retry-after", "", "sink: Retry-After header value")
+	delay := flag.Duration("delay", 0, "sink: wait this long before answering")
 	flag.Parse()
 	if (*forward == "") == !*sink {
 		log.Fatal("exactly one of -forward or -sink is required")
@@ -93,7 +100,7 @@ func main() {
 		log.Fatal(err)
 	}
 	t := &tap{dir: *dir, forward: strings.TrimRight(*forward, "/"), sink: *sink, status: *status,
-		rateLimits: *rateLimits, retryAfter: *retryAfter,
+		rateLimits: *rateLimits, retryAfter: *retryAfter, delay: *delay,
 		client: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	// Continue numbering after an existing capture so restarts do not overwrite.
 	if entries, err := os.ReadDir(*dir); err == nil {
@@ -120,6 +127,12 @@ func (t *tap) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var resp recordedResponse
 	if t.sink {
+		if t.delay > 0 {
+			select {
+			case <-time.After(t.delay):
+			case <-r.Context().Done():
+			}
+		}
 		resp = t.answer(w, body)
 	} else {
 		resp = t.proxy(w, r, body)
