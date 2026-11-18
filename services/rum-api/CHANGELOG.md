@@ -5,6 +5,14 @@ Policy: `docs/releasing.md`. Earlier history: the rum-api agent summaries under 
 
 ## Unreleased
 
+## [0.7.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.6.0...rum-api-v0.7.0) (2026-11-18)
+
+
+### Added
+
+* **deploy:** run ouo on an existing Loki/Tempo/Mimir, rum-api tenant header ([a623f8d](https://github.com/ouo11y/ouo11y/commit/a623f8d5e2b86c58d42fbec9388c128693d350ab))
+* **react-native:** Hermes debug ids and OTA-safe source maps ([a30fc0c](https://github.com/ouo11y/ouo11y/commit/a30fc0cc324efd24b07bbb952738eb727b2be429))
+
 ## [0.6.0](https://github.com/ouo11y/ouo11y/compare/rum-api-v0.5.0...rum-api-v0.6.0) (2026-10-31)
 
 ### Breaking
