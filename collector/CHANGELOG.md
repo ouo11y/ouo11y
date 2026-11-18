@@ -5,6 +5,25 @@
 
 ## Unreleased
 
+## [0.6.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.5.0...collector-v0.6.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184))
+
+### Added
+
+* **collector:** hold Sentry user reports until their error, bridge feedback in the sentry-mobile journey ([7f2e315](https://github.com/ouo11y/ouo11y/commit/7f2e315cba45310f06f9fa3fe93903cce50d035e))
+* **collector:** Sentry bridge mirrors and passthrough for production DSNs (ADR-0028) ([60094b2](https://github.com/ouo11y/ouo11y/commit/60094b255f5ee647d0ed7d6bfb871eee37096722))
+* **muninn:** replay store and spec-wire Collector config for the pilot ([#185](https://github.com/ouo11y/ouo11y/issues/185)) ([e39a938](https://github.com/ouo11y/ouo11y/commit/e39a938d8f4e9c4e580e57653bd537f95adb9335))
+* **react-native:** session replay over OTLP with pixel/frames and pixel/video on iOS and Android (ADR-0021) ([#184](https://github.com/ouo11y/ouo11y/issues/184)) ([edd3fa2](https://github.com/ouo11y/ouo11y/commit/edd3fa28889c4252de4c12e9a08c8091d177ca13))
+
+
+### Fixed
+
+* **collector:** bump klauspost/compress to v1.20.2 for GO-2026-6865 ([4705348](https://github.com/ouo11y/ouo11y/commit/47053484a79206a0c9ed0e7664af0c4afee00dcf))
+
 ## [0.5.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.4.0...collector-v0.5.0) (2026-10-31)
 
 ### Added
