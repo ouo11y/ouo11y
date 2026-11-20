@@ -241,6 +241,36 @@ sum by (key_kind) (rate(ouo_ratelimit_rejected_total[5m]))    # 429s per second,
 The `ouosentry` receiver authenticates DSN keys itself (403 for unknown keys) and counts
 them in `ouo_sentry_envelopes_total`, not here.
 
+## Client IP, per project (opt-in)
+
+The SDKs never collect an IP or a location (spec PRV-13), and the reference configs delete any
+`client.address` a browser sends. A deployment MAY keep the browser's address for a project
+that enables it, server-side, with the stock `attributes` and `transform` processors. Put the
+steps after the scrub and before `batch` (which drops the request metadata), and let nginx set
+`X-Forwarded-For` from the peer address (`proxy_set_header X-Forwarded-For $remote_addr;` on a
+public vhost, so a browser cannot forge it):
+
+```yaml
+processors:
+  attributes/client-ip:
+    actions:
+      - key: client.address
+        from_context: metadata.x-forwarded-for   # needs include_metadata: true on the receiver
+        action: insert
+  transform/client-ip:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - replace_pattern(log.attributes["client.address"], "^\\s*([^,\\s]+).*$", "$$1")
+          # keep it only for the projects that enabled it, and only on web SDK records
+          - delete_key(log.attributes, "client.address") where resource.attributes["ouo.project.id"] != "my-project" or resource.attributes["telemetry.sdk.language"] != "webjs"
+```
+
+The same statements apply to spans (`trace_statements`, `context: span`). Country, city and
+network are best looked up at read time from a GeoIP database (for example DB-IP Lite, CC BY
+4.0) rather than stored. Check that the project's privacy policy covers storing addresses.
+
 ## Sentry SDK bridge (`ouosentry`)
 
 Apps instrumented with the Sentry mobile SDKs change only the host of their DSN:

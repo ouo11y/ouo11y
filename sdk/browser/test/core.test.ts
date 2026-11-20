@@ -141,7 +141,7 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
   it("applies the spec defaults", () => {
     const c = resolveConfig(base, note)!;
     expect(c.logsUrl).toBe("https://otel.test/v1/logs");
-    expect(c.session).toEqual({ inactivityTimeoutMs: 1_800_000, maxDurationMs: 14_400_000 });
+    expect(c.session).toEqual({ inactivityTimeoutMs: 1_800_000, maxDurationMs: 14_400_000, anonymousId: false });
     expect(c.sampling).toEqual({ sessionRate: 1, bypassCap: 10 });
     expect(c.replay).toMatchObject({ enabled: true, sessionRate: 0, bufferRate: 0 });
     expect(c.replay.chunkMaxBytes).toBe(256 * 1024);
@@ -178,7 +178,7 @@ describe("configuration (CFG-1, CFG-2, CFG-3)", () => {
       },
       note,
     )!;
-    expect(c.session).toEqual({ inactivityTimeoutMs: 60_000, maxDurationMs: 24 * 3_600_000 });
+    expect(c.session).toEqual({ inactivityTimeoutMs: 60_000, maxDurationMs: 24 * 3_600_000, anonymousId: false });
     expect(c.sampling).toEqual({ sessionRate: 1, bypassCap: 10 });
     expect(c.replay.enabled).toBe(false);
     expect(c.replay.sessionRate).toBe(0);
