@@ -1,5 +1,7 @@
 # MVP tracker
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 Phases are stacked pull requests on github.com/ouo11y/ouo11y. Merge in order.
 
 | Phase | Branch | PR | Status | Owner agents |

@@ -6,7 +6,7 @@ foreground terminations, frames, app start; [ADR-0017](../../docs/adr-archive/00
 Replay is the Android half of ouo mobile replay (roadmap W9, [ADR-0006](../../docs/adr-archive/0006-mobile-replay-native-screenshots.md),
 [ADR-0014](../../docs/adr-archive/0014-replay-tiles-in-frames.md)), the Kotlin twin of the Swift `OuoReplay`
 in [sdk/ios](../ios/README.md). It sends the same `frames` chunks (schema 2, [mobile-replay.md](../../docs/specs/mobile-replay.md))
-to the collector's replay receiver, so rum-api and the Grafana player do not care which platform
+to the collector's replay receiver, so readers of the replay do not care which platform
 recorded them.
 
 Today it is consumed by the React Native SDK: `@ouo11y/react-native` compiles these sources inside
@@ -122,6 +122,5 @@ cd sdk/android
 ```
 
 CI (`ci.yml`, job `android`, on the Mac runner) runs the unit tests, builds the library and its
-instrumented tests, and compiles the Expo module inside `examples/ouo-mobile`. The emulator runs, the
-pixel test and the conformance suite ([tests/e2e/mobile-android](../../tests/e2e/mobile-android/README.md)),
-are run by hand.
+instrumented tests, and compiles the Expo module inside `examples/ouo-mobile`. The emulator runs and the
+pixel test are run by hand.

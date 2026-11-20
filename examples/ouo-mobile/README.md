@@ -15,10 +15,8 @@ button toggles the recorder and shows `rum.replay.isRecording()`. Replay only re
 development build (below), never in Expo Go or on web.
 
 The Cart screen has a "Report a problem" form (`src/FeedbackForm.tsx`): it calls
-`rum.feedback({ message, contact, screenshot: true })`, and the session page in Grafana lists the
-feedback beside the replay with the last 20 steps before it and a seek to the replay at that time
-(spec C10). The scripted journey (`scripts/journey.sh`) sends one on the Cart screen and
-`scripts/verify.py --feedback` checks it.
+`rum.feedback({ message, contact, screenshot: true })`: a `feedback` log record with the last 20
+steps before it (spec C10). The scripted journey (`scripts/journey.sh`) sends one on the Cart screen.
 
 Chaos buttons: slow request (`?delay=2000`), 500 from the backend (`?fail=500` ->
 `http.request.failed`, session `errored`), handled error (`captureError`, non-fatal),
@@ -34,7 +32,7 @@ mailbox also takes `action/hang?ms=3000`, `action/stutter?ms=1200&times=3` and `
 (`project/agents/mobile-sdk/verify/w4-signals-sim.sh` uses them). Products calls
 `rum.reportFullyDisplayed()` once the catalog is on screen (TTFD).
 
-Path: `@ouo11y/react-native` → ouo collector (OTLP + replay) → Loki / Tempo / Mimir and rum-api,
+Path: `@ouo11y/react-native` → ouo collector (OTLP, replay included) → Loki / Tempo / Mimir and Muninn (replay),
 and `fetch` to `examples/backend` with `traceparent` and `baggage` (with `session.id`), so app and
 backend spans are one trace. Sentry is not in this app: never run the ouo SDK and the Sentry bridge
 into ouo at the same time (`docs/sentry-client-setup.md`, section 6).
@@ -68,7 +66,6 @@ a card checkout, a `broken-card` checkout (500) and a 500 from the Chaos screen.
 through a file the app polls (`src/journey.ts`), because `simctl openurl` prompts on iOS 27.
 `scripts/verify.py` then checks:
 
-- rum-api has the session with traces and both failed requests;
 - trace continuity, checklist N24 (`examples/tools/tracecheck.py`):
   - every request the backend logged is a sampled trace in Tempo;
   - no backend span has a missing parent;
@@ -77,8 +74,6 @@ through a file the app polls (`src/journey.ts`), because `simctl openurl` prompt
   - one backend span per request, with no dropped trace;
   - CORS allows `traceparent`, `tracestate` and `baggage`;
   - nothing in the window came through the Sentry bridge.
-
-Mobile vitals (`docs/specs/mobile-vitals.md`) are checked with `--vitals` once the SDK emits them.
 
 CI cannot run an iOS Simulator on Linux: the `examples` job in `.github/workflows/ci.yml`
 typechecks the app and runs the SDK's built bundle in Node (`sdk/react-native/playground`) against
@@ -99,9 +94,8 @@ adb shell am start -n dev.ouo.mobilestore/.MainActivity
 adb shell "am broadcast -a dev.ouo.mobilestore.JOURNEY -p dev.ouo.mobilestore --es cmd 'screen/Cart'"
 ```
 
-`--conformance` builds the golden app of the Android conformance suite
-([tests/e2e/mobile-android](../../tests/e2e/mobile-android/README.md)): default replay masking, a 5 s
-background timeout, and `OUO_NOTE` lines in logcat. The Product screen shows an image so the suite can
+`--conformance` builds the golden app of the former Android conformance suite: default replay
+masking, a 5 s background timeout, and `OUO_NOTE` lines in logcat. The Product screen shows an image so the suite can
 check that images are masked.
 
 `scripts/journey-android.sh [--serial <adb serial>]` is the Android twin of `scripts/journey.sh` (it needs
@@ -129,7 +123,7 @@ Since ADR-0007 the app talks only to the collector (`ouo-collector`): OTLP goes 
 `${otlpEndpoint}/v1/{traces,logs}`, replay chunks included: each chunk is one OTLP log record
 (`ouo.replay.chunk`, protobuf) that the native module posts to `${otlpEndpoint}/v1/logs`
 (ADR-0021 decision 5), every request
-with `Authorization: Basic base64("<projectId>:<projectToken>")`. rum-api is internal and the app
+with `Authorization: Basic base64("<projectId>:<projectToken>")`. Muninn is internal and the app
 never addresses it. The defaults are the development project of the stock compose stack
 (`deploy/compose/.env.example`, user `demo` in the collector's htpasswd).
 
@@ -198,18 +192,8 @@ Rebuild the SDK after changing it; Metro follows the symlink but reads `dist/`.
 
 ## Verify
 
-rum-api stays internal (ADR-0007); in the local stack its port 8080 is published on loopback for
-these checks. When `OUO_READ_TOKEN` is set (the compose stack sets it in `deploy/compose/.env`), the
-read endpoints need `-H "Authorization: Bearer $OUO_READ_TOKEN"`. The app itself never talks to
-rum-api: its OTLP and replay uploads carry the project credential to the collector.
-
-```bash
-curl -s 'localhost:8080/v1/sessions?from=now-1h&platform=mobile' | jq '.sessions[] | {session_id, service_version, status, end_reason}'
-curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .buckets
-curl -s "localhost:8080/v1/sessions/<session id>/replay" | jq        # kind: frames, chunk_count, frame_count
-```
-
-In Grafana (ouo11y RUM app) the session's replay plays as frames with touch markers. The demo sets
+The app's records are in Loki (`{service_name="mobile-store"}` in Grafana Explore), its spans in
+Tempo, and its replay chunks in Muninn (`docs/specs/muninn.md`). The demo sets
 `replay: { enabled: true, maskText: false }` (`src/rum.ts`) so labels are readable in replays;
 text inputs, images and web views keep the default masking, so the promo field is black.
 

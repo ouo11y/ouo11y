@@ -5,8 +5,7 @@
 | [README.md](README.md) | the quickstarts for readers, and how to run one |
 | [check-embeds.mjs](check-embeds.mjs) | keeps files embedded in the guides identical to their repo source (CI) |
 | [tiny-shop/](tiny-shop/README.md) | Express API + React app traced end to end; [build-it-yourself guide](tiny-shop/build-it-yourself-guide.md) |
-| [tiny-shop-otel/](tiny-shop-otel/README.md) | [build-it-yourself guide](tiny-shop-otel/build-it-yourself-guide.md); Tiny Shop without the ouo SDK: OpenTelemetry JS + rrweb + web-vitals in the browser, and the contract ouo needs from a browser. **The reference quickstart for the rules below** |
-| [tiny-shop-funnels/](tiny-shop-funnels/README.md) | [build-it-yourself guide](tiny-shop-funnels/build-it-yourself-guide.md); quickstart 5: shop pages and custom events as a funnel, 50 generated sessions, drop-off to replay |
+| [tiny-shop-otel/](tiny-shop-otel/README.md) | [build-it-yourself guide](tiny-shop-otel/build-it-yourself-guide.md); Tiny Shop without the ouo SDK: OpenTelemetry JS + web-vitals in the browser, and the contract ouo needs from a browser. **The reference quickstart for the rules below** |
 
 ## Rules for every quickstart
 
@@ -49,7 +48,7 @@ examples/quickstarts/<name>/
 ### 3. The stack: one folder per service
 
 - **`result/stack/`**, never the one-file `deploy/compose/quickstart.yaml`. Folders are numbered
-  in start order: `10-collector`, `20-tempo`, `30-loki`, `40-mimir`, `50-rum-api`, `60-grafana`.
+  in start order: `10-collector`, `20-tempo`, `30-loki`, `40-mimir`, `60-grafana`.
   Each holds that service's `compose.yaml` and its config.
 - **The top `compose.yaml` only `include:`s the folders**, one line each with a comment saying
   what the service is for.
@@ -70,7 +69,7 @@ examples/quickstarts/<name>/
   ````
 
 - **Ports are variables:** `${OUO_GRAFANA_PORT:-3000}`, `${OUO_OTLP_HTTP_PORT:-4318}`,
-  `${OUO_REPLAY_PORT:-4319}`, ... Only Grafana and the collector are published to the network;
+  ... Only Grafana and the collector are published to the network;
   Loki, Tempo, Mimir and health ports are bound to `127.0.0.1`. The guide shows how to check the
   ports and move them with `stack/.env`, and never tells the reader to stop what holds a port.
 - **Development credentials only** (`demo` / `pt_dev_demo_...`, `admin` / `testing567`), and say
@@ -79,9 +78,9 @@ examples/quickstarts/<name>/
 ### 4. Image versions
 
 - **ouo images use `:latest`**, which follows each release:
-  `ghcr.io/ouo11y/{collector,rum-api,grafana}:latest`.
+  `ghcr.io/ouo11y/collector:latest`.
 - **Above each ouo `image:` line, a comment names the tested version and its digest**, and how to
-  pin: `rum-api:0.5.0` or `rum-api@sha256:...`. The configs in `stack/` are written for those
+  pin: `collector:0.4.0` or `collector@sha256:...`. The configs in `stack/` are written for those
   tested versions. When you bump them, rerun `result/` and update the comments.
 - **Upstream images are pinned exactly** (`grafana/loki:3.7.7`, `grafana/tempo:3.0.3`,
   `grafana/mimir:3.2.1`).
@@ -135,7 +134,7 @@ or needs a server, with a line count. tiny-shop-otel step 8 is the model.
   (`docker compose -p <name>-verify ...`, `OUO_*_PORT` set), with the `latest` images pulled that
   day.
 - Click through the app (headless Chromium is fine) and check each signal where the reader will
-  look: the Loki lines, the trace in Tempo, the session in ouo11y RUM.
+  look: the Loki lines, the trace in Tempo, the session's records by `session_id`.
 - Build the guide's intermediate files once; run `check-embeds.mjs` and lychee.
 - Record what was checked, and the image versions and digests, in the agent summary. Then tear the
   project down, or name it and its URL in the summary if it stays up.
@@ -145,5 +144,4 @@ or needs a server, with a line count. tiny-shop-otel step 8 is the model.
 | Quickstart | Follows the rules | Still to change |
 |---|---|---|
 | [tiny-shop-otel](tiny-shop-otel/README.md) | all (reference) | nothing |
-| [tiny-shop-funnels](tiny-shop-funnels/README.md) | all | nothing |
 | [tiny-shop](tiny-shop/README.md) | shape, embeds | one-file `quickstart.yaml` stack (3, 4); `~/Desktop` paths (2) |

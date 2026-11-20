@@ -1,5 +1,5 @@
 # Install ouo next to an existing Grafana LGTM stack (the customer's Loki, Tempo and
-# Mimir). What those backends need: docs/operations/existing-lgtm.md. Nothing LGTM is deployed; the collector, rum-api and Grafana point at the URLs
+# Mimir). What those backends need: docs/operations/existing-lgtm.md. Nothing LGTM is deployed; the collector and Grafana point at the URLs
 # below. Replace the hosts with your Services (the defaults match the upstream
 # grafana/loki, grafana/tempo-distributed and grafana/mimir-distributed charts installed
 # in namespace `observability`).
@@ -7,8 +7,7 @@
 #   helm install ouo deploy/helm/ouo -n ouo --create-namespace \
 #     -f deploy/helm/ouo/values-external-lgtm.yaml \
 #     --set projects[0].id=web-store --set projects[0].token=pt_$(openssl rand -hex 16) \
-#     --set ingestToken=it_$(openssl rand -hex 16) \
-#     --set readToken=rt_$(openssl rand -hex 16) \
+#     --set muninn.ingestToken=<Muninn auth.ingest_token> \
 #     --set grafana.adminPassword=$(openssl rand -base64 18)
 
 lgtm:
@@ -28,22 +27,14 @@ lgtm:
     # tempoOtlpGrpcEndpoint: otel-gateway.observability.svc:4317
     # lokiOtlpUrl: http://otel-gateway.observability.svc:4318
     # mimirOtlpUrl: http://otel-gateway.observability.svc:4318
-    # The gateway at lokiUrl does not route POST /loki/api/v1/delete to the compactor:
-    # lokiDeleteUrl: http://loki-backend.observability.svc:3100
-
-# Align with your stack's retention (docs/operations/existing-lgtm.md): retention.logs is how
-# far back rum-api's delete-by-user searches, retention.replays how long rum-api keeps replays.
-# Loki, Tempo and Mimir are not deployed, so the other entries change nothing there.
-retention:
-  logs: 336h
-  replays: 336h
 
 # Public project identifiers (they ship in browser bundles): --set projects[0].token=pt_...
 projects: []
 #  - id: web-store
 #    token: pt_live_...
-ingestToken: ""      # --set ingestToken=it_...   (secret: collector -> rum-api)
-readToken: ""        # --set readToken=rt_...     (secret: Grafana -> rum-api)
+muninn:
+  endpoint: http://muninn.muninn.svc:3400   # Muninn is not deployed by this chart
+  ingestToken: ""    # --set muninn.ingestToken=mit_...  or muninn.existingSecret
 
 # Images: the chart's defaults (values.yaml, the release this chart version ships with);
 # pin <component>.image.tag only for a private mirror or a deliberate hold-back.
@@ -58,16 +49,11 @@ collector:
     className: nginx
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt
-      nginx.ingress.kubernetes.io/proxy-body-size: 16m   # replay chunks are up to 8 MiB
+      nginx.ingress.kubernetes.io/proxy-body-size: 16m   # OTLP bodies are up to 4 MiB
     host: otel.example.com
     tls:
       enabled: true
       secretName: ouo-collector-tls
-
-rumApi:
-  persistence:
-    size: 50Gi
-    storageClass: ""           # cluster default
 
 grafana:
   adminPassword: ""  # --set grafana.adminPassword=...  or grafana.existingSecret
@@ -80,6 +66,5 @@ grafana:
     tls:
       enabled: true
       secretName: ouo-grafana-tls
-  # Already running Grafana? Set grafana.enabled=false, build deploy/images/grafana or
-  # copy plugins/ouo11y-rum-app/dist into your Grafana, and provision the app with
-  # jsonData.rumApiUrl=http://<release>-rum-api.<ns>.svc:8080 and secureJsonData.readToken.
+  # Already running Grafana? Set grafana.enabled=false and add the Loki, Tempo and
+  # Mimir datasources to it.

@@ -1,18 +1,18 @@
-# Build Tiny Shop with OpenTelemetry and rrweb, without the ouo SDK
+# Build Tiny Shop with OpenTelemetry, without the ouo SDK
 
-This guide is for teams that want ouo's sessions, errors, traces and replays but do not want
+This guide is for teams that want ouo's sessions, errors and traces but do not want
 `@ouo11y/browser` in their web app. You instrument the browser yourself with the OpenTelemetry JS
-SDK, [rrweb](https://github.com/rrweb-io/rrweb) and Google's
+SDK and Google's
 [web-vitals](https://github.com/GoogleChrome/web-vitals), and send the data to the ouo collector
 in the shape ouo reads. Nothing in the browser is ouo code.
 
 You build, one step at a time, with no scripts:
 
 1. a plain Express API and a plain React page, with no telemetry at all;
-2. the ouo stack (the ouo collector, Tempo, Loki, Mimir, rum-api, Grafana), one folder per service;
+2. the ouo stack (the ouo collector, Tempo, Loki, Mimir, Grafana), one folder per service;
 3. the backend traced with the OpenTelemetry Node SDK (the same as in [Tiny Shop](../tiny-shop/build-it-yourself-guide.md));
 4. the browser, by hand: OpenTelemetry spans and logs, a session id, the RUM events ouo
-   understands, and rrweb replay in chunks.
+   understands.
 
 At the end your files are the same as [`result/`](result): compare with them when you are
 stuck. Plan on about 45 minutes.
@@ -21,7 +21,7 @@ stuck. Plan on about 45 minutes.
 tiny-shop-otel/
 ├── stack/      the ouo stack, one folder per service
 ├── backend/    Express API, OpenTelemetry traces
-└── frontend/   React app, OpenTelemetry + rrweb + web-vitals, no ouo SDK
+└── frontend/   React app, OpenTelemetry + web-vitals, no ouo SDK
 ```
 
 Every command goes in its own block: run them one by one, in order. Paths are relative to
@@ -39,11 +39,11 @@ links to the step that builds it.
 | **Who** | resource attributes `service.name`, `service.version`, `deployment.environment.name`, `ouo.platform = "web"` | [6a](#6a-send-spans-to-ouo) |
 | **Which session** | `session.id` and `user.id` on **every** span and log record (attributes, not resource: the session can change while the page lives), and in the `baggage` header to your API | [6a](#6a-send-spans-to-ouo) |
 | **What happened** | OTLP log records whose `event.name` is `session.start`, `session.end`, `exception`, `http.request.failed`, `navigation` or `web_vital`, with the attributes in [the session spec](../../../docs/specs/session-lifecycle.md#session-events-otel-log-records); any other name is a custom event | [6b](#6b-send-the-rum-events) |
-| **Replay** | rrweb events in chunks `{ session_id, seq, started_at, ended_at, events }`, `POST` to the collector's replay port (`:4319/v1/replay/chunks`) with the same credential and `x-ouo-session-id`, `x-ouo-seq` headers | [6c](#6c-record-the-replay) |
 
-From these, ouo builds the session (healthy, errored or crashed), its timeline, its traces and its
-replay. A session whose events carry `ouo.exception.fatal = true` is `crashed`; one with a non-fatal
-exception or an `http.request.failed` is `errored`.
+From these, every record and span of a session can be found by its `session.id` in Loki and
+Tempo. A session whose events carry `ouo.exception.fatal = true` is `crashed`; one with a non-fatal
+exception or an `http.request.failed` is `errored`. Replay is not part of this quickstart: ouo
+stores replay in Muninn (`docs/specs/muninn.md`), which this trimmed stack does not run.
 
 ## Step 0. Check your tools
 
@@ -249,21 +249,20 @@ save a new file as `stack/10-collector/compose.yaml`).
 ```yaml
 # The ouo stack for tiny-shop-otel: one folder per service, each with its compose file and
 # its config. This file only lists them. Start everything from this folder: `docker compose up -d`.
-# Grafana http://localhost:3000 (admin / testing567), OTLP http://localhost:4318, replay :4319.
-# Ports taken? Export OUO_GRAFANA_PORT, OUO_OTLP_HTTP_PORT, OUO_REPLAY_PORT before `up`.
+# Grafana http://localhost:3000 (admin / testing567), OTLP http://localhost:4318.
+# Ports taken? Export OUO_GRAFANA_PORT, OUO_OTLP_HTTP_PORT before `up`.
 include:
   - 10-collector/compose.yaml   # ingest: the only thing the apps talk to
   - 20-tempo/compose.yaml       # traces
   - 30-loki/compose.yaml        # logs and browser events
   - 40-mimir/compose.yaml       # metrics (none from this shop yet; the collector accepts /v1/metrics)
-  - 50-rum-api/compose.yaml     # sessions and replay for the Grafana plugin
-  - 60-grafana/compose.yaml     # the UI: datasources and the ouo11y RUM app
+  - 60-grafana/compose.yaml     # the UI: stock Grafana with the three datasources
 ```
 
 </details>
 
 **The collector** is the only thing your apps talk to. It checks the project credential
-(`projects.htpasswd`) and routes traces, logs, metrics and replay chunks.
+(`projects.htpasswd`) and routes traces, logs and metrics.
 
 <details>
 <summary><code>stack/10-collector/compose.yaml</code> (click to open)</summary>
@@ -271,8 +270,8 @@ include:
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/10-collector/compose.yaml -->
 ```yaml
 # ouo-collector: the only ingest. The browser and the Node API send OTLP here; it checks the
-# project credential and forwards traces to Tempo, logs to Loki, metrics to Mimir and replay
-# chunks to rum-api. Ports: 4318 OTLP/HTTP, 4319 replay (both public), 13133 health (loopback).
+# project credential and forwards traces to Tempo, logs to Loki and metrics to Mimir.
+# Ports: 4318 OTLP/HTTP (public), 13133 health (loopback).
 services:
   otel-collector:
     # `latest` follows each release. Tested with 0.4.0: pin `collector:0.4.0` or
@@ -281,10 +280,7 @@ services:
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "${OUO_OTLP_HTTP_PORT:-4318}:4318"
-      - "${OUO_REPLAY_PORT:-4319}:4319"
       - "127.0.0.1:${OUO_COLLECTOR_HEALTH_PORT:-13133}:13133"
-    environment:
-      OUO_INGEST_TOKEN: it_dev_0000000000000000   # what it sends to rum-api; must equal rum-api's
     volumes:
       - ./config.yaml:/etc/otelcol/config.yaml:ro
       - ./projects.htpasswd:/etc/otelcol/projects.htpasswd:ro
@@ -299,8 +295,8 @@ services:
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/10-collector/config.yaml -->
 ```yaml
 # ouo-collector pipelines, a trimmed copy of the full stack's config (no Sentry bridge, no
-# rate limits). Receivers: OTLP/HTTP on 4318 and replay chunks on 4319, both behind the
-# project credential in projects.htpasswd. Exporters: Tempo, Loki, Mimir and rum-api.
+# rate limits, no replay store). Receiver: OTLP/HTTP on 4318, behind the project credential in
+# projects.htpasswd. Exporters: Tempo, Loki and Mimir.
 
 extensions:
   health_check:
@@ -320,15 +316,6 @@ receivers:
         cors:                        # the browser app runs on another origin
           allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
           allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
-  ouoreplay:
-    endpoint: 0.0.0.0:4319
-    include_metadata: true
-    max_request_body_size: 8388608
-    auth:
-      authenticator: basicauth/server
-    cors:
-      allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
-      allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
 
 processors:
   # Stamp the authenticated project id on every resource (and drop any value the client sent).
@@ -359,9 +346,6 @@ exporters:
   otlp_http/mimir:
     endpoint: http://mimir:9009/otlp
     tls: { insecure: true }
-  ouoreplay:
-    endpoint: http://rum-api:8080
-    ingest_token: ${env:OUO_INGEST_TOKEN}
 
 service:
   extensions: [health_check, basicauth/server]
@@ -378,9 +362,6 @@ service:
       receivers: [otlp]
       processors: [resource/project, batch]
       exporters: [otlp_http/mimir]
-    logs/replay:
-      receivers: [ouoreplay]
-      exporters: [ouoreplay]
 ```
 
 </details>
@@ -408,7 +389,7 @@ to go.
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/20-tempo/compose.yaml -->
 ```yaml
 # Tempo: stores traces. The collector sends it spans from the browser and the API over OTLP/gRPC;
-# Grafana and rum-api query it on 3200. Port 3200 is published for curl; nothing else needs it.
+# Grafana queries it on 3200. Port 3200 is published for curl; nothing else needs it.
 services:
   tempo:
     image: grafana/tempo:3.0.3
@@ -466,7 +447,7 @@ storage:
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/30-loki/compose.yaml -->
 ```yaml
 # Loki: stores logs. The collector sends it the browser's events and frontend logs over OTLP
-# (/otlp); Grafana and rum-api query it on 3100 (rum-api builds sessions from these records).
+# (/otlp); Grafana queries it on 3100.
 # Port 3100 is published on loopback for curl.
 services:
   loki:
@@ -629,104 +610,26 @@ limits:
 
 </details>
 
-**rum-api** builds sessions from Loki and Tempo and gives each a status (healthy, errored,
-crashed); the Grafana plugin reads it. It also stores the replay chunks.
-
-<details>
-<summary><code>stack/50-rum-api/compose.yaml</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/50-rum-api/compose.yaml -->
-```yaml
-# rum-api: the ouo platform service behind the Grafana plugin. It builds the session list
-# (healthy / errored / crashed) from Loki and Tempo and stores replay chunks the collector
-# forwards. Internal: only the collector and Grafana talk to it, on 8080 inside the network.
-services:
-  rum-api:
-    # `latest` follows each release. Tested with 0.5.0: pin `rum-api:0.5.0` or
-    # `rum-api@sha256:1ee9e606220df2c42f4ade4131fdd3f82085d6e814676a771754a85a6ae78336` to stay on it.
-    image: ghcr.io/ouo11y/rum-api:latest
-    command: ["-config.file=/etc/rum-api/config.yaml", "-config.expand-env=true"]
-    environment:
-      GRAFANA_URL: http://localhost:${OUO_GRAFANA_PORT:-3000}   # for deep links
-      OUO_INGEST_TOKEN: it_dev_0000000000000000   # the collector's; development value
-      OUO_READ_TOKEN: rt_dev_0000000000000000     # Grafana's; development value
-      DATA_DIR: /home/nonroot                     # the image runs as nonroot
-      # rum-api's own traces and logs (0.5.0 and later), through the collector like the shop's.
-      # Without these it retries localhost:4318 inside its container and logs every failure.
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      OTEL_EXPORTER_OTLP_HEADERS: Authorization=Basic%20ZGVtbzpwdF9kZXZfZGVtb18wMDAwMDAwMDAwMDAwMDAw
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-      OTEL_SERVICE_NAME: rum-api
-    volumes:
-      - ./config.yaml:/etc/rum-api/config.yaml:ro
-      - rum-api-data:/home/nonroot
-    depends_on: [loki, tempo, otel-collector]
-
-volumes:
-  rum-api-data:
-```
-
-</details>
-
-<details>
-<summary><code>stack/50-rum-api/config.yaml</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/50-rum-api/config.yaml -->
-```yaml
-# rum-api configuration: where Loki and Tempo are, and the session timeouts.
-# The tokens come from the environment set in compose.yaml (-config.expand-env=true).
-# Replays are stored on the rum-api-data volume.
-server:
-  http_listen_address: ":8080"
-
-auth:
-  ingest_token: "${OUO_INGEST_TOKEN}"
-  read_token: "${OUO_READ_TOKEN}"
-
-loki:
-  url: http://loki:3100
-  datasource_uid: loki
-
-tempo:
-  url: http://tempo:3200
-  datasource_uid: tempo
-
-session:
-  inactivity: 30m
-  max_duration: 4h
-
-storage:
-  backend: filesystem
-```
-
-</details>
-
-**Grafana** with the ouo11y RUM app and its datasources.
+**Grafana**, stock, with its datasources.
 
 <details>
 <summary><code>stack/60-grafana/compose.yaml</code> (click to open)</summary>
 
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/60-grafana/compose.yaml -->
 ```yaml
-# Grafana with the ouo11y RUM app plugin: the UI for everything above. It reads Tempo, Loki and
-# Mimir directly and sessions from rum-api through the plugin. Port 3000, admin / testing567.
-# provisioning/ sets up the datasources and the plugin.
+# Stock Grafana: the UI for everything above. It reads Tempo, Loki and Mimir directly.
+# Port 3000, admin / testing567. provisioning/ sets up the datasources.
 services:
   grafana:
-    # `latest` follows each release. Tested with 0.5.0: pin `grafana:0.5.0` or
-    # `grafana@sha256:57607a3616c88867644be1f69abb4681ca73df05d6bf2682543418f0dfeb622f` to stay on it.
-    image: ghcr.io/ouo11y/grafana:latest
+    image: grafana/grafana:13.2.5
     ports:
       - "${OUO_GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: testing567
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: ouo11y-rum-app
-      GF_SECURITY_DISABLE_FRONTEND_SANDBOX_FOR_PLUGINS: ouo11y-rum-app
-      OUO_READ_TOKEN: rt_dev_0000000000000000   # read by provisioning/plugins; equals rum-api's
     volumes:
       - ./provisioning:/etc/grafana/provisioning:ro
-    depends_on: [loki, tempo, mimir, rum-api]
+    depends_on: [loki, tempo, mimir]
 ```
 
 </details>
@@ -737,7 +640,7 @@ services:
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/60-grafana/provisioning/datasources/datasources.yaml -->
 ```yaml
 # Grafana datasources: Loki (logs), Tempo (traces), Mimir (metrics), all inside the network.
-# The uids are fixed because rum-api's config refers to them.
+# The uids are fixed so the derived field and the trace-to-logs link can refer to them.
 # Log lines with a trace_id link to the trace in Tempo.
 apiVersion: 1
 
@@ -775,40 +678,19 @@ datasources:
 
 </details>
 
-<details>
-<summary><code>stack/60-grafana/provisioning/plugins/ouo11y-rum-app.yaml</code> (click to open)</summary>
-
-<!-- embed: examples/quickstarts/tiny-shop-otel/result/stack/60-grafana/provisioning/plugins/ouo11y-rum-app.yaml -->
-```yaml
-# Enables the ouo11y RUM app (More apps -> ouo11y RUM) and points it at rum-api.
-# Grafana adds the read token to every call it forwards; ${OUO_READ_TOKEN} comes from the
-# container environment and must equal rum-api's.
-apiVersion: 1
-
-apps:
-  - type: ouo11y-rum-app
-    org_id: 1
-    jsonData:
-      rumApiUrl: http://rum-api:8080
-    secureJsonData:
-      readToken: ${OUO_READ_TOKEN}
-```
-
-</details>
-
-**Image versions.** The three ouo images use the `latest` tag, which follows every release. The
-compose files say which version this guide was tested with and its digest: pin
-`ghcr.io/ouo11y/rum-api:0.5.0`, or the `@sha256:...` digest, to keep a stack on one version. The
-configs in this guide are written for the tested versions; a much newer rum-api may refuse a
-config key it no longer knows, and the error in `docker compose logs rum-api` names it.
+**Image versions.** The ouo collector image uses the `latest` tag, which follows every release.
+Its compose file says which version this guide was tested with and its digest: pin
+`ghcr.io/ouo11y/collector:0.4.0`, or the `@sha256:...` digest, to keep a stack on one version. The
+configs in this guide are written for the tested versions; a much newer collector may refuse a
+config key it no longer knows, and the error in `docker compose logs otel-collector` names it.
 
 ### 4b. Check that ghcr.io answers
 
-The ouo images are public: no GitHub account, no token, no `docker login`. Check that this
+The ouo collector image is public: no GitHub account, no token, no `docker login`. Check that this
 machine can pull them:
 
 ```bash
-docker pull ghcr.io/ouo11y/rum-api:latest
+docker pull ghcr.io/ouo11y/collector:latest
 ```
 
 `denied` means Docker still sends an old ghcr.io login whose token expired: run
@@ -816,11 +698,11 @@ docker pull ghcr.io/ouo11y/rum-api:latest
 
 ### 4c. Check the ports
 
-The stack publishes 3000 (Grafana) and the collector's 4318 (OTLP) and 4319 (replay) to your
+The stack publishes 3000 (Grafana) and the collector's 4318 (OTLP) to your
 network, and 3100, 3200, 9009 and 13133 on loopback only. This prints nothing when they are all free:
 
 ```bash
-lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(3000|3100|3200|4318|4319|9009|13133) '
+lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(3000|3100|3200|4318|9009|13133) '
 ```
 
 If something is listed, do not stop it: move this stack instead. From `stack/`:
@@ -834,12 +716,11 @@ and set the ports that are taken, for example:
 ```
 OUO_GRAFANA_PORT=13000
 OUO_OTLP_HTTP_PORT=14318
-OUO_REPLAY_PORT=14319
 ```
 
 Compose reads `.env` on its own. The others are `OUO_LOKI_PORT`, `OUO_TEMPO_PORT`,
 `OUO_MIMIR_PORT` and `OUO_COLLECTOR_HEALTH_PORT` (the `${OUO_..._PORT:-...}` lines in the
-compose files). Remember the new collector ports: steps 5 and 6 tell you where they go.
+compose files). Remember the new collector port: steps 5 and 6 tell you where they go.
 
 ### 4d. Start it
 
@@ -857,8 +738,8 @@ docker compose up -d
 docker compose ps
 ```
 
-Six services are `Up`, and `rum-api` becomes `healthy`. Open http://localhost:3000 and log in
-with **admin / testing567**. **More apps -> ouo11y RUM** is there and still empty.
+Five services are `Up`. Open http://localhost:3000 and log in with **admin / testing567**.
+**Explore** has the Loki, Tempo and Mimir datasources, still empty.
 
 ## Step 5. Instrument the backend
 
@@ -1010,7 +891,7 @@ Stop Vite with Ctrl+C in its terminal tab (still in `frontend/`), then install w
 needs:
 
 ```bash
-npm install @opentelemetry/api @opentelemetry/core @opentelemetry/resources @opentelemetry/sdk-trace @opentelemetry/sdk-logs @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-logs-otlp-http @opentelemetry/instrumentation @opentelemetry/browser-instrumentation rrweb web-vitals
+npm install @opentelemetry/api @opentelemetry/core @opentelemetry/resources @opentelemetry/sdk-trace @opentelemetry/sdk-logs @opentelemetry/exporter-trace-otlp-http @opentelemetry/exporter-logs-otlp-http @opentelemetry/instrumentation @opentelemetry/browser-instrumentation web-vitals
 ```
 
 | Package | What it does here |
@@ -1022,7 +903,6 @@ npm install @opentelemetry/api @opentelemetry/core @opentelemetry/resources @ope
 | `@opentelemetry/instrumentation` | `registerInstrumentations()`, which turns instrumentations on; it records nothing itself |
 | `@opentelemetry/browser-instrumentation` | only its `experimental/fetch` part here: a span for every `fetch`, with `traceparent` on calls to your API |
 | `@opentelemetry/core`, `resources` | the W3C trace-context and baggage propagators; the resource (who sent the data) |
-| `rrweb` | records the DOM for session replay |
 | `web-vitals` | LCP, INP, CLS, FCP, TTFB, measured the way Chrome measures them |
 
 <details>
@@ -1071,9 +951,8 @@ Create `frontend/src/telemetry/config.js`:
 // The tiny-shop API (backend/).
 export const API = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
-// The ouo collector: OTLP/HTTP for spans and logs, and the replay receiver for rrweb chunks.
+// The ouo collector: OTLP/HTTP for spans and logs.
 export const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT || "http://localhost:4318";
-export const REPLAY_ENDPOINT = import.meta.env.VITE_REPLAY_ENDPOINT || "http://localhost:4319";
 
 // Every request to the collector carries the project credential:
 // Basic base64("<project id>:<project token>"). The token is public by design: it ships in the bundle.
@@ -1150,7 +1029,6 @@ export function getSession() {
     userId: previous?.userId ?? crypto.randomUUID(),
     startedAt: now,
     lastActivity: now,
-    replaySeq: 0,
   };
   write(SESSION_KEY, current);
   if (previous) for (const fn of listeners) fn("end", previous, endReason(previous, now));
@@ -1166,14 +1044,6 @@ export function touch() {
     lastWrite = session.lastActivity;
     write(SESSION_KEY, session);
   }
-}
-
-// Replay chunks are numbered per session, and a reload continues the numbering.
-export function nextReplaySeq() {
-  const session = getSession();
-  const seq = session.replaySeq++;
-  write(SESSION_KEY, session);
-  return seq;
 }
 ```
 
@@ -1193,7 +1063,7 @@ import { FetchInstrumentation } from "@opentelemetry/browser-instrumentation/exp
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { BatchSpanProcessor, StackContextManager, TracerProvider } from "@opentelemetry/sdk-trace";
-import { API, AUTHORIZATION, OTLP_ENDPOINT, REPLAY_ENDPOINT, SERVICE } from "./config.js";
+import { API, AUTHORIZATION, OTLP_ENDPOINT, SERVICE } from "./config.js";
 import { deviceId, getSession, touch } from "./session.js";
 
 const headers = { Authorization: AUTHORIZATION };
@@ -1278,7 +1148,7 @@ registerInstrumentations({
       // Only calls to our API get the trace headers. A RegExp: a plain string must equal the whole URL.
       propagateTraceHeaderCorsUrls: [new RegExp(`^${API}/`)],
       // Never trace the telemetry itself.
-      ignoreUrls: [new RegExp(`^${OTLP_ENDPOINT}/`), new RegExp(`^${REPLAY_ENDPOINT}/`)],
+      ignoreUrls: [new RegExp(`^${OTLP_ENDPOINT}/`)],
       applyCustomAttributesOnSpan(span, request, result) {
         touch();
         if (result.status >= 400) onFailedFetch(request.method ?? "GET", result.url, result.status);
@@ -1353,7 +1223,6 @@ Collector moved to 14318 in step 4c? Create `frontend/.env.local`:
 
 ```
 VITE_OTLP_ENDPOINT=http://localhost:14318
-VITE_REPLAY_ENDPOINT=http://localhost:14319
 ```
 
 Start Vite:
@@ -1580,109 +1449,23 @@ In Grafana, **Explore**, **Loki**:
 ```
 
 `session.start`, `navigation`, `web_vital`, `cart.added`, `http.request.failed` and `exception`,
-each with `session_id`. Then **More apps -> ouo11y RUM -> Sessions**: your session is there,
-`crashed`, with 1 failed request and its traces. The replay panel is still empty.
+each with `session_id`.
 
-### 6c. Record the replay
-
-Create `frontend/src/telemetry/replay.js`:
-
-<!-- embed: examples/quickstarts/tiny-shop-otel/result/frontend/src/telemetry/replay.js -->
-```js
-// Session replay: rrweb records the page, and the events go to ouo in chunks
-// (docs/adr-archive/0003-replay-model.md): { session_id, seq, started_at, ended_at, events },
-// POST /v1/replay/chunks on the collector's replay port, every 5 s or at 256 KB.
-import { record } from "rrweb";
-import { AUTHORIZATION, REPLAY_ENDPOINT } from "./config.js";
-import { getSession, nextReplaySeq, onSessionChange } from "./session.js";
-
-const FLUSH_INTERVAL_MS = 5000;
-const MAX_CHUNK_BYTES = 256 * 1024;
-const KEEPALIVE_MAX_BYTES = 60 * 1024; // browsers cap keepalive request bodies at 64 KiB in total
-
-let buffer = [];
-let bufferBytes = 0;
-let chunk = null; // { session_id, seq, started_at } of the events in the buffer
-let timer = null;
-
-function push(event) {
-  if (buffer.length === 0) {
-    // The chunk belongs to the session that was current when its first event happened.
-    chunk = { session_id: getSession().id, seq: nextReplaySeq(), started_at: event.timestamp };
-    timer = setTimeout(flushReplay, FLUSH_INTERVAL_MS);
-  }
-  buffer.push(event);
-  bufferBytes += JSON.stringify(event).length;
-  if (bufferBytes >= MAX_CHUNK_BYTES) flushReplay();
-}
-
-// Sends the buffered events as one chunk. pageHidden: the page may be gone after this.
-export function flushReplay(pageHidden = false) {
-  if (buffer.length === 0) return;
-  clearTimeout(timer);
-  const body = JSON.stringify({ ...chunk, ended_at: buffer[buffer.length - 1].timestamp, events: buffer });
-  const headers = {
-    "content-type": "application/json",
-    Authorization: AUTHORIZATION,
-    "x-ouo-session-id": chunk.session_id,
-    "x-ouo-seq": String(chunk.seq),
-  };
-  buffer = [];
-  bufferBytes = 0;
-  fetch(`${REPLAY_ENDPOINT}/v1/replay/chunks`, {
-    method: "POST",
-    headers,
-    body,
-    // keepalive lets the request outlive the page, but only for small bodies.
-    keepalive: pageHidden && body.length < KEEPALIVE_MAX_BYTES,
-  }).catch((err) => console.warn("[replay] chunk upload failed", err));
-}
-
-export function startReplay() {
-  record({
-    emit: push,
-    maskAllInputs: true, // what users type never leaves the browser
-    blockClass: "ouo-block", // elements with this class are recorded as an empty box
-    maskTextClass: "ouo-mask", // text inside elements with this class is masked
-    checkoutEveryNms: 5 * 60 * 1000, // a full snapshot every 5 minutes keeps seeking fast
-  });
-  // A new session needs its own full snapshot: send the old session's events first.
-  onSessionChange((type, session, previous) => {
-    if (type !== "start" || !previous) return;
-    flushReplay(document.visibilityState === "hidden");
-    record.takeFullSnapshot();
-  });
-}
-```
-
-- **One session, one replay, many chunks.** rrweb emits a stream of events; they are cut into
-  chunks every 5 seconds or at 256 KB. `seq` numbers the chunks of a session and is kept in the
-  session, so a reload continues the numbering; ouo plays the chunks in `seq` order.
-- **Each chunk names its session** twice: `session_id` in the body, and `x-ouo-session-id` /
-  `x-ouo-seq` headers that the collector checks before it stores the chunk.
-- **A new session needs a full snapshot.** rrweb's later events only describe changes, so when
-  the session is replaced the old chunk is sent and `record.takeFullSnapshot()` starts the new
-  session's replay from a complete page.
-- **Privacy.** `maskAllInputs` keeps what users type out of the replay. Add the class
-  `ouo-block` to an element to record it as an empty box, `ouo-mask` to mask its text.
-- **Leaving the page.** `keepalive` lets the last request outlive the page, but browsers allow
-  only 64 KiB of keepalive bodies at a time, so a bigger last chunk is sent without it.
+### 6c. The final telemetry entry point
 
 Replace `frontend/src/telemetry/index.js` with its final version:
 
 <!-- embed: examples/quickstarts/tiny-shop-otel/result/frontend/src/telemetry/index.js -->
 ```js
-// RUM without the ouo SDK: OpenTelemetry + rrweb + web-vitals. Import this first, before React.
+// RUM without the ouo SDK: OpenTelemetry + web-vitals. Import this first, before React.
 import { captureErrors, trackNavigation, trackWebVitals } from "./events.js";
 import { flushTelemetry } from "./otel.js";
-import { flushReplay, startReplay } from "./replay.js";
 import { getSession, touch } from "./session.js";
 
 getSession(); // resume the session, or start one (session.start)
 captureErrors();
 trackNavigation();
 trackWebVitals();
-startReplay();
 
 // User activity keeps the session alive.
 for (const type of ["click", "keydown", "scroll", "touchstart"]) {
@@ -1692,7 +1475,6 @@ for (const type of ["click", "keydown", "scroll", "touchstart"]) {
 // The tab is hidden: it may be closed next, so send everything now.
 addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "hidden") return;
-  flushReplay(true);
   flushTelemetry();
 });
 
@@ -1773,18 +1555,20 @@ export default function App() {
 ## Step 7. See the full picture
 
 Reload http://localhost:5173. Click **Add** twice, **Checkout**, **Call broken API**, then
-**Throw error**. In the Network tab, `POST /v1/replay/chunks` on port 4319 answers `202` every
-few seconds. Switch to another tab for a moment, then wait up to a minute.
+**Throw error**. Switch to another tab for a moment, then wait up to a minute.
 
-**More apps -> ouo11y RUM -> Sessions**, open the newest session:
+In **Explore**, **Loki**, filter on your session (the id is in the browser console,
+`[telemetry] session ...`):
 
-- the header says `crashed`, with 1 crash, 1 failed request and its traces;
-- the activity list next to the replay has the navigation, the Web Vitals, both `cart.added`,
-  the failed request and the exception;
-- the **Replay** panel plays what you clicked;
-- each trace opens in Tempo, from the browser's `fetch` span to the API's `charge card`.
+```
+{service_name="tiny-shop-otel-frontend"} | session_id="<session id>"
+```
 
-This is the same session the ouo SDK would have produced, from code you own.
+- the navigation, the Web Vitals, both `cart.added`, the failed request and the fatal exception;
+- each record with a `trace_id` opens its trace in Tempo, from the browser's `fetch` span to the
+  API's `charge card`.
+
+These are the same records the ouo SDK would have produced, from code you own.
 
 ## Step 8. What the ouo SDK adds on top
 
@@ -1794,11 +1578,12 @@ need, or switch to it later without changing anything on the server side.
 | The SDK | Here | To add it to `telemetry/` |
 |---|---|---|
 | `setUser()` / `clearUser()` / `endSession()`, with the `user_change` and `manual` end reasons | an anonymous user id per browser | **Easy**, about 30 lines in `session.js`: set `userId`, or end the session and start a new one with that reason |
-| Session sampling and a byte cap on buffered replay | every session is recorded and sent | **Easy**, about 10 lines each: decide once per session at start and keep the decision in the session; drop replay events past the cap |
+| Session sampling | every session is sent | **Easy**, about 10 lines: decide once per session at start and keep the decision in the session |
 | XHR spans | `fetch` spans only | **Easy**, a few lines: `XhrInstrumentation` from `@opentelemetry/browser-instrumentation/experimental/xhr` |
 | Long tasks, resource load errors, `console.error` | uncaught errors only | **Easy**, 15 to 20 lines each: a `PerformanceObserver` for `longtask`, a capture-phase `error` listener, a wrapper around `console.error`, each calling `emit()` |
 | `ouo.sdk.name` / `ouo.sdk.version`, browser and OS resource attributes | not sent | **Easy to start**, about 20 lines from `navigator.userAgentData`; parsing user agents well across browsers is the long tail |
-| gzips replay and OTLP bodies | plain JSON (the collector also accepts `Content-Encoding: gzip`) | **Easy for replay**, about 15 lines with `CompressionStream("gzip")` in `replay.js`. OTLP needs your own exporter around the OTLP serializer |
+| Session replay (rrweb, as OTLP log records on scope `ouo.replay`, stored in Muninn) | none | **Medium**: rrweb plus chunking and a stack that runs Muninn (`deploy/compose`) |
+| gzips OTLP bodies | plain JSON (the collector also accepts `Content-Encoding: gzip`) | **Medium**: your own exporter around the OTLP serializer |
 | Click and interaction spans | none | **Medium**: a span per click that the `fetch` spans it causes join (the context has to survive the `await`s, which `StackContextManager` does not do). `user-action` from `browser-instrumentation` gives click events, not spans |
 | Records the replay in one tab at a time (a lease in `localStorage`) | every open tab records; two tabs of one session interleave in its replay | **Medium**, about 40 lines: a lease with a heartbeat and an expiry so a closed or crashed tab hands over, and a full snapshot in the tab that takes over |
 | Keeps unsent data in IndexedDB and retries after a network error | a failed request is lost | **Hard**, 150 to 250 lines: your own span, log and replay exporters that store the serialized bodies, retry with backoff, cap the stored bytes, and send them in order without duplicates after a reload |
@@ -1828,14 +1613,12 @@ docker compose down -v
 | You see | Cause and fix |
 |---|---|
 | `Bind for 0.0.0.0:4318 failed: port is already allocated` | another stack has the port: step 4c, move this one with `stack/.env` |
-| `rum-api` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs rum-api` names the key; pin the tested version (step 4a, "Image versions") |
+| `otel-collector` keeps restarting after a pull | a newer `latest` that wants a different config: `docker compose logs otel-collector` names the key; pin the tested version (step 4a, "Image versions") |
 | `denied` when pulling `ghcr.io/ouo11y/...` | an old, expired ghcr.io login: `docker logout ghcr.io` (step 4b) |
-| `401` from `/v1/traces`, `/v1/logs` or `/v1/replay/chunks` | the `Authorization` header is missing or wrong (`AUTHORIZATION` in `config.js`) |
+| `401` from `/v1/traces` or `/v1/logs` | the `Authorization` header is missing or wrong (`AUTHORIZATION` in `config.js`) |
 | CORS error on the collector in the console | the page is not on `localhost` / `127.0.0.1` (the collector's allowed origins), or a port in `.env.local` is wrong |
 | The backend trace starts at `POST /api/checkout`, without the browser span | `propagateTraceHeaderCorsUrls` does not match the API URL (use the RegExp), or the page was not reloaded |
 | Backend spans have no `session.id` | the `baggage` header is not sent (`SessionPropagator` not registered) or `BaggageSpanProcessor` is missing in `instrumentation.js` |
-| Traces and logs in Grafana, but no session in ouo11y RUM | the log records lack `session.id`, or the resource lacks `ouo.platform` or `service.name` |
-| A session with no replay | no `202` from `:4319/v1/replay/chunks`: check the port (`VITE_REPLAY_ENDPOINT`) and the headers |
-| Replay shows a blank page | the chunk with the full snapshot was lost; reload the page to record a new one |
+| Logs in Loki without `session_id` | the log records lack `session.id` (the session attributes are set in `emit()`) |
 | No `LCP` or `FCP` in Loki | the page loaded in a background tab: web-vitals reports them only for pages that were visible while loading |
 | Nothing in Tempo yet | wait up to a minute: new traces reach search later than trace-by-id |

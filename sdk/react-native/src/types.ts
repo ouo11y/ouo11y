@@ -58,7 +58,7 @@ export interface SessionOptions {
   /**
    * Fraction of sessions whose telemetry (spans, events, logs, errors) and replay are sent,
    * 0 to 1. Default 1. The decision is a deterministic hash of the session id (the rule
-   * rum-api applies for a per-project server-side cap), made once when the session starts and
+   * a per-project server-side cap shares), made once when the session starts and
    * kept with it. A session outside the sample sends only its bypass set (unhandled exceptions,
    * crashes, hangs; see `sampling.bypass`), and its requests still carry `traceparent`, with
    * the sampled flag clear.

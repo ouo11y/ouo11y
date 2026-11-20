@@ -3,7 +3,7 @@
 How many sessions go from one page or event to the next, in order, where they stop, and which
 sessions stopped. Rules: [docs/specs/funnels.md](../../docs/specs/funnels.md). Decisions:
 [ADR-0012](../../docs/adr-archive/0012-funnel-reports.md), [ADR-0025 amendment 1](../../docs/adr/0025-generic-libs-clients-own-plugin-and-access.md#amendments).
-A worked example with 50 generated sessions: [quickstart 5, tiny-shop-funnels](../../examples/quickstarts/tiny-shop-funnels/README.md)
+The quickstart with 50 generated sessions (`tiny-shop-funnels`) was removed with the MVP plugin on 2026-11-15.
 (it shows the MVP plugin's Funnels page, which these readers replace).
 
 ```go

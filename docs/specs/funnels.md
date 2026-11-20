@@ -45,7 +45,7 @@ Step suggestions count `url_path` of `navigation` and the path of `url_full` of 
 
 ## API
 
-`ouo-go`: `Loki.Funnel`, `Loki.FunnelDropped`, `Loki.FunnelSteps` ([README](../../libs/ouo-go/README.md)). rum-api, until it is deleted: `POST /v1/funnels/query`, `GET /v1/funnels/dropped`, `GET /v1/funnels/steps` ([README](../../services/rum-api/README.md#funnels)). A dropped session's replay is Muninn's answer (`Muninn.ListReplays`).
+`ouo-go`: `Loki.Funnel`, `Loki.FunnelDropped`, `Loki.FunnelSteps` ([README](../../libs/ouo-go/README.md)). The rum-api endpoints were removed on 2026-11-15. A dropped session's replay is Muninn's answer (`Muninn.ListReplays`).
 
 ## Limits
 

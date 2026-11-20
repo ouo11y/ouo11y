@@ -1,5 +1,5 @@
 # Tempo: stores traces. The collector sends it spans from the browser and the API over OTLP/gRPC;
-# Grafana and rum-api query it on 3200. Port 3200 is published for curl; nothing else needs it.
+# Grafana queries it on 3200. Port 3200 is published for curl; nothing else needs it.
 services:
   tempo:
     image: grafana/tempo:3.0.3

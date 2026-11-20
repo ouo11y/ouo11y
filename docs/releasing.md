@@ -15,7 +15,7 @@ Three rules from the founder hold for everything below:
   push a tag, publish a package or change a visibility.
 - **Everything published stays private until a stable version**, except where the founder
   decided otherwise: the SDK npm packages are public on npmjs.org (2026-10-24, Apache-2.0) and
-  the `collector`, `rum-api` and `grafana` images on ghcr.io (2026-10-31, for the pilots). Still
+  the server images on ghcr.io (2026-10-31, for the pilots). Still
   private: the Helm chart package and the `ouo11y-ios` mirror. Going public is a separate
   founder decision per channel.
 - Tags and published versions are permanent. A broken release is fixed by the next patch, never
@@ -34,16 +34,15 @@ last released) with the settings in
 | `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` (public) | `release-npm.yml` |
 | `kit` | `libs/ouo-kit` | `package.json` (+ root lockfile) | `kit-v<semver>` | npm `@ouo11y/kit` (public) | `release-npm.yml` |
 | `ios` | `sdk/ios` | `version.txt` | `ios-v<semver>` | mirror `ouo11y/ouo11y-ios`, tag `<semver>` (SwiftPM `ouo11y-ios`) | `release-ios.yml` |
-| `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
-| `rum-api` | `services/rum-api` | none: the tag is the version | `rum-api-v<semver>` | `ghcr.io/ouo11y/rum-api` | `release-images.yml` |
 | `muninn` | `services/muninn` | none: the tag is the version | `muninn-v<semver>` | `ghcr.io/ouo11y/muninn` | `release-images.yml` |
-| `grafana` | `deploy/images/grafana` | `version.txt` | `grafana-v<semver>` | `ghcr.io/ouo11y/grafana` | `release-images.yml` |
 | `chart` | `deploy/helm/ouo` | `Chart.yaml` `version` | `chart-v<semver>` | `oci://ghcr.io/ouo11y/charts/ouo` | `release-chart.yml` |
 
 Every publish workflow refuses a tag whose version differs from the version field, and every
 one can be rehearsed (section 6). Each except `release-ios` (its release is the mirror's tag)
 creates a GitHub release for its tag, marked pre-release for `-rc.N`.
+
+The former `plugin`, `rum-api` and `grafana` components were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path); their tags and published versions stay as they are.
 
 **"Latest" on GitHub is the newest chart release.** GitHub always shows one release as Latest,
 even when every release is created with `--latest=false` (checklist N81: it then keeps whichever
@@ -51,7 +50,7 @@ release it picked, `rum-api 0.6.0` on 2026-10-31, and `gh release edit <tag> --l
 does not clear it). Several components share the repo, so a component release must not be read
 as "the" release; the chart is the one artefact that names a version of every server image
 (its defaults point at tagged images). So `release-chart.yml` creates the newest final chart
-release with `--latest=true`, and every other release (images, plugin, npm, a chart rc or a
+release with `--latest=true`, and every other release (images, npm, a chart rc or a
 patch to an older chart line) with `--latest=false`; `chart-v0.2.0` was set by hand
 (`gh release edit chart-v0.2.0 --latest`). Which versions work together is
 [`compatibility.md`](compatibility.md), not the Latest badge.
@@ -69,20 +68,12 @@ All components are `0.y.z` until the first pilot is live.
 
 After `1.0.0` the usual rules apply (major for breaking). Component-specific rules:
 
-- **plugin:** every user-visible change is a release, because Grafana caches
-  `module.js?_cache=<version>` (`project/kb-archive/grafana-app-plugin.md`).
-- **grafana image:** its own series. A plugin release reaches image users only through a grafana
-  image release: after the plugin tag, merge a `feat(grafana): ship plugin <version>` commit that
-  touches `deploy/images/grafana` (its `CHANGELOG.md` `Unreleased` note is enough). Its notes
-  name the Grafana base and the plugin version inside.
-- **rum-api:** the replay chunk `schema_version` (`specs/mobile-replay.md`) is an independent
-  integer. Raising it is a breaking change for stored data: rum-api minor bump, the
-  [`compatibility.md`](compatibility.md) schema table, and the upgrade note in
-  [`operations/upgrade.md`](operations/upgrade.md) section 4.
-- **SDKs:** an SDK release that needs a newer collector or rum-api bumps the SDK minor and adds
+- **muninn:** a change to its storage layout or `schema.json` is a breaking change for stored
+  data: minor bump while 0.x and an upgrade note in [`operations/upgrade.md`](operations/upgrade.md).
+- **SDKs:** an SDK release that needs a newer collector or Muninn bumps the SDK minor and adds
   its line to [`compatibility.md`](compatibility.md) with the minimum versions.
 - **chart:** `version` bumps on any change under `deploy/helm/ouo`; `appVersion` follows the
-  rum-api image the chart defaults to. The chart never defaults to an image that is not tagged
+  collector image the chart defaults to. The chart never defaults to an image that is not tagged
   (checked by `compat-check.mjs`).
 
 ## 3. Commit and PR titles (conventional commits)
@@ -191,7 +182,7 @@ rc version). They publish `:<version>-rc.N` only (npm dist-tag `next`), never mo
 `:<major>.<minor>`, and the GitHub release is a pre-release. Tag the final on the same commit as
 the last rc when possible.
 
-**The first SDK, iOS, plugin and chart releases** are hand tags of the versions already in the
+**The first SDK, iOS, plugin (removed since) and chart releases** are hand tags of the versions already in the
 manifest (no release PR is needed, the version fields and changelogs are in place):
 `browser-v0.2.0`, `react-native-v0.2.0`, `ios-v0.2.0`, `plugin-v0.7.0`, `chart-v0.1.1`. Muninn's
 first image is the same: tag `muninn-v0.1.0` (manifest and `services/muninn/CHANGELOG.md` are at 0.1.0),
@@ -212,7 +203,6 @@ release; artefacts are kept on the run for 7 days.
 |---|---|---|
 | `release-npm` | build, test, `npm pack`, CycloneDX SBOM, SHA256SUMS, registry check (`npm view`: answers, version not taken), `npm publish --dry-run` | `npm publish` of that tarball to npmjs.org by trusted publishing (OIDC), GitHub release with tarball + SBOM + sums |
 | `release-ios` | `version.txt` check, macOS tests (skippable), `git subtree split`, `git push --dry-run` to the mirror when the key exists | push `main` and tag `<semver>` to `ouo11y/ouo11y-ios` |
-| `release-plugin` | build, test, sign (when configured), zip, SBOM, sums | GitHub release with zip + SBOM + sums (+ `.sha1`, `.md5`), provenance when public |
 | `release-chart` | compat check, `helm lint`, `helm template`, `helm package`, sums | `helm push` to `oci://ghcr.io/ouo11y/charts`, GitHub release |
 | `release-images` | resolve, version checks, amd64 + arm64 build with SBOM and provenance, notes | push to `ghcr.io/ouo11y/<image>`, GitHub release |
 
@@ -223,13 +213,13 @@ not fixed by a re-run: a re-run uses the tag commit's copy of the workflow. Afte
 tag=chart-v0.2.0 -f publish=true`); it checks out the tag itself. Never move or re-create the tag.
 
 A tag pushed before the accounts exist degrades to a dry run with a notice (iOS without
-`OUO_IOS_DEPLOY_KEY`, plugin unsigned without the grafana.com token). npm needs no secret: it
+`OUO_IOS_DEPLOY_KEY`). npm needs no secret: it
 publishes by trusted publishing (OIDC) from a GitHub-hosted runner.
 
 ## 7. Pull access
 
 Founder decisions: 2026-10-17, images and charts stay **private** until a stable version;
-2026-10-31, the images `ghcr.io/ouo11y/{collector,rum-api,grafana}` are **public** so pilots
+2026-10-31, the images `ghcr.io/ouo11y/{collector,rum-api,grafana}` (now `collector` and `muninn`; rum-api and grafana removed 2026-11-15) are **public** so pilots
 can run the stack on their own infra. Pulling an image needs no login and no token.
 
 - `denied` (HTTP 403) on an image pull: Docker still sends an old ghcr.io login whose token
@@ -260,15 +250,12 @@ and variables.
 | `RELEASE_PLEASE_TOKEN` secret (recommended) | release PRs that trigger `ci` and `release-check` | Fine-grained PAT, resource owner `ouo11y`, repository `ouo11y/ouo11y` only, permissions Contents, Pull requests, Issues: read and write; expiry at most 1 year. The org must allow fine-grained PATs (Organization settings > Personal access tokens). |
 | npm org `ouo11y` + trusted publisher | `release-npm.yml` | Org claimed 2026-10-23; keep 2FA on for every member. No token: (1) the founder publishes each package's first version by hand once (npm only lets you set a trusted publisher on a package that exists); (2) on each package, npmjs.com > Settings > Trusted publisher > GitHub Actions: organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (3) then every tag publishes from a GitHub-hosted runner (npm refuses self-hosted ones). Still to claim: the lookalike `ouolly` (ADR-0009). |
 | `OUO_IOS_DEPLOY_KEY` secret | `release-ios.yml` | `ssh-keygen -t ed25519 -C ouo11y-ios-deploy -f ouo_ios_deploy -N ""`; add `ouo_ios_deploy.pub` as a deploy key **with write access** on `github.com/ouo11y/ouo11y-ios` (Settings > Deploy keys); paste the private file as the secret; delete both local files. The mirror exists (private) with a README on branch `about`; the first push creates `main`; then make `main` the default branch and delete `about`. |
-| grafana.com organisation `ouo11y` | plugin signing | Not found (2026-10-23). Create it at grafana.com (sign up, organisation name `ouo11y`). |
-| `GRAFANA_ACCESS_POLICY_TOKEN` secret | `release-plugin.yml` signing | grafana.com > My account > Security > Access policies: realm the `ouo11y` org, scope `plugins:write`; create a token. Without it the zip is unsigned. |
-| `GRAFANA_ROOT_URLS` variable | `release-plugin.yml` signing | Comma separated Grafana root URLs allowed to load the private signature, e.g. `https://grafana.pilot.example.com`. Required when the token is set. |
 | Organization settings > Packages: allow members / Actions to create packages | first image or chart push | Already done for the 0.3.0 images; the first `chart-v*` push creates `charts/ouo` the same way. |
 | Renovate GitHub App | `.github/renovate.json5` | Install "Renovate" (Mend) from the GitHub Marketplace on the `ouo11y` org, repository `ouo11y/ouo11y` only. The config already exists, so there is no onboarding PR; expect the "Dependency Dashboard" issue and, on the first Monday, the digest-pinning PRs. |
 | Security contact | `.github/SECURITY.md` | security@ouo11y.com (founder, 2026-11-15). |
 
 Provenance and attestations: npm `--provenance` (npmjs.org only, at the public release),
-`actions/attest-build-provenance` for the plugin zip and the chart need a **public** repository on the free plan; the
+`actions/attest-build-provenance` for the chart need a **public** repository on the free plan; the
 workflows switch them on by themselves when the repository becomes public. Images already carry
 BuildKit SBOM and max-mode provenance attestations, private or not.
 
@@ -280,8 +267,8 @@ BuildKit SBOM and max-mode provenance attestations, private or not.
 | `govulncheck` on every Go module with the newest Go 1.26 patch | `security.yml` (Go/npm PRs, Mondays, on demand) | any reachable finding (each has a fixed-in version) |
 | `npm audit` | `security.yml` | runtime dependencies at high and above; dev tooling informational |
 | Trivy on every built image | `ci.yml` `images` job | fixable CRITICAL; HIGH listed |
-| SBOM | images: BuildKit attestation; npm and plugin: CycloneDX asset on the GitHub release | every release |
-| Provenance | images: BuildKit; npm, plugin, chart: GitHub attestations when public | every release |
+| SBOM | images: BuildKit attestation; npm: CycloneDX asset on the GitHub release | every release |
+| Provenance | images: BuildKit; npm, chart: GitHub attestations when public | every release |
 | Disclosure policy | `.github/SECURITY.md` | |
 
 Runners: every job runs on GitHub-hosted runners (`ubuntu-latest`, `macos-latest` for the Swift,
@@ -298,8 +285,7 @@ times: [github-hosted.md](../project/kb/ci/runners/github-hosted.md).
 |---|---|
 | browser / react-native / kit | `npm run build -w <dir> && npm run test -w <dir> && npm pack --dry-run -w <dir>` (`sdk/browser`, `sdk/react-native`, `libs/ouo-kit`) |
 | ios | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
-| plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
-| rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` |
+| muninn | `(cd services/muninn && go vet ./... && go test ./...)` |
 | collector | `(cd collector && builder --config builder.yaml && ./dist/ouo-collector --version)` |
 | chart | `helm lint deploy/helm/ouo` |
 | matrix | `node .github/scripts/compat-check.mjs` |

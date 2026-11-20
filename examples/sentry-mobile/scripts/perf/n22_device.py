@@ -4,7 +4,7 @@
   Per-capture main-thread time (Time Profiler + os_signpost, ouo and Sentry in the same trace):
     python3 -I n22_device.py profile --device <udid> --team <TEAM> --app <build dir> --label baseline|after3 \\
         --out project/agents/ios-replay/perf/results/device [--rounds 3]
-  Crash flows (session `crashed` at the crash time, native stack in Loki/rum-api, Sentry still reports):
+  Crash flows (session `crashed` at the crash time, native stack in Loki, Sentry still reports):
     python3 -I n22_device.py crash --device <udid> --env <ouo-env> --app <build dir> \\
         --action native-crash|js-fatal --mode parallel|ouo --out <dir>
 
@@ -154,27 +154,20 @@ def crash(a):
         json.dump({"crash_window": [t0, crash_t], "after_relaunch_sentry_envelopes": sentry_items, "app_alive_after_action": bool(alive)},
                   open(os.path.join(out, "device-flow.json"), "w"), indent=1)
         bench.log(f"Sentry envelopes after relaunch: {[i for _, i in sentry_items]}")
-        loki, rum = f"http://loki.{a.env}.ouo.localhost", f"http://rum-api.{a.env}.ouo.localhost"
+        loki = f"http://loki.{a.env}.ouo.localhost"
         q = '{service_name=~".+", event_name="exception"} | ouo_exception_fatal="true"'
         url = f"{loki}/loki/api/v1/query_range?" + urllib.parse.urlencode(
             {"query": q, "start": int(t0 * 1e9), "end": int(t1 * 1e9), "limit": 50})
         fatal = json.load(urllib.request.urlopen(url))
         json.dump(fatal, open(os.path.join(out, "loki-fatal.json"), "w"))
-        lines, sid = [], None
+        lines = []
         for r in fatal["data"]["result"]:
             s = r["stream"]
-            sid = sid or s.get("session_id")
             lines.append(f"exception session={s.get('session_id')} kind={s.get('ouo_exception_kind')} type={s.get('exception_type')} "
                          f"message={s.get('exception_message')!r} crash_ts={s.get('ouo_crash_timestamp')}\n  "
                          + (s.get("exception_stacktrace") or "")[:1500].replace("\n", "\n  "))
         open(os.path.join(out, "fatal.txt"), "w").write("\n".join(lines) + "\n")
         print("\n".join(lines) or "no fatal exception in Loki")
-        if sid:
-            req = urllib.request.Request(f"{rum}/v1/sessions/{sid}", headers={"Authorization": f"Bearer {os.environ.get('OUO_READ_TOKEN', 'rt_dev_0000000000000000')}"})
-            sess = json.load(urllib.request.urlopen(req))
-            json.dump(sess, open(os.path.join(out, "session.json"), "w"))
-            s = sess.get("session", sess)
-            print({k: s.get(k) for k in ("session_id", "status", "state", "end_reason", "started_at", "ended_at", "error_count", "crash_count")})
     finally:
         proxy.terminate()
 

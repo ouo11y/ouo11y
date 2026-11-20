@@ -1,6 +1,6 @@
 {{- if .Values.collector.enabled }}
-# Public ingest Service (ADR-0007 section 7): OTLP/HTTP 4318 and replay 4319, both behind
-# basic auth. Expose it with collector.ingress or collector.service.type=LoadBalancer.
+# Public ingest Service (ADR-0007 section 7): OTLP/HTTP 4318 (Basic auth) and the
+# Sentry bridge 4320 (DSN key auth). Expose it with collector.ingress or collector.service.type=LoadBalancer.
 apiVersion: v1
 kind: Service
 metadata:
@@ -18,9 +18,9 @@ spec:
       port: 4318
       targetPort: otlp-http
       protocol: TCP
-    - name: replay
-      port: 4319
-      targetPort: replay
+    - name: sentry
+      port: 4320
+      targetPort: sentry
       protocol: TCP
   selector:
     {{- include "ouo.selectorLabels" (dict "root" . "component" "collector") | nindent 4 }}

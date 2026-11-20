@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: { port: 5173, host: "localhost" },
     // Minified with source maps that the bundle does not reference ("hidden"): scripts/run.sh
-    // injects debug ids, uploads the maps to rum-api and deletes them before serving (ADR-0011).
+    // injects debug ids, uploads the maps to Muninn and deletes them before serving (ADR-0026).
     build: { sourcemap: "hidden" },
     preview: { port: 4173 },
     resolve: {

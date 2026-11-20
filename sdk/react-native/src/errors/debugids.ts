@@ -9,8 +9,8 @@ import { normalizeLocation } from "./stack";
  * `globalThis.__ouoDebugIds[<file of its own first frame>] = id`. The file is a raw Hermes path
  * (`index.android.bundle`, `/data/user/0/<app>/files/<ota>/index.android.bundle`,
  * `.../App.app/main.jsbundle`), so it is normalised like the stack (`app:///index.android.bundle`),
- * which is also the key rum-api looks up. One bundle runs per JS runtime, so every OTA bundle
- * reports its own id under the same location, and rum-api finds its own map.
+ * which is also the key symbolication looks up (Muninn debug files, ADR-0026). One bundle runs per JS runtime, so every OTA bundle
+ * reports its own id under the same location, and symbolication finds its own map.
  *
  * Sentry's Metro plugin registers `_sentryDebugIds[<stack>] = id` instead; it is read when no ouo
  * id is registered, so an app moving from Sentry keeps readable stacks with its existing build.

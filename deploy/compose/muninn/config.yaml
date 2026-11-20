@@ -1,4 +1,4 @@
-# Muninn in the local stack (compose.muninn.yaml). Every key and its default:
+# Muninn in the local stack (compose.yaml). Every key and its default:
 # services/muninn/config.example.yaml. Secrets come from the environment.
 server:
   http_listen_port: 3400

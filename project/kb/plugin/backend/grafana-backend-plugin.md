@@ -1,5 +1,7 @@
 # A Grafana plugin's Go backend in our stacks
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 > How is the Go backend of a Grafana plugin built and loaded in our stacks, what does Grafana pass it about the user, and what does it change for the rest of the plugin?
 
 Learned building a BFF for `ouo11y-rum-app` in PRs [#189](https://github.com/ouo11y/ouo11y/pull/189) and [#191](https://github.com/ouo11y/ouo11y/pull/191), which were not merged ([ADR-0025](../../../../docs/adr/0025-generic-libs-clients-own-plugin-and-access.md)): a client builds its own backend, and this is what one will meet. The code (`plugins/ouo11y-rum-app/pkg`, `scripts/build-backend.mjs`, the nested datasource) stays on those branches as reference for the demo client. Verified 2026-11-13 on Grafana 13.2.5 (`grafana/grafana:13.2.5`) with `grafana-plugin-sdk-go` v0.299.0.

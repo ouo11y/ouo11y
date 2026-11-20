@@ -2,7 +2,7 @@
 """Counting HTTP forwarder: every request the app makes goes through it, one JSON line per request.
 
     python3 -I proxy.py --log requests.jsonl \
-        --route sentry:4720:4520 --route otlp:4718:4518 --route replay:4719:4519 --route backend:4781:8581 \
+        --route sentry:4720:4520 --route otlp:4718:4518 --route backend:4781:8581 \
         [--lan] [--offline-flag <file>] [--sink]
 
 Each --route is label:listen_port:upstream_port (upstream on 127.0.0.1). Bytes are counted at the
@@ -35,7 +35,7 @@ lock = threading.Lock()
 logf = None
 offline_flag = None
 sink = False
-SINK_BODY = {"sentry": b'{"id":"00000000000000000000000000000000"}', "otlp": b"{}", "replay": b"{}"}
+SINK_BODY = {"sentry": b'{"id":"00000000000000000000000000000000"}', "otlp": b"{}"}
 
 
 def decode(body, encoding):

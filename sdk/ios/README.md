@@ -56,7 +56,7 @@ What it records, in the spec's names (docs/specs/mobile-sdk.md):
 
 | Capability | Records |
 |---|---|
-| C1 sessions | `session.start` / `session.end` (`background` after 30 s in the background, `inactivity` 30 min, `max_duration` 4 h, `crash`, `terminated`, `user_change`, `manual`), `session.previous_id`, `device.id`, `app.lifecycle`; sampling per session id (`sessionSampleRate`, rum-api's rule) |
+| C1 sessions | `session.start` / `session.end` (`background` after 30 s in the background, `inactivity` 30 min, `max_duration` 4 h, `crash`, `terminated`, `user_change`, `manual`), `session.previous_id`, `device.id`, `app.lifecycle`; sampling per session id (`sessionSampleRate`, the rule of `@ouo11y/react-native`) |
 | C2 errors and crashes | `exception`: `captured` (`captureError`), `native` (signals, uncaught NSExceptions, sent by the next launch as a fatal exception of the crashed session, which ends with `crash` at the crash time); each with `ouo.last_events`, `app.screen.name`, `ouo.device.locale`, memory and network type |
 | C3 hangs and terminations | `hang` (2 s, OuoCrash's watchdog), `termination` (killed in the foreground without a crash report, cause `memory`, `watchdog` or `unknown`) |
 | C4 vitals | `ouo.app.start` (cold, from the process start to the first frame), `ouo.screen.display` (TTID, TTFD), `app.jank` per screen window |
@@ -250,7 +250,7 @@ chunks in order from a folder on disk (`DiskQueue`), retries network errors, 429
 and on the next launch, drops a chunk with any other answer (counted as rejected: a 500 given every
 time does not block the queue), and drops the oldest queued chunk beyond 10 MB (no age limit: a
 clock the user moves does not drop the queue).
-Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
+Touches cancelled by UIKit are reported as `ended` (the replay format has only
 `began|moved|ended`).
 
 ## Build and test
@@ -259,7 +259,6 @@ Touches cancelled by UIKit are reported as `ended` (rum-api accepts only
 cd sdk/ios
 swift build            # macOS: Core builds fully, OuoReplay compiles to the stub
 ./test.sh              # every test target, Swift Testing; works with the Command Line Tools only
-eval "$(../../deploy/envs/ouo-env env <env>)" && OUO_E2E_NATIVE=1 swift test --filter RealCollector   # OuoSDK into rum-api
 OUO_REPLAY_STUB_URL=http://localhost:4319 OUO_PROJECT_ID=demo OUO_PROJECT_TOKEN=pt_dev_demo_0000000000000000 ./test.sh --filter RealHTTP   # push real chunks to the collector
 ```
 

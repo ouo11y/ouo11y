@@ -22,8 +22,8 @@ spec:
         {{- if not .Values.collector.existingProjectsSecret }}
         checksum/projects: {{ include (print $.Template.BasePath "/collector/secret-projects.yaml") . | sha256sum }}
         {{- end }}
-        {{- if not .Values.rumApi.existingSecret }}
-        checksum/tokens: {{ include (print $.Template.BasePath "/rum-api/secret.yaml") . | sha256sum }}
+        {{- if not .Values.muninn.existingSecret }}
+        checksum/muninn: {{ include (print $.Template.BasePath "/collector/secret-muninn.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.collector.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -43,13 +43,12 @@ spec:
           securityContext:
             {{- toYaml .Values.collector.containerSecurityContext | nindent 12 }}
           env:
-            # Bearer the replay exporter sends to rum-api (same Secret key rum-api reads).
-            - name: OUO_INGEST_TOKEN
+            # Bearer the Muninn exporter sends (Muninn's auth.ingest_token).
+            - name: MUNINN_INGEST_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "ouo.rumApi.secretName" . }}
+                  name: {{ include "ouo.muninn.secretName" . }}
                   key: ingest-token
-                  optional: true
             {{- with .Values.collector.allowedOrigins }}
             - name: OUO_ALLOWED_ORIGINS
               value: {{ join "," . | quote }}
@@ -60,8 +59,8 @@ spec:
             - name: otlp-http
               containerPort: 4318
               protocol: TCP
-            - name: replay
-              containerPort: 4319
+            - name: sentry
+              containerPort: 4320
               protocol: TCP
             - name: otlp-grpc
               containerPort: 4317
@@ -77,6 +76,8 @@ spec:
             - name: etc-otelcol
               mountPath: /etc/otelcol
               readOnly: true
+            - name: replay-queue
+              mountPath: /var/lib/otelcol/replay-queue
           livenessProbe:
             httpGet:
               path: /
@@ -105,6 +106,15 @@ spec:
                   items:
                     - key: projects.htpasswd
                       path: projects.htpasswd
+        - name: replay-queue
+          {{- with .Values.collector.replayQueue.persistence }}
+          {{- if .enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .existingClaim | default (printf "%s-replay-queue" (include "ouo.collector.fullname" $)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+          {{- end }}
       {{- with .Values.collector.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

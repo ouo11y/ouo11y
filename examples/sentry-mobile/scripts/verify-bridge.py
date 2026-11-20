@@ -3,14 +3,13 @@
 
 Reads a sentrytap capture taken in front of the bridge (what the SDK sent), derives the
 expected sessions, errors and replays from the raw envelopes on its own, and compares them
-with what rum-api, Loki, Tempo and the replay store hold. Every mp4 segment is downloaded from
-rum-api and decoded with AVFoundation (macOS) to prove it is playable video.
+with what Loki and Tempo hold. The bridge drops Sentry video replay (no ouo replay store for it).
 
-  scripts/verify-bridge.py --capture <dir A> [--rum http://localhost:8091] [--loki http://localhost:3103]
-                           [--tempo http://localhost:3203] [--read-token rt_dev_...] [--service sentry-demo]
+  scripts/verify-bridge.py --capture <dir A> [--loki http://localhost:3103]
+                           [--tempo http://localhost:3203] [--service sentry-demo]
                            [--out report.json]
 
-Exit 0 when every check passes. Standard library only (plus `swift` for the mp4 probe).
+Exit 0 when every check passes. Standard library only.
 """
 import argparse
 import collections, gzip, hashlib, json, os, struct, subprocess, sys, tempfile, time, urllib.parse, urllib.request, zlib
@@ -98,10 +97,8 @@ def get(url, token=None, raw=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--capture", required=True)
-    ap.add_argument("--rum", default="http://localhost:8091")
     ap.add_argument("--loki", default="http://localhost:3103")
     ap.add_argument("--tempo", default="http://localhost:3203")
-    ap.add_argument("--read-token", default="rt_dev_0000000000000000")
     ap.add_argument("--service", default="sentry-demo")
     ap.add_argument("--backend-service", default="demo-backend")
     ap.add_argument("--out")
@@ -158,31 +155,6 @@ def main():
     print(f"capture: {len(sessions)} sessions ({len(started)} started here), {len(errors)} error events, "
           f"{len(tx_traces)} transactions ({len(backend_traces)} calling the backend), {len(logs)} log entries, "
           f"{len(replays)} replays / {sum(len(v) for v in replays.values())} segments")
-
-    # ---- rum-api sessions ---------------------------------------------------------------
-    q = urllib.parse.urlencode({"from": int(t0), "to": "now", "service": a.service, "limit": 1000})
-    got = {s["session_id"]: s for s in get(f"{a.rum}/v1/sessions?{q}", a.read_token)["sessions"]}
-    for sid, s in sessions.items():
-        if not s["init"]:
-            continue  # a session started before the capture; only its end is in it
-        r = got.get(sid)
-        check(f"session {sid[:8]} listed by rum-api", r is not None)
-        if not r:
-            continue
-        st = s["statuses"]
-        want_status = "crashed" if "crashed" in st else ("errored" if s["errors"] > 0 else None)
-        if want_status:
-            check(f"session {sid[:8]} status {want_status}", r["status"] == want_status, f"rum-api {r['status']}")
-        else:
-            # ouo also counts failed requests as errored (ADR-0004); Sentry does not.
-            ok = r["status"] == "healthy" or (r["status"] == "errored" and r["failed_request_count"] > 0)
-            check(f"session {sid[:8]} status healthy (or errored only by failed requests)", ok, f"rum-api {r['status']}")
-        final = next((x for x in reversed(st) if x in ("exited", "crashed", "abnormal")), None)
-        want_end = {"exited": "background", "crashed": "crash", "abnormal": "terminated"}.get(final)
-        if want_end:
-            check(f"session {sid[:8]} ended {want_end}", r["end_reason"] == want_end, f"rum-api {r['state']} {r['end_reason']}")
-        else:
-            check(f"session {sid[:8]} not ended by the bridge", r["end_reason"] in (None, "inactivity"), f"rum-api {r['end_reason']}")
 
     # ---- errors in Loki -------------------------------------------------------------------
     lq = '{service_name="%s", event_name="exception"}' % a.service
@@ -249,81 +221,6 @@ def main():
     if backend_traces:
         check("every transaction that called the backend is one trace with the backend's spans (traceparent)",
               joined == len(backend_traces), f"{joined}/{len(backend_traces)}")
-
-    # ---- replays in rum-api ----------------------------------------------------------------
-    by_replay = {}
-    for sid, r in got.items():
-        if r.get("replay_kind") != "video":
-            continue
-        man = get(f"{a.rum}/v1/sessions/{urllib.parse.quote(sid)}/replay/video", a.read_token)
-        rid = (man.get("source") or {}).get("replay_id")
-        if rid in replays:
-            by_replay[rid] = (sid, man)
-    probe_dir = tempfile.mkdtemp(prefix="ouo-video-")
-    files = []
-    size_mismatch = 0
-    for rid, segs in replays.items():
-        if rid not in by_replay:
-            check(f"replay {rid[:8]} stored in rum-api", False)
-            continue
-        sid, man = by_replay[rid]
-        got_seqs = sorted(s["seq"] for s in man["segments"])
-        want_seqs = sorted(s[0] for s in segs)
-        check(f"replay {rid[:8]} -> session {sid[:8]}: every segment stored", got_seqs == want_seqs, f"{len(got_seqs)}/{len(want_seqs)} segments")
-        sess = sessions.get(sid)
-        if sess:
-            first = min(s[1] for s in segs if s[1]) / 1000
-            check(f"replay {rid[:8]} belongs to the session it was recorded in", abs(first - sess["started"]) < 30,
-                  f"first segment {first - sess['started']:+.1f} s after session start")
-        for s in man["segments"]:
-            data = get(f"{a.rum}{s['path']}", a.read_token, raw=True)
-            want = next(x for x in segs if x[0] == s["seq"])
-            if hashlib.sha256(data).hexdigest() != want[2]:
-                size_mismatch += 1
-                print(f"  segment {sid[:8]}/{s['seq']}: served mp4 differs from the SDK's")
-            fn = os.path.join(probe_dir, f"{sid}-{s['seq']}.mp4")
-            open(fn, "wb").write(data)
-            files.append((fn, s, man["viewport"]))
-    check("every served mp4 is byte-identical to the mp4 the SDK sent (sha256)", files and size_mismatch == 0, f"{len(files)} segments, {size_mismatch} mismatches")
-    swift = os.path.join(probe_dir, "probe.swift")
-    open(swift, "w").write("""
-import AVFoundation
-for path in CommandLine.arguments.dropFirst() {
-    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
-    let sem = DispatchSemaphore(value: 0)
-    Task {
-        do {
-            let d = try await asset.load(.duration)
-            let tracks = try await asset.loadTracks(withMediaType: .video)
-            var w = 0.0, h = 0.0, frames = 0
-            if let t = tracks.first {
-                let s = try await t.load(.naturalSize); w = s.width; h = s.height
-                let reader = try AVAssetReader(asset: asset)
-                let out = AVAssetReaderTrackOutput(track: t, outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
-                reader.add(out); reader.startReading()
-                while out.copyNextSampleBuffer() != nil { frames += 1 }
-            }
-            print("\\(path)\\t\\(d.seconds)\\t\\(w)\\t\\(h)\\t\\(frames)")
-        } catch { print("\\(path)\\tERROR \\(error)") }
-        sem.signal()
-    }
-    sem.wait()
-}
-""")
-    out = subprocess.run(["swift", swift] + [f for f, _, _ in files], capture_output=True, text=True, timeout=600)
-    decoded = 0
-    for line in out.stdout.splitlines():
-        p = line.split("\t")
-        if len(p) == 5 and float(p[1]) > 0 and int(p[4]) > 0:
-            vp = next(v for f, _, v in files if f == p[0])
-            if int(float(p[2])) == vp["width"] and int(float(p[3])) == vp["height"]:
-                decoded += 1
-            else:
-                print(f"  size mismatch {p}")
-        else:
-            print("  " + line)
-    check("every segment decodes as H.264 video at the manifest's viewport size (AVFoundation)", decoded == len(files) and files,
-          f"{decoded}/{len(files)} decoded{'; ' + out.stderr.strip()[:200] if out.returncode else ''}")
 
     failed = [c for c in checks if not c["ok"]]
     print(f"\n{len(checks) - len(failed)}/{len(checks)} checks passed")

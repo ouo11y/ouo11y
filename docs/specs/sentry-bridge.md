@@ -327,6 +327,8 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 
 ## 10. Collector wiring
 
+> rum-api, the MVP Grafana plugin and the `ouoreplay` receiver/exporter were removed on 2026-11-15. The bridge's video chunks (`ouo.replay.chunk = true`) are routed to the `debug` exporter until a store takes them (`deploy/compose/collector/config.yaml`); sections 10 and 11 below describe the MVP wiring and API.
+
 Checked against the Phase 8a rev 2 components in `collector/` and `deploy/compose/collector/config.yaml`.
 
 **Project context.** On the OTLP and replay paths, `basicauth` puts the project id in `client.Info.Auth` as `username`. `resource/project` stamps `ouo.project.id` from it, and `ouoratelimit` keys its project bucket on it. The Sentry path has no Basic credential. After the project table lookup, the receiver therefore puts an auth value with `username = <ouo_project_id>` into `client.Info` on the context it hands to its consumers. Both processors then work unchanged. The receiver also sets `client.Info.Addr` to the client address (the TCP peer) and, when the request carries one, puts its `X-Forwarded-For` header into `client.Info.Metadata`, as `include_metadata: true` does on the OTLP receivers, so `ouoratelimit` with `key_from: x_forwarded_for` keys each device behind a proxy separately instead of keying every device on the proxy's address.

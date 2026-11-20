@@ -85,7 +85,7 @@ struct SteadyClock {
     static func nowMs() -> Double { shared.nowMs() }
 }
 
-/// Deterministic session sampling, the rule of `@ouo11y/react-native` and rum-api's server-side cap
+/// Deterministic session sampling, the rule of `@ouo11y/react-native` and any server-side cap
 /// (`sdk/react-native/src/sampling.ts`): a session is in the sample of `rate` for `salt` when
 /// `fmix32(fnv1a32(salt + ":" + sessionId)) / 2^32 < rate`, FNV-1a over UTF-16 code units.
 enum Sampling {

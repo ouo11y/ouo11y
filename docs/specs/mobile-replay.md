@@ -58,6 +58,8 @@ Posted to `POST /v1/replay/chunks` exactly like rrweb chunks (gzip JSON, headers
 
 ## Validation (collector replay receiver and rum-api)
 
+> rum-api, the MVP Grafana plugin and the `ouoreplay` receiver/exporter were removed on 2026-11-15. The validation, storage, API and player sections below describe that MVP path and no longer run on `main`; mobile replay now travels as OTLP records to Muninn ([muninn.md](muninn.md), [ADR-0019](../adr/0019-collector-to-muninn.md)). The chunk, frame, chunking and capture rules above stay normative.
+
 Both reject with 400:
 
 - `schema_version` missing, below 1 or above 2 (`kind: "video"` stays at 1);

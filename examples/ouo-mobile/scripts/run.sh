@@ -4,7 +4,7 @@
 #   scripts/run.sh [--env <name>] [--device <udid>] [--build] [--no-verify]
 #
 # --build builds and installs the Release app first (scripts/build-ios.sh, same --env / --device).
-# Without --env the plain compose stack's ports are used (Tempo 3200, Loki 3100, rum-api 8080,
+# Without --env the plain compose stack's ports are used (Tempo 3200, Loki 3100,
 # backend 8081); the app must have been built for the same stack (.env or --env).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -47,5 +47,5 @@ end=$(( $(date +%s) + 1 ))
 printf '{"start": %d, "end": %d, "backend": "%s", "device": "%s"}\n' "$start" "$end" "$backend" "$DEVICE" > journey.json
 log "journey window $start..$end, backend $backend"
 if [[ $VERIFY == 1 ]]; then
-  python3 -I scripts/verify.py --journey journey.json --feedback
+  python3 -I scripts/verify.py --journey journey.json
 fi

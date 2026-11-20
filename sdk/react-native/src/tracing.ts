@@ -133,7 +133,7 @@ const MAX_MESSAGE = 1024;
 
 /**
  * Public log API (checklist G3): OTel log records named `log`, as the Sentry bridge emits
- * `Sentry.logger.*` entries (spec section 7a), so both read alike in rum-api's logs view.
+ * `Sentry.logger.*` entries (spec section 7a), so both read alike in Loki.
  * The record carries the session attributes and the active span's trace id and span id.
  */
 export function createLogApi(events: EventEmitter, clean: (attrs: unknown) => Attrs = (a) => (a && typeof a === "object" ? (a as Attrs) : {})): RUMLog {

@@ -1,5 +1,0 @@
-# BuildKit reads <Dockerfile>.dockerignore next to the Dockerfile. The context is the
-# repository root (node_modules, .git, data...); only the built plugin is needed.
-*
-!plugins/ouo11y-rum-app/dist
-!plugins/ouo11y-rum-app/dist/**

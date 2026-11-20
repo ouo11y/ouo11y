@@ -23,7 +23,7 @@ public final class OuoConfig: NSObject {
     public var replayEndpoint: URL?
 
     /// Fraction of sessions whose records are sent, 0 to 1, decided once per session from its id
-    /// (the rule rum-api applies). Default 1.
+    /// (the rule of `@ouo11y/react-native`). Default 1.
     public var sessionSampleRate: Double = 1
     /// Background longer than this ends the session on foreground (C1). Default 30 s.
     public var backgroundTimeout: TimeInterval = 30

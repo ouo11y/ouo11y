@@ -4,7 +4,7 @@ Four guides, in order. Each one is copy-and-paste: commands you run yourself, fi
 
 | Step | Guide | You end up with |
 |---|---|---|
-| 0 | [00-stack.md](00-stack.md) | Grafana, Loki, Tempo, Mimir, the OTel Collector, rum-api and the ouo Grafana app running in Docker on your Mac |
+| 0 | [00-stack.md](00-stack.md) | Grafana, Loki, Tempo, Mimir, the OTel Collector and Muninn (replay store) running in Docker on your Mac |
 | 1 | [10-backend.md](10-backend.md) | Your Go backend emitting traces, logs and metrics, with `session.id` and `user.id` copied from baggage onto every span |
 | 2 | [20-frontend.md](20-frontend.md) | Your React app sending sessions, errors, fetch spans and rrweb replay, correlated to the backend traces |
 | 3 | [30-mobile-ios.md](30-mobile-ios.md) | Your Expo React Native app on the iOS Simulator (and on your iPhone, appendix) sending sessions, crashes and screenshot replay |
@@ -26,7 +26,7 @@ The guides use the default host ports from `deploy/compose/.env.example`. If any
 | Grafana | http://localhost:3000 (admin / testing567) |
 | OTel Collector OTLP/HTTP | http://localhost:4318 |
 | OTel Collector OTLP/gRPC | localhost:4317 |
-| rum-api | http://localhost:8080 |
+| Muninn (internal, loopback) | http://127.0.0.1:3400 |
 | demo backend | http://localhost:8081 |
 | Loki | http://localhost:3100 |
 | Tempo | http://localhost:3200 |
