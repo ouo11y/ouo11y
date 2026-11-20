@@ -267,6 +267,10 @@ def run(*, tempo: str, backend_url: str, clients: list[str], path: str, start: i
     mixed = []
     for mode in (("parallel", "ouo") if path == "sentry" else ("sentry",)):
         mixed += tempo_search(tempo, f'{{ resource.ouo.rum.mode = "{mode}" }}', start, end)
+    # Same window rule as above: Tempo's search also returns traces of the previous leg that share
+    # its blocks; only a trace that started in the window counts.
+    mixed = [tid for tid, spans in fetch_traces(tempo, sorted(set(mixed))).items()
+             if any(start <= s.start <= end for s in spans)]
     res.add("never the ouo SDK and the Sentry bridge into ouo at once", not mixed,
             f"{len(mixed)} traces from the other SDK path in the window" if mixed else "")
     return res
