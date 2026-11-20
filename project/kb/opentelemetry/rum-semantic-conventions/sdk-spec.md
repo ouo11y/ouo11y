@@ -446,7 +446,7 @@ Names, types and confidence come from the [signal table](signals-table.html). At
 - **PRV-10** URLs on `url.full`, `browser.document.url.full`, stack frames and replay MUST be sanitised before persistence: credentials become `REDACTED:REDACTED`; every query value becomes `REDACTED` unless its key is in `privacy.urlQueryAllow`; the fragment is removed unless `privacy.keepUrlFragment`. A `sanitizeUrl` hook then runs. This is stricter than the OTel default, which redacts only listed keys.
 - **PRV-11** Sanitising MUST also cover a query-shaped fragment if fragments are kept.
 - **PRV-12** The SDK MUST NOT capture request or response bodies or headers, apart from those required by the HTTP conventions.
-- **PRV-13** `enduser.id` and `enduser.pseudo.id` MUST be sent only after `setUser`. The SDK MUST NOT collect IP address, location, advertising id or contacts.
+- **PRV-13** `enduser.id` MUST be sent only after `setUser`. `enduser.pseudo.id` MUST NOT be sent unless the app opts in (`session.anonymousId`, USR-d); then it is a random visitor id on every record (never on the resource), kept in the SDK's storage so it lasts across visits only where storage is allowed, and forgotten when consent is withdrawn. The SDK MUST NOT collect IP address, location, advertising id or contacts; a collector MAY add them server-side for a project that enables it.
 - **PRV-14** `exception.message` and `.stacktrace` pass through `beforeSend`. Apps with sensitive messages are expected to use it.
 
 ## 11. Replay contract

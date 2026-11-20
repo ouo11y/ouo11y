@@ -52,6 +52,13 @@ export interface OuoConfig {
     inactivityTimeoutMs?: number;
     /** Default 4 h, at most 24 h. */
     maxDurationMs?: number;
+    /**
+     * Opt-in (default false). Sends `enduser.pseudo.id`, a random visitor id kept across
+     * visits, on every record, so a guest's visits can be linked and merged into the user on
+     * `setUser`. Stored with the session: it persists only where storage is allowed (after
+     * consent when consent is required) and is forgotten when consent is withdrawn (PRV-13).
+     */
+    anonymousId?: boolean;
   };
   sampling?: {
     /** Fraction of sessions that send telemetry. Default 1. */

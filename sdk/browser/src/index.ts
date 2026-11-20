@@ -17,7 +17,7 @@ import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { resolveConfig, type Config } from "./config";
 import { systemClock, type TimerHandle } from "./core/clock";
 import { DropCounter, type DropReason } from "./core/drops";
-import { hasSecureRandom } from "./core/ids";
+import { hasSecureRandom, isSessionId, newSessionId } from "./core/ids";
 import { appAttributes, reservedName, truncate, type Attrs } from "./core/limits";
 import { sanitizeStack, sanitizeUrl, type UrlPolicy } from "./core/url";
 import { attempt, configureGuard, contain, guardedFailures, injectFault, listen, quiet } from "./guard";
@@ -37,6 +37,9 @@ import { OutboxDrainer, TelemetryQueue } from "./transport/queue";
 import { ResilientOutbox, type Outbox } from "./transport/store";
 import type { Consent, NavigationOptions, OuoConfig } from "./types";
 import { SDK_NAME, SDK_VERSION, SPEC_VERSION } from "./version";
+
+/** Storage key of the visitor id (`session.anonymousId`). */
+const PSEUDO_KEY = "ouo.anon";
 
 export type * from "./types";
 export { basicAuth } from "./config";
@@ -127,7 +130,11 @@ class Runtime {
     });
 
     const stamp = (): Stamp => this.session.stamp();
-    const globalAttributes = (): Attrs => (this.view.name ? { ...this.globals, "ouo.view.name": this.view.name } : this.globals);
+    const globalAttributes = (): Attrs => {
+      const base = this.view.name ? { ...this.globals, "ouo.view.name": this.view.name } : this.globals;
+      const pseudo = this.pseudoId();
+      return pseudo ? { ...base, "enduser.pseudo.id": pseudo } : base;
+    };
     this.pipeline = createPipeline({
       cfg,
       drops: this.drops,
@@ -489,6 +496,25 @@ class Runtime {
 
   restartSession(): void {
     if (this.active()) this.session.restart();
+  }
+
+  /**
+   * The visitor id (`session.anonymousId`, opt-in): random, kept in the SDK's storage, so it
+   * lasts across visits only where storage is allowed and is forgotten with consent (PRV-13).
+   */
+  private pseudoId(): string | undefined {
+    if (!this.cfg.session.anonymousId) return undefined;
+    let id: string | null = null;
+    try {
+      id = this.storage.get(PSEUDO_KEY);
+      if (!id || !isSessionId(id)) {
+        id = newSessionId();
+        this.storage.set(PSEUDO_KEY, id);
+      }
+    } catch {
+      return undefined;
+    }
+    return id;
   }
 
   setUser(id: string | null): void {

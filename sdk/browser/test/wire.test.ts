@@ -522,6 +522,20 @@ describe("public API: custom events, global attributes, user, beforeSend, provid
     }
   });
 
+  it("enduser.pseudo.id is sent only when the app opts in, stays across visits and survives setUser (PRV-13, USR-d)", async () => {
+    ouo.init({ ...base, session: { anonymousId: true } });
+    ouo.recordEvent("cart.add");
+    ouo.setUser("user-7");
+    ouo.recordEvent("cart.add");
+    await flushed();
+    const [guest, signedIn] = collector.events("cart.add") as [CapturedLog, CapturedLog];
+    expect(guest.attributes["enduser.pseudo.id"]).toMatch(/^[0-9a-f]{32}$/);
+    expect(signedIn.attributes["enduser.pseudo.id"]).toBe(guest.attributes["enduser.pseudo.id"]);
+    expect(signedIn.attributes["enduser.id"]).toBe("user-7");
+    for (const l of collector.logs) expect(l.resource["enduser.pseudo.id"], "never on the resource").toBeUndefined();
+    expect(localStorage.getItem("ouo.anon")).toBe(guest.attributes["enduser.pseudo.id"]);
+  });
+
   it("beforeSend runs on events and spans, may modify or drop, and a throwing hook changes nothing (CFG-4)", async () => {
     const seen: string[] = [];
     ouo.init({
