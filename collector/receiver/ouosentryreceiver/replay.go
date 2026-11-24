@@ -295,7 +295,7 @@ func (r *sentryReceiver) resolveReplay(j job, seg *replaySegment) (string, bool)
 		x := st.byReplayID(project, seg.event.ReplayID)
 		if x == nil && seg.event.User != nil {
 			at := firstTime(seg.startedAt, seg.event.Timestamp.Time)
-			if c := st.byDeviceForReplay(project, seg.event.User.ID, at); c != nil {
+			if c := st.byDeviceForReplay(project, string(seg.event.User.ID), at); c != nil {
 				x = c
 				st.learnReplay(c, seg.event.ReplayID)
 			}

@@ -312,6 +312,48 @@ func TestUnmatchedEventHasNoSession(t *testing.T) {
 	}
 }
 
+// A browser app that calls `Sentry.setUser({ id: user.id })` with a numeric
+// database id sends `"user":{"id":69}`. Relay accepts it; a string-only field
+// failed the whole event's decode, so every error after login was counted
+// `translated=false` and lost (@sentry/react 7.58.1, 2026-11-24).
+func TestNumericUserIDTranslates(t *testing.T) {
+	x := newTx(t)
+	ev := func(id string, user any) string {
+		return item("event", map[string]any{"event_id": id, "level": "error", "platform": "javascript",
+			"exception": map[string]any{"values": []any{map[string]any{"type": "AbortError", "value": "signal is aborted without reason",
+				"mechanism": map[string]any{"type": "onunhandledrejection", "handled": false}}}},
+			"user": user})
+	}
+	x.send(t, hdr("sentry.javascript.react"),
+		ev("e1", map[string]any{"id": 69, "email": "staff@example.com", "username": "Staff"}),
+		ev("e2", map[string]any{"id": json.Number("9007199254740993")}),
+		ev("e3", map[string]any{"id": "abc"}),
+		ev("e4", map[string]any{"id": map[string]any{"nested": true}}))
+	exc := x.byName("exception")
+	if len(exc) != 4 {
+		t.Fatalf("want 4 exception records, got %d: %+v", len(exc), exc)
+	}
+	want := map[string]any{"e1": "69", "e2": "9007199254740993", "e3": "abc", "e4": nil}
+	for _, r := range exc {
+		id := r.attrs["ouo.sentry.event_id"].(string)
+		if got := r.attrs[attrUserID]; got != want[id] {
+			t.Errorf("%s: %s = %v, want %v", id, attrUserID, got, want[id])
+		}
+	}
+}
+
+func TestLenientString(t *testing.T) {
+	for in, want := range map[string]string{
+		`"69"`: "69", `69`: "69", `-3`: "-3", `1.5`: "1.5", `9007199254740993`: "9007199254740993",
+		`true`: "true", `null`: "", `{}`: "", `[1]`: "",
+	} {
+		var s lenientString
+		if err := json.Unmarshal([]byte(in), &s); err != nil || string(s) != want {
+			t.Errorf("%s: got %q, %v; want %q", in, s, err, want)
+		}
+	}
+}
+
 // ---- replay ----------------------------------------------------------------------
 
 func msgpackMap(entries [][2][]byte) []byte {

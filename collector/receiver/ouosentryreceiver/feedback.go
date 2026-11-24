@@ -46,7 +46,7 @@ func (t *translation) emitFeedback(st *sessionState, envSessions map[string]*sen
 	}
 	userID := ""
 	if e.User != nil {
-		userID = e.User.ID
+		userID = string(e.User.ID)
 	}
 	lr := t.newFeedback(eventTime(e, t.j.receivedAt), x, match, userID, f.Message, firstString(f.ContactEmail, f.Name), e.EventID)
 	t.setTraceContext(lr, e.Contexts.Trace)

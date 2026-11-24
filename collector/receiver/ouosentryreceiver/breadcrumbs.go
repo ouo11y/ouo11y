@@ -58,7 +58,7 @@ func (r *sentryReceiver) emitBreadcrumbs(ctx context.Context, j job, seg *replay
 	t := &translation{r: r, j: j, resource: resource, sdkName: seg.sdkName}
 	did := ""
 	if seg.event.User != nil {
-		did = seg.event.User.ID
+		did = string(seg.event.User.ID)
 	}
 	r.state.withLock(func() {
 		x := r.state.get(j.project.OuoProjectID, sid)

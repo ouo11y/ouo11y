@@ -102,7 +102,40 @@ type sentryEvent struct {
 }
 
 type sentryUser struct {
-	ID string `json:"id"`
+	ID lenientString `json:"id"`
+}
+
+// lenientString is a JSON value Sentry accepts as a string, a number or a
+// boolean. `user.id` is the common case: `Sentry.setUser({ id: user.id })`
+// with a numeric database id sends `"id":69`, and Relay stores it as "69".
+// A plain string field would fail the whole event's decode, and the event
+// would be counted `translated=false` and lost with no log line.
+// A number is kept as written (no float64 round trip), so a 64-bit id
+// survives exactly. Any other shape (object, array) is dropped, never an error.
+type lenientString string
+
+func (s *lenientString) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 {
+		return nil
+	}
+	switch {
+	case b[0] == '"':
+		var v string
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		*s = lenientString(v)
+	case b[0] == '-' || (b[0] >= '0' && b[0] <= '9'):
+		var n json.Number
+		if err := json.Unmarshal(b, &n); err != nil {
+			return nil
+		}
+		*s = lenientString(n.String())
+	case string(b) == "true" || string(b) == "false":
+		*s = lenientString(b)
+	}
+	return nil
 }
 
 type contexts struct {

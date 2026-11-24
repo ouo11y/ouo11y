@@ -88,7 +88,7 @@ Every record and span produced from one envelope gets:
 | `telemetry.sdk.name`, `telemetry.sdk.version` (resource) | envelope `sdk.name`, `sdk.version`, else event `sdk` |
 | `ouo.sentry.sdk` | `sdk.name` (`sentry.cocoa`, `sentry.java.android`, `sentry.javascript.react-native`) |
 | `session.id` | resolved per section 8 |
-| `user.id` | event `user.id`, else session `did` |
+| `user.id` | event `user.id` (a string, number or boolean, as Relay accepts; a number is kept as written), else session `did` |
 | `ouo.sentry.session_match` | `envelope`, `replay`, `device` or `none` |
 
 Session attributes are on records and spans, never on the resource, as in the session lifecycle spec.
