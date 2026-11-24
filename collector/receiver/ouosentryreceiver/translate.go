@@ -392,7 +392,7 @@ func (t *translation) resolve(st *sessionState, envSessions map[string]*sentrySe
 		}
 	}
 	if x == nil && e.User != nil {
-		if c := st.byDeviceAt(project, e.User.ID, eventTime(e, t.j.receivedAt)); c != nil {
+		if c := st.byDeviceAt(project, string(e.User.ID), eventTime(e, t.j.receivedAt)); c != nil {
 			x, match = c, matchDevice
 		}
 	}
@@ -481,7 +481,7 @@ func (t *translation) newRecord(name string, ts time.Time, x *sess, match, userI
 func (t *translation) emitEvent(e *sentryEvent, x *sess, match string, envSessions map[string]*sentrySession) {
 	userID := ""
 	if e.User != nil {
-		userID = e.User.ID
+		userID = string(e.User.ID)
 	}
 	ts := eventTime(e, t.j.receivedAt)
 	if x != nil {
@@ -743,7 +743,7 @@ func (t *translation) emitTransaction(e *sentryEvent, x *sess, match string, wit
 	}
 	userID := ""
 	if e.User != nil {
-		userID = e.User.ID
+		userID = string(e.User.ID)
 	}
 	if userID == "" && x != nil {
 		userID = x.did
