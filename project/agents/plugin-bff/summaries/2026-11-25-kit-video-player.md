@@ -14,7 +14,8 @@ Branch `feat/kit-ouo-video-player`, cut from `origin/main` at `d3434e7`. Spec: [
 - `npm test -w libs/ouo-kit`: 4 files, 26 tests (9 new on the parser, timeline, locate and touches; 8 on `VideoPlayer` in jsdom with stubbed object URLs and `play`/`pause`; 1 dispatch test in `ReplayPlayer`). The two tests for seeking back into the segment on screen and for replay-from-end were checked to fail with their fix disabled.
 - `npm run typecheck -w libs/ouo-kit`: clean. `npm run build -w libs/ouo-kit` and `npm pack --dry-run -w libs/ouo-kit`: ok.
 - `lychee --offline` on the repository: clean.
-- Not verified: playback of a real `ouo-video/1` recording in a browser (jsdom decodes no video). No stack was started; no env is left running.
+- Not verified by the author: playback of a real `ouo-video/1` recording in a browser (jsdom decodes no video). No stack was started; no env is left running.
+- Review session, same day: played in Google Chrome and Playwright WebKit from a real Muninn (OTLP ingest, filesystem store) with real H.264 segments at 1 frame/s (AVAssetWriter, with a gap, touches, a corrupt chunk, a 40-segment stream, the Sentry SDK fixture segments) and an `rrweb/2` recording. WebKit showed only keyframes above 2x and stale frames after a seek while playing, touches were missed at 8x (`timeupdate` is about 4 Hz) and a decode failure could stop the stream (`play()` rejection). `VideoPlayer` now keeps its own clock and seeks a paused element once per frame; 94 browser checks pass in each engine. Measurements in the kb: [video at 1 frame/s](../../../kb/plugin/ouo-kit/video-at-1-fps.md).
 
 ## Dependencies added
 
@@ -22,6 +23,6 @@ None.
 
 ## Next
 
-- Play a real recording from Muninn in a browser (Chromium, Safari) before the next kit release; check that `onLoadedMetadata` seeking is precise enough at 1 frame/s.
+- Not played yet: Safari itself (Playwright WebKit uses the same AVFoundation stack), iOS Safari, Firefox (no H.264 on some Linux builds), and a recording that went through the Sentry bridge (PR #221).
 - `docs/compatibility.md` needs a `kit | 0.2` row ("plays `rrweb/2` and `ouo-video/1`") in the release PR.
 - `ouo-frames/3` is still not playable in the kit.

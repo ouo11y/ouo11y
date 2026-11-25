@@ -9,7 +9,7 @@ export interface VideoPlayerProps {
   fetchChunk: (sequence: number) => Promise<ArrayBuffer>;
   /**
    * Called with the current offset in ms from the first segment's start, on the wall clock (a
-   * skipped gap counts), on every time update and seek.
+   * skipped gap counts), on every seek and at most every 100 ms while playing.
    */
   onTime?: (offsetMs: number) => void;
   className?: string;
@@ -17,9 +17,12 @@ export interface VideoPlayerProps {
 
 /** The speeds rrweb-player offers, so both renderers have the same choice. */
 const SPEEDS = [1, 2, 4, 8];
+/** The longest step the clock takes at once (a frame after the tab was hidden, say). */
+const MAX_STEP_MS = 250;
 
 type Segment = { url: string; header: VideoHeader } | { error: string };
 type Shown = { seq: number; url: string; header: VideoHeader };
+type Cursor = { index: number; local: number };
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -29,10 +32,14 @@ const clock = (ms: number) => {
 };
 
 /**
- * Plays `ouo-video/1` segments back to back as one timeline (one mp4 per chunk, handed to a
- * `<video>` as an object URL) with the touches drawn over it. The segment on screen and the next
- * one are fetched; the others' object URLs are revoked. A chunk that cannot be fetched, parsed or
- * decoded is named in a line under the video and skipped.
+ * Plays `ouo-video/1` segments back to back as one timeline, with the touches drawn over it.
+ * The player keeps the time itself (a frame clock at the picked speed) and the `<video>` stays
+ * paused: it shows the frame under the cursor, one seek per frame. A segment holds a single
+ * keyframe at 1 frame/s, which `<video>` playback renders badly (Safari shows only keyframes
+ * above 2x, and late frames after a seek); seeking a paused element lands on the exact frame in
+ * every engine, and the touches follow the same clock at any speed. The segment on screen and
+ * the next one are fetched (one mp4 each, an object URL); the others' URLs are revoked. A chunk
+ * that cannot be fetched, parsed or decoded is named in a line under the video and skipped.
  */
 export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlayerProps) {
   const { segments, total } = useMemo(() => videoTimeline(chunks), [chunks]);
@@ -42,32 +49,49 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
   onTimeRef.current = onTime;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const cache = useRef(new Map<number, Promise<Segment>>());
-  /** Where to start the segment that is loading, in ms into it. */
-  const pendingSeek = useRef(0);
   /** The last segment played to its end: Play starts over. */
   const finished = useRef(false);
 
-  const [index, setIndex] = useState(0);
-  const [local, setLocal] = useState(0);
+  const [cursor, setCursor] = useState<Cursor>({ index: 0, local: 0 });
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [shown, setShown] = useState<Shown>();
+  /** The object URL whose metadata the element has loaded: its frames can be shown. */
+  const [loaded, setLoaded] = useState<string>();
   const [skipped, setSkipped] = useState<Array<{ seq: number; error: string }>>([]);
-  const playingRef = useRef(playing);
-  playingRef.current = playing;
+
+  const { index, local } = cursor;
+  const active = segments[index];
+  const current = shown && shown.seq === active?.chunk.sequence ? shown : undefined;
+  const ready = !!current && loaded === current.url;
+
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
   const speedRef = useRef(speed);
   speedRef.current = speed;
 
-  const active = segments[index];
   const report = useCallback(
-    (i: number, ms: number) => {
-      const s = segments[i];
+    (c: Cursor) => {
+      const s = segments[c.index];
       if (s) {
-        onTimeRef.current?.(s.chunk.start_time + ms - segments[0].chunk.start_time);
+        onTimeRef.current?.(s.chunk.start_time + c.local - segments[0].chunk.start_time);
       }
     },
     [segments],
   );
+
+  /** Moves the cursor; a move to another segment waits for that segment before the clock runs on. */
+  const move = useCallback((c: Cursor) => {
+    if (c.index !== cursorRef.current.index) {
+      readyRef.current = false;
+    }
+    cursorRef.current = c;
+    setCursor(c);
+  }, []);
 
   const load = useCallback((seq: number): Promise<Segment> => {
     let p = cache.current.get(seq);
@@ -95,38 +119,23 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
   }, []);
   useEffect(() => () => evict(new Set()), [evict]);
 
-  const indexRef = useRef(index);
-  indexRef.current = index;
-  const shownRef = useRef(shown);
-  shownRef.current = shown;
-
   /** Names a bad chunk and, when it is the one under the cursor, moves on to the next segment. */
   const skip = useCallback(
     (seq: number, error: string) => {
       setSkipped((list) => (list.some((s) => s.seq === seq) ? list : [...list, { seq, error }]));
-      const i = indexRef.current;
+      const i = cursorRef.current.index;
       if (segments[i]?.chunk.sequence !== seq) {
         return;
       }
       if (i + 1 < segments.length) {
-        pendingSeek.current = 0;
-        setLocal(0);
-        setIndex(i + 1);
+        move({ index: i + 1, local: 0 });
       } else {
+        finished.current = true;
         setPlaying(false);
       }
     },
-    [segments],
+    [segments, move],
   );
-
-  const start = useCallback((el: HTMLVideoElement) => {
-    // A new source resets the rate to the default one.
-    el.defaultPlaybackRate = speedRef.current;
-    el.playbackRate = speedRef.current;
-    if (playingRef.current) {
-      el.play().catch(() => setPlaying(false));
-    }
-  }, []);
 
   // The segment under the cursor and the next one are fetched; the rest are let go.
   useEffect(() => {
@@ -153,14 +162,7 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
         skip(seq, s.error);
         return;
       }
-      const el = videoRef.current;
-      if (el && shownRef.current?.url === s.url) {
-        // Back to the segment still on screen: same source, so no loadedmetadata to seek in.
-        el.currentTime = pendingSeek.current / 1000;
-        pendingSeek.current = 0;
-        start(el);
-      }
-      setShown({ seq, url: s.url, header: s.header });
+      setShown((old) => (old?.url === s.url ? old : { seq, url: s.url, header: s.header }));
     });
     if (next !== undefined) {
       void load(next);
@@ -168,21 +170,57 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
     return () => {
       live = false;
     };
-  }, [active, index, segments, load, evict, skip, start]);
+  }, [active, index, segments, load, evict, skip]);
 
-  // Play, pause and speed reach the element here; segment changes go through onLoadedMetadata.
+  // The clock: while playing, the cursor moves at the picked speed through the segments.
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !shown) {
+    if (!playing) {
       return;
     }
-    el.playbackRate = speed;
-    if (playing) {
-      el.play().catch(() => setPlaying(false));
-    } else {
-      el.pause();
+    let raf = 0;
+    let last = performance.now();
+    let reported = 0;
+    const tick = (now: number) => {
+      const step = Math.min(MAX_STEP_MS, Math.max(0, now - last)) * speedRef.current;
+      last = now;
+      const { index: i, local: at } = cursorRef.current;
+      const s = segments[i];
+      if (s && readyRef.current) {
+        let c: Cursor = { index: i, local: at + step };
+        if (c.local >= s.duration) {
+          if (i + 1 < segments.length) {
+            c = { index: i + 1, local: 0 };
+          } else {
+            c = { index: i, local: s.duration };
+            finished.current = true;
+            setPlaying(false);
+          }
+        }
+        move(c);
+        if (c.index !== i || now - reported >= 100 || finished.current) {
+          reported = now;
+          report(c);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, segments, move, report]);
+
+  // The element shows the frame under the cursor: a seek when the frame changes.
+  const frameShown = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !current || !ready) {
+      return;
     }
-  }, [playing, speed, shown]);
+    const frame = `${current.url}#${Math.floor((local * current.header.fps) / 1000)}`;
+    if (frameShown.current !== frame) {
+      frameShown.current = frame;
+      el.currentTime = local / 1000;
+    }
+  }, [current, ready, local]);
 
   const seek = (offsetMs: number) => {
     const at = locateSegment(segments, offsetMs);
@@ -190,16 +228,9 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
       return;
     }
     finished.current = false;
-    setLocal(at.local);
-    report(at.index, at.local);
-    const el = videoRef.current;
-    if (at.index === index && el && shown?.seq === active?.chunk.sequence) {
-      el.currentTime = at.local / 1000;
-      return;
-    }
-    el?.pause(); // the old segment stays on screen, still, while the new one loads
-    pendingSeek.current = at.local;
-    setIndex(at.index);
+    const c = { index: at.index, local: at.local };
+    move(c);
+    report(c);
   };
 
   const toggle = () => {
@@ -213,7 +244,6 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
     return <div className={className}>The recording has no video segments yet.</div>;
   }
 
-  const current = shown && shown.seq === active?.chunk.sequence ? shown : undefined;
   const header = shown?.header;
   const ratio = header && header.w > 0 && header.h > 0 ? header.w / header.h : 9 / 19.5;
   const marks = current ? touchesAt(current.header, local) : [];
@@ -244,28 +274,9 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
             disablePictureInPicture
             // The stage has the video's aspect ratio; fill maps the touch points one to one.
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }}
-            onLoadedMetadata={(e) => {
-              e.currentTarget.currentTime = pendingSeek.current / 1000;
-              pendingSeek.current = 0;
-              start(e.currentTarget);
-            }}
-            onTimeUpdate={(e) => {
-              if (shown.seq !== active?.chunk.sequence) {
-                return; // the previous segment, still on screen while the next one loads
-              }
-              const ms = e.currentTarget.currentTime * 1000;
-              setLocal(ms);
-              report(index, ms);
-            }}
-            onEnded={() => {
-              if (index + 1 < segments.length) {
-                pendingSeek.current = 0;
-                setLocal(0);
-                setIndex(index + 1);
-              } else {
-                finished.current = true;
-                setPlaying(false);
-              }
+            onLoadedMetadata={() => {
+              frameShown.current = undefined;
+              setLoaded(shown.url);
             }}
             onError={(e) => {
               const err = e.currentTarget.error;
