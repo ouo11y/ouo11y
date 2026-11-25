@@ -59,6 +59,8 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
   /** The object URL whose metadata the element has loaded: its frames can be shown. */
   const [loaded, setLoaded] = useState<string>();
   const [skipped, setSkipped] = useState<Array<{ seq: number; error: string }>>([]);
+  /** The page's Content Security Policy refused a segment's object URL. */
+  const [blocked, setBlocked] = useState(false);
 
   const { index, local } = cursor;
   const active = segments[index];
@@ -136,6 +138,19 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
     },
     [segments, move],
   );
+
+  // Without `media-src blob:` every segment fails with a bare media error; say why instead
+  // (Grafana's own CSP template, when switched on, has `media-src 'none'`).
+  useEffect(() => {
+    const onViolation = (e: Event) => {
+      const v = e as SecurityPolicyViolationEvent;
+      if (v.effectiveDirective === 'media-src' && String(v.blockedURI).startsWith('blob')) {
+        setBlocked(true);
+      }
+    };
+    document.addEventListener('securitypolicyviolation', onViolation);
+    return () => document.removeEventListener('securitypolicyviolation', onViolation);
+  }, []);
 
   // The segment under the cursor and the next one are fetched; the rest are let go.
   useEffect(() => {
@@ -339,6 +354,12 @@ export function VideoPlayer({ chunks, fetchChunk, onTime, className }: VideoPlay
       <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>
         segment {index + 1}/{segments.length} (seq {active?.chunk.sequence})
       </div>
+      {blocked && (
+        <div role="alert" style={{ fontSize: 12 }}>
+          This page's Content Security Policy blocks the video: its media-src must allow blob: (in Grafana,
+          content_security_policy_template).
+        </div>
+      )}
       {skipped.map((s) => (
         <div key={s.seq} role="status" style={{ fontSize: 12 }}>
           Segment {s.seq} skipped: {s.error}.

@@ -196,6 +196,19 @@ describe('VideoPlayer', () => {
     expect(position()).toBeGreaterThan(900);
   });
 
+  it('says so when the Content Security Policy of the page blocks blob: media', async () => {
+    render(<VideoPlayer chunks={[chunk(0)]} fetchChunk={async () => body(0)} />);
+    await loaded(0);
+    const violation = Object.assign(new Event('securitypolicyviolation', { bubbles: true }), {
+      effectiveDirective: 'media-src',
+      blockedURI: 'blob',
+    });
+    act(() => {
+      video().dispatchEvent(violation);
+    });
+    expect(screen.getByRole('alert').textContent).toMatch(/media-src must allow blob:/);
+  });
+
   it('revokes its object URLs when it unmounts', async () => {
     const { unmount } = render(<VideoPlayer chunks={[chunk(0), chunk(1)]} fetchChunk={async (seq) => body(seq)} />);
     await waitFor(() => expect(created).toHaveLength(2));
