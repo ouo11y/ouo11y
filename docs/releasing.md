@@ -33,6 +33,7 @@ last released) with the settings in
 | `browser` | `sdk/browser` | `package.json` (+ root lockfile) | `browser-v<semver>` | npm `@ouo11y/browser` (public) | `release-npm.yml` |
 | `react-native` | `sdk/react-native` | `package.json` (+ root lockfile) | `react-native-v<semver>` | npm `@ouo11y/react-native` (public) | `release-npm.yml` |
 | `kit` | `libs/ouo-kit` | `package.json` (+ root lockfile) | `kit-v<semver>` | npm `@ouo11y/kit` (public) | `release-npm.yml` |
+| `sourcemaps` | `sdk/sourcemaps` | `package.json` (+ root lockfile) | `sourcemaps-v<semver>` | npm `@ouo11y/sourcemaps` (public; CLI `ouo-sourcemaps`) | `release-npm.yml` |
 | `ios` | `sdk/ios` | `version.txt` | `ios-v<semver>` | mirror `ouo11y/ouo11y-ios`, tag `<semver>` (SwiftPM `ouo11y-ios`) | `release-ios.yml` |
 | `plugin` | `plugins/ouo11y-rum-app` | `package.json` (+ root lockfile; becomes `plugin.json` at build) | `plugin-v<semver>` | GitHub release asset `ouo11y-rum-app-<semver>.zip` | `release-plugin.yml` |
 | `collector` | `collector` | `builder.yaml` `dist.version` | `collector-v<semver>` | `ghcr.io/ouo11y/collector` | `release-images.yml` |
@@ -199,7 +200,15 @@ then make the new `muninn` package public (section 7). `@ouo11y/kit`'s first rel
 same: tag `kit-v0.1.0` (manifest, `package.json` and `libs/ouo-kit/CHANGELOG.md` are at 0.1.0),
 published by hand once so its trusted publisher can be set (section 8). Push `kit-v0.1.0` on
 the merge commit that added the kit before release-please runs again, or close the
-"release kit 0.2.0" PR it opens in the meantime (no `kit-v0.1.0` tag yet means it counts every commit since bootstrap). Each needs
+"release kit 0.2.0" PR it opens in the meantime (no `kit-v0.1.0` tag yet means it counts every commit since bootstrap). `@ouo11y/sourcemaps`
+(the `ouo-sourcemaps` CLI) follows the kit exactly: (1) date the 0.1.0 section of
+`sdk/sourcemaps/CHANGELOG.md` and merge; (2) on that merge commit push `sourcemaps-v0.1.0`, or
+publish 0.1.0 by hand once with `npm publish --access public` from `sdk/sourcemaps` after
+`npm run build -w sdk/sourcemaps` (npm only lets a trusted publisher be set on a package that
+exists); (3) on npmjs.com > `@ouo11y/sourcemaps` > Settings > Trusted publisher > GitHub Actions:
+organization `ouo11y`, repository `ouo11y`, workflow `release-npm.yml`; (4) from then on merge the
+"release sourcemaps" PR release-please opens and push its tag. Close any "release sourcemaps
+0.2.0" PR opened before `sourcemaps-v0.1.0` exists. Each needs
 its accounts from section 8 first, and its changelog section dated in a small PR.
 
 ## 6. Dry runs
@@ -296,7 +305,7 @@ times: [github-hosted.md](../project/kb/ci/runners/github-hosted.md).
 
 | Component | Commands |
 |---|---|
-| browser / react-native / kit | `npm run build -w <dir> && npm run test -w <dir> && npm pack --dry-run -w <dir>` (`sdk/browser`, `sdk/react-native`, `libs/ouo-kit`) |
+| browser / react-native / kit / sourcemaps | `npm run build -w <dir> && npm run test -w <dir> && npm pack --dry-run -w <dir>` (`sdk/browser`, `sdk/react-native`, `libs/ouo-kit`, `sdk/sourcemaps`) |
 | ios | `sh sdk/ios/test.sh` and, on a Mac with Xcode, `(cd sdk/ios && swift build)` |
 | plugin | `npm run build -w plugins/ouo11y-rum-app && npm run test -w plugins/ouo11y-rum-app && npm run lint -w plugins/ouo11y-rum-app` |
 | rum-api | `(cd services/rum-api && go vet ./... && go test ./...)` |

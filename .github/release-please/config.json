@@ -52,6 +52,13 @@
         { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['libs/ouo-kit'].version" }
       ]
     },
+    "sdk/sourcemaps": {
+      "release-type": "node",
+      "component": "sourcemaps",
+      "extra-files": [
+        { "type": "json", "path": "/package-lock.json", "jsonpath": "$.packages['sdk/sourcemaps'].version" }
+      ]
+    },
     "plugins/ouo11y-rum-app": {
       "release-type": "node",
       "component": "plugin",
