@@ -73,6 +73,11 @@ type Config struct {
 	Projects []ProjectConfig `mapstructure:"projects"`
 	// State bounds the session correlation state (spec section 8).
 	State StateConfig `mapstructure:"state"`
+	// ReplayWire picks the shape of replay records (spec section 9d):
+	// "legacy" (default) is the video chunk the ouoreplay exporter reads;
+	// "muninn" is the replay contract Muninn stores (scope ouo.replay, event
+	// ouo.replay.chunk): web recordings as rrweb/2, mobile video as ouo-video/1.
+	ReplayWire string `mapstructure:"replay_wire"`
 
 	// prevent unkeyed literal initialization
 	_ struct{}
@@ -153,6 +158,11 @@ func (cfg *Config) Validate() error {
 	}
 	if len(cfg.Projects) == 0 {
 		errs = append(errs, errors.New("at least one project is required"))
+	}
+	switch cfg.ReplayWire {
+	case "", ReplayWireLegacy, ReplayWireMuninn:
+	default:
+		errs = append(errs, fmt.Errorf("replay_wire must be %q or %q", ReplayWireLegacy, ReplayWireMuninn))
 	}
 	seen := map[string]bool{}
 	for i, p := range cfg.Projects {

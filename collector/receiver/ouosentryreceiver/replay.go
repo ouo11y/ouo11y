@@ -2,14 +2,12 @@ package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -58,7 +56,9 @@ type replaySegment struct {
 	resource    pcommon.Map // resource of the envelope, for breadcrumb records
 	sdkName     string
 	breadcrumbs []breadcrumb
-	masked      *bool // from the recording's `options` event (first segment of a replay)
+	masked      *bool  // from the recording's `options` event (first segment of a replay)
+	web         bool   // a browser recording (replay_event + replay_recording items)
+	recording   []byte // the browser recording as sent, for the rrweb/2 chunk
 }
 
 type videoPayload struct {
@@ -113,29 +113,16 @@ func decodeReplayVideo(payload []byte) (*replaySegment, error) {
 // parseRecording reads `{"segment_id":n}\n[events]` (optionally gzip) and
 // extracts the video event and the touches.
 func (seg *replaySegment) parseRecording(rec []byte) error {
-	if len(rec) > 2 && rec[0] == 0x1f && rec[1] == 0x8b {
-		zr, err := gzip.NewReader(bytes.NewReader(rec))
-		if err != nil {
-			return err
-		}
-		if rec, err = io.ReadAll(io.LimitReader(zr, 64<<20)); err != nil {
-			return err
-		}
+	rec, err := gunzipIf(rec)
+	if err != nil {
+		return err
 	}
 	_, body, found := bytes.Cut(rec, []byte("\n"))
 	if !found {
 		body = rec
 	}
-	body = bytes.TrimSpace(body)
-	if len(body) > 2 && body[0] == 0x1f && body[1] == 0x8b {
-		zr, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		var err2 error
-		if body, err2 = io.ReadAll(io.LimitReader(zr, 64<<20)); err2 != nil {
-			return err2
-		}
+	if body, err = gunzipIf(bytes.TrimSpace(body)); err != nil {
+		return err
 	}
 	var events []struct {
 		Type      int             `json:"type"`
@@ -267,11 +254,16 @@ type pendingSeg struct {
 
 // handleReplay resolves the session of a segment and emits it, or holds it.
 func (r *sentryReceiver) handleReplay(ctx context.Context, j job, seg *replaySegment) {
-	if seg.videoMeta == nil || len(seg.video) < 8 {
+	if !seg.web && (seg.videoMeta == nil || len(seg.video) < 8) {
 		r.drop(ctx, j.project.OuoProjectID, "replay_incomplete")
 		return
 	}
 	sid, ok := r.resolveReplay(j, seg)
+	if !ok && seg.web {
+		// A browser app that sends no session (no release set, or sessions
+		// off) still records: its replay id stands for the session.
+		sid, ok = seg.event.ReplayID, true
+	}
 	if !ok {
 		r.holdReplay(ctx, j, seg)
 		return
@@ -379,6 +371,12 @@ func (r *sentryReceiver) flushPending(ctx context.Context) {
 
 // emitReplay builds the video chunk and sends it as one log record.
 func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegment, sid string) {
+	if r.muninnWire() {
+		if r.emitReplayMuninn(ctx, j, seg, sid) {
+			r.emitBreadcrumbs(ctx, j, seg, sid)
+		}
+		return
+	}
 	logsNext, _ := r.consumers()
 	if logsNext == nil {
 		return

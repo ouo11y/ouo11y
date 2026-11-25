@@ -211,6 +211,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 // decode parses the items the translator understands and counts all of them.
 func (t *translation) decode(ctx context.Context) []decodedItem {
 	var out []decodedItem
+	var webEvent, webRecording []byte
 	for _, it := range t.env.Items {
 		translated := true
 		var d decodedItem
@@ -244,6 +245,14 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			} else {
 				translated = false
 			}
+		case "replay_event", "replay_recording":
+			// Browser replays: only the Muninn wire has a format for them (rrweb/2).
+			translated = t.r.muninnWire()
+			if translated && it.Type == "replay_event" {
+				webEvent = it.Payload
+			} else if translated {
+				webRecording = it.Payload
+			}
 		case "replay_video":
 			seg, err := decodeReplayVideo(it.Payload)
 			if err == nil {
@@ -261,6 +270,14 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			attribute.Bool("translated", translated)))
 		if translated {
 			out = append(out, d)
+		}
+	}
+	if webEvent != nil && webRecording != nil {
+		if seg, err := decodeWebReplay(webEvent, webRecording); err == nil {
+			out = append(out, decodedItem{typ: "replay_recording", replay: seg})
+		} else {
+			t.r.drop(ctx, t.j.project.OuoProjectID, "replay_incomplete")
+			t.r.set.Logger.Debug("browser replay not decoded", zap.Error(err))
 		}
 	}
 	return out
