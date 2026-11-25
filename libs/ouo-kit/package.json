@@ -1,6 +1,6 @@
 {
   "name": "@ouo11y/kit",
-  "version": "0.1.1-rc.0",
+  "version": "0.2.0",
   "description": "Frontend building blocks for ouo11y client plugins: a replay player that plays a Muninn manifest with chunks the caller fetches, and the replay format seam. React only; no Grafana and no backend of ours required.",
   "license": "Apache-2.0",
   "repository": {
