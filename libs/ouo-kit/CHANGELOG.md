@@ -4,6 +4,13 @@ npm `@ouo11y/kit`, tag `kit-v<version>`. Policy: `docs/releasing.md`. Design: `d
 
 ## Unreleased
 
+## [0.2.0](https://github.com/ouo11y/ouo11y/compare/kit-v0.1.0...kit-v0.2.0) (2026-11-25)
+
+
+### Added
+
+* **kit:** play ouo-video/1 replays ([#222](https://github.com/ouo11y/ouo11y/issues/222)) ([01baec3](https://github.com/ouo11y/ouo11y/commit/01baec37594a04247fc07c3dba035af7bb8618af))
+
 ## 0.1.0 (2026-11-14)
 
 ### Added
