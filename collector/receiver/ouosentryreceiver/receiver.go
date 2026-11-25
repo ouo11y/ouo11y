@@ -111,6 +111,7 @@ type sentryReceiver struct {
 	workers     sync.WaitGroup
 	state       *sessionState
 	pending     pendingReplays
+	webReplays  webReplays
 	pendingLogs pendingLogs
 	stopTick    chan struct{}
 	tickWG      sync.WaitGroup

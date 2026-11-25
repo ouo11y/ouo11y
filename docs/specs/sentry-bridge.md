@@ -325,6 +325,24 @@ Both become the `feedback` record of the ouo SDK ([mobile-sdk.md](mobile-sdk.md)
 - Message and contact are cut at 4096 bytes of UTF-8 with `…`, as the ouo SDK cuts them. They are what the user typed into the feedback form, so they are copied although `user.email` is not (section 12).
 - The `feedback` event's breadcrumbs become timeline events under the rules of section 9b: the steps before the feedback, which the plugin lists with it. The bridge sets neither `ouo.last_events` nor `ouo.feedback.screenshot`: Sentry's screenshot is an attachment, which is not copied; the session's replay, when there is one, shows the screen at the feedback time.
 
+### 9d. Replay on the Muninn wire (`replay_wire: muninn`)
+
+`replay_wire` picks the shape of replay records. `legacy` (the default) is the video chunk above, which the `ouoreplay` exporter reads. `muninn` emits the replay contract that Muninn stores ([muninn.md](muninn.md) section 3.1): scope `ouo.replay`, event `ouo.replay.chunk`, the chunk bytes as the body, under a resource with `ouo.project.id` and the project's `service_name`. A Collector that routes scope `ouo.replay` to Muninn (`deploy/compose/collector/config.muninn.yaml`) stores it unchanged.
+
+| Sentry source | `ouo.replay.format` | Body | Keyframe |
+|---|---|---|---|
+| `replay_video` item (mobile) | `ouo-video/1` | the header line of [mobile-replay.md](mobile-replay.md#ouo-video1-video-segments-over-otlp), then the mp4; `identity` | always: every segment is its own segment (RPL-25) |
+| `replay_event` + `replay_recording` items of one envelope (browser) | `rrweb/2` | the recording's rrweb events, one compact JSON object per line, gzip | when the segment holds a full snapshot (rrweb type 2) |
+
+- The browser recording is `{"segment_id":n}\n` and a JSON array that the browser SDK compresses with zlib (`78 9c`); gzip and plain JSON are read too. The legacy wire has no browser format: there, both items count as not translated.
+- The SDK sends one `replay_event` and its `replay_recording` per envelope. Items are paired in order; one without its pair is dropped with reason `replay_incomplete`.
+- Sentry writes some custom events with `timestamp` in seconds (`performanceSpan`, `ui.focus`, `ui.blur`, `replay.mutations`, `replay.throttled`; [replay-browser.md](../../project/kb/vendor-internals/sentry/browser-sdk/replay-browser.md)). rrweb players order events by `timestamp`, so the bridge rewrites those in milliseconds; every other byte of the event is kept.
+- `ouo.replay.id` and `ouo.replay.stream.id` are Sentry's `replay_id` (one recording is one tab or one app process); `ouo.replay.sequence` is `segment_id`. `ouo.replay.segment.index` is the `segment_id` of the segment's keyframe: a video segment's own, for a browser segment the last full snapshot the bridge saw for that replay (0 when it saw none).
+- `ouo.replay.start_time` and `ouo.replay.end_time`: the video segment's start and end, or the first and last rrweb event time. `ouo.replay.masked` as `masked` above; a browser recording's `options` event has `blockAllMedia` and `maskAllInputs` instead of `maskAllImages`, and any of `maskAllText`, `maskAllInputs`, `blockAllMedia` on counts as masked. Only the first segment carries it: later segments of the replay keep its value. `ouo.replay.mode` is `buffer` with `ouo.replay.trigger` `error` for a `buffer` replay, else `session`. `ouo.replay.source.vendor` is `sentry` and `ouo.replay.source.id` the replay id. `ouo.replay.chunk = true` stays, for the bridge's own routing (section 10).
+- Session: as above (section 8, rule 2 then rule 3). A browser segment whose session the bridge does not know, or whose session already holds another replay, is not held: browser apps that set no release send no session, so its replay id is used as `session.id`. A browser replay outlives Sentry's sessions (one per page load or route), and Muninn keys a chunk by its session, so every segment of a browser replay keeps the `session.id` its first segment got.
+- A body over 1 MiB (Muninn's chunk limit) is dropped whole with reason `replay_too_large`. A browser segment is about 5 s of events and is usually far below it.
+- No `ouo.replay.ended` record is sent: Sentry's envelope never says a recording ended. Muninn reports the stream `open`, then `partial` after its idle period; players play it either way.
+
 ## 10. Collector wiring
 
 Checked against the Phase 8a rev 2 components in `collector/` and `deploy/compose/collector/config.yaml`.
@@ -391,7 +409,7 @@ The `ouoreplay` receiver's chunk validation and the `ouoreplay` exporter must ac
 
 Deployment: the Sentry receiver runs in its own single-replica `ouo-collector` deployment until correlation state moves to a shared store (Phase 11). It exports directly to the backends (the main collector requires a Basic project credential). Client-address affinity is not enough for phones that change networks. Operator guide with the failure modes and a Kubernetes manifest: [sentry-bridge-deployment.md](../sentry-bridge-deployment.md).
 
-Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `passthrough`, `accepted_local`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `queue_bytes`, `panic`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`, `log_unresolved_overflow`, `user_report_unresolved_overflow`), `ouo_sentry_session_match_total{rule}`, and the mirror metrics of section 2b.
+Metrics: `ouo_sentry_envelopes_total{project,outcome}` (`forwarded`, `passthrough`, `accepted_local`, `rejected`, `upstream_error`), `ouo_sentry_upstream_duration_seconds`, `ouo_sentry_items_total{type,translated}`, `ouo_sentry_translate_dropped_total{reason}` (`queue_full`, `queue_bytes`, `panic`, `malformed`, `encoding`, `replay_unresolved`, `replay_conflict`, `replay_incomplete`, `replay_too_large`, `log_unresolved_overflow`, `user_report_unresolved_overflow`), `ouo_sentry_session_match_total{rule}`, and the mirror metrics of section 2b.
 
 ## 11. rum-api: video replay kind
 

@@ -2,14 +2,12 @@ package ouosentryreceiver // import "github.com/ouo11y/ouo11y/collector/receiver
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -58,7 +56,12 @@ type replaySegment struct {
 	resource    pcommon.Map // resource of the envelope, for breadcrumb records
 	sdkName     string
 	breadcrumbs []breadcrumb
-	masked      *bool // from the recording's `options` event (first segment of a replay)
+	masked      *bool  // from the recording's `options` event (first segment of a replay)
+	web         bool   // a browser recording (replay_event + replay_recording items)
+	rrweb       []byte // a browser recording as rrweb/2 (one event per line, timestamps in ms)
+	keyframe    bool   // the browser recording holds a full snapshot
+	start, end  int64  // first and last event of a browser recording, ms
+	segIndex    int    // ouo.replay.segment.index of a browser segment
 }
 
 type videoPayload struct {
@@ -110,33 +113,31 @@ func decodeReplayVideo(payload []byte) (*replaySegment, error) {
 	return seg, nil
 }
 
-// parseRecording reads `{"segment_id":n}\n[events]` (optionally gzip) and
-// extracts the video event and the touches.
-func (seg *replaySegment) parseRecording(rec []byte) error {
-	if len(rec) > 2 && rec[0] == 0x1f && rec[1] == 0x8b {
-		zr, err := gzip.NewReader(bytes.NewReader(rec))
-		if err != nil {
-			return err
-		}
-		if rec, err = io.ReadAll(io.LimitReader(zr, 64<<20)); err != nil {
-			return err
-		}
+// recordingEvents returns the JSON event array of a recording,
+// `{"segment_id":n}\n[events]` with either part optionally compressed.
+func recordingEvents(rec []byte) ([]byte, error) {
+	rec, err := gunzipIf(rec)
+	if err != nil {
+		return nil, err
 	}
 	_, body, found := bytes.Cut(rec, []byte("\n"))
 	if !found {
 		body = rec
 	}
-	body = bytes.TrimSpace(body)
-	if len(body) > 2 && body[0] == 0x1f && body[1] == 0x8b {
-		zr, err := gzip.NewReader(bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		var err2 error
-		if body, err2 = io.ReadAll(io.LimitReader(zr, 64<<20)); err2 != nil {
-			return err2
-		}
+	return gunzipIf(bytes.TrimSpace(body))
+}
+
+// parseRecording reads a recording and extracts the video event, the touches,
+// the breadcrumbs and the masking options.
+func (seg *replaySegment) parseRecording(rec []byte) error {
+	body, err := recordingEvents(rec)
+	if err != nil {
+		return err
 	}
+	return seg.parseEvents(body)
+}
+
+func (seg *replaySegment) parseEvents(body []byte) error {
 	var events []struct {
 		Type      int             `json:"type"`
 		Timestamp float64         `json:"timestamp"`
@@ -170,12 +171,23 @@ func (seg *replaySegment) parseRecording(rec []byte) error {
 			case "options":
 				var o struct {
 					MaskAllText   *bool `json:"maskAllText"`
-					MaskAllImages *bool `json:"maskAllImages"`
+					MaskAllImages *bool `json:"maskAllImages"` // mobile
+					MaskAllInputs *bool `json:"maskAllInputs"` // browser
+					BlockAllMedia *bool `json:"blockAllMedia"` // browser
 				}
-				if json.Unmarshal(d.Payload, &o) == nil && o.MaskAllText != nil && o.MaskAllImages != nil {
-					m := *o.MaskAllText || *o.MaskAllImages
-					seg.masked = &m
+				if json.Unmarshal(d.Payload, &o) != nil || o.MaskAllText == nil {
+					continue
 				}
+				var m bool
+				switch {
+				case o.MaskAllImages != nil:
+					m = *o.MaskAllText || *o.MaskAllImages
+				case o.BlockAllMedia != nil:
+					m = *o.MaskAllText || *o.BlockAllMedia || (o.MaskAllInputs != nil && *o.MaskAllInputs)
+				default:
+					continue
+				}
+				seg.masked = &m
 				continue
 			case "video":
 			default:
@@ -267,11 +279,22 @@ type pendingSeg struct {
 
 // handleReplay resolves the session of a segment and emits it, or holds it.
 func (r *sentryReceiver) handleReplay(ctx context.Context, j job, seg *replaySegment) {
-	if seg.videoMeta == nil || len(seg.video) < 8 {
+	if !seg.web && (seg.videoMeta == nil || len(seg.video) < 8) {
 		r.drop(ctx, j.project.OuoProjectID, "replay_incomplete")
 		return
 	}
 	sid, ok := r.resolveReplay(j, seg)
+	if seg.web {
+		// A browser app that sends no session (no release set, or sessions
+		// off) still records: its replay id stands for the session. A browser
+		// replay outlives Sentry's sessions (one per page load or route), so it
+		// keeps the session its first segment got: one replay, one session.id.
+		if !ok || sid == "" {
+			sid = seg.event.ReplayID
+		}
+		r.emitReplay(ctx, j, seg, r.webReplays.note(j.project.OuoProjectID, seg, sid))
+		return
+	}
 	if !ok {
 		r.holdReplay(ctx, j, seg)
 		return
@@ -379,6 +402,12 @@ func (r *sentryReceiver) flushPending(ctx context.Context) {
 
 // emitReplay builds the video chunk and sends it as one log record.
 func (r *sentryReceiver) emitReplay(ctx context.Context, j job, seg *replaySegment, sid string) {
+	if r.muninnWire() {
+		if r.emitReplayMuninn(ctx, j, seg, sid) {
+			r.emitBreadcrumbs(ctx, j, seg, sid)
+		}
+		return
+	}
 	logsNext, _ := r.consumers()
 	if logsNext == nil {
 		return
