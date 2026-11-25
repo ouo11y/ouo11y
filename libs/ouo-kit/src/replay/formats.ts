@@ -1,7 +1,7 @@
 // Renderer choice by `ouo.replay.format` (SDK spec RPL-24, Muninn spec RDR-2). A format this
 // table does not know is stored but not playable, never an error.
 
-export type Renderer = 'rrweb';
+export type Renderer = 'rrweb' | 'video';
 
 export interface FormatInfo {
   /** Structure (DOM or wireframe) or pixel (frames or video). */
@@ -14,10 +14,9 @@ export interface FormatInfo {
 
 const FORMATS: Record<string, FormatInfo> = {
   'rrweb/2': { kind: 'structure', renderer: 'rrweb' },
-  // Seam for the pixel players: the MVP plugin's frame and video players read the MVP wire;
-  // porting them to these formats is the next slice.
+  // Seam for the frames player: the MVP plugin's reads the MVP wire; porting it is a next slice.
   'ouo-frames/3': { kind: 'pixel', reason: 'the frames player is not wired to ouo-frames/3 yet' },
-  'ouo-video/1': { kind: 'pixel', reason: 'the video player is not wired to ouo-video/1 yet' },
+  'ouo-video/1': { kind: 'pixel', renderer: 'video' },
   'ouo-wireframe/1': { kind: 'structure', reason: 'wireframe replays are not built yet' },
 };
 

@@ -10,6 +10,13 @@ import { ReplayPlayer } from './ReplayPlayer';
 vi.mock('./RrwebPlayer', () => ({
   RrwebPlayer: ({ events }: { events: unknown[] }) => <div data-testid="rrweb">{events.length} events</div>,
 }));
+// The video player has its own tests; here it shows what it was handed and fetches the first chunk.
+vi.mock('./VideoPlayer', () => ({
+  VideoPlayer: ({ chunks, fetchChunk }: { chunks: ChunkEntry[]; fetchChunk: (seq: number) => Promise<ArrayBuffer> }) => {
+    React.useEffect(() => void fetchChunk(chunks[0].sequence), [chunks, fetchChunk]);
+    return <div data-testid="video">{chunks.map((c) => c.sequence).join(',')}</div>;
+  },
+}));
 
 const chunk = (sequence: number, keyframe: boolean): ChunkEntry => ({
   sequence, keyframe, segment_index: 0, start_time: sequence, end_time: sequence, format: 'rrweb/2',
@@ -46,9 +53,19 @@ describe('ReplayPlayer', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
+  it('hands ouo-video/1 segments to the video player, in order and over a gap, without fetching them first', async () => {
+    const video = (seq: number) => ({ ...chunk(seq, true), format: 'ouo-video/1', encoding: 'identity' });
+    const m: Manifest = { ...manifest, streams: [{ ...manifest.streams![0], chunks: [video(4), video(0), video(1)] }] };
+    const f = fetcher();
+    render(<ReplayPlayer manifest={m} fetchChunk={f} />);
+    expect((await screen.findByTestId('video')).textContent).toBe('0,1,4');
+    expect(f.mock.calls).toEqual([['st', 0]]);
+    expect(screen.queryByTestId('rrweb')).toBeNull();
+  });
+
   it('says why a format cannot be played', async () => {
-    const pixel: Manifest = { ...manifest, streams: [{ ...manifest.streams![0], chunks: [{ ...chunk(0, true), format: 'ouo-video/1' }] }] };
+    const pixel: Manifest = { ...manifest, streams: [{ ...manifest.streams![0], chunks: [{ ...chunk(0, true), format: 'ouo-frames/3' }] }] };
     render(<ReplayPlayer manifest={pixel} fetchChunk={fetcher()} />);
-    expect((await screen.findByText(/Stored, not playable here/)).textContent).toMatch(/ouo-video\/1/);
+    expect((await screen.findByText(/Stored, not playable here/)).textContent).toMatch(/ouo-frames\/3/);
   });
 });
