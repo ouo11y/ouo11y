@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+## [0.6.1](https://github.com/ouo11y/ouo11y/compare/collector-v0.6.0...collector-v0.6.1) (2026-11-25)
+
+
+### Fixed
+
+* **collector:** numeric Sentry user.id no longer drops the event ([#218](https://github.com/ouo11y/ouo11y/issues/218)) ([50b8b1d](https://github.com/ouo11y/ouo11y/commit/50b8b1d12846178b515cc2af76e25b89fc08ebe5))
+
 ## [0.6.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.5.0...collector-v0.6.0) (2026-11-18)
 
 
