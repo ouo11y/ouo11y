@@ -120,8 +120,12 @@ const webReplay = "b1b2b3b4b5b6b7b8b9c0c1c2c3c4c5c6"
 // The recording array is zlib compressed after the header line, as the
 // browser SDK sends it.
 func webReplayItems(t *testing.T, segment int, startMS int64, events string) []string {
-	ev, _ := json.Marshal(map[string]any{"type": "replay_event", "replay_id": webReplay, "segment_id": segment, "replay_type": "session",
-		"timestamp": float64(startMS) / 1000, "user": map[string]any{"id": 69}, "platform": "javascript"})
+	return webReplayItemsFor(webReplay, segment, startMS, events, 69)
+}
+
+func webReplayItemsFor(replayID string, segment int, startMS int64, events string, user any) []string {
+	ev, _ := json.Marshal(map[string]any{"type": "replay_event", "replay_id": replayID, "segment_id": segment, "replay_type": "session",
+		"timestamp": float64(startMS) / 1000, "user": map[string]any{"id": user}, "platform": "javascript"})
 	var zb bytes.Buffer
 	zw := zlib.NewWriter(&zb) // the browser SDK's fflate Zlib stream (78 9c)
 	_, _ = zw.Write([]byte(events))
@@ -192,20 +196,91 @@ func TestLegacyWireIgnoresWebReplay(t *testing.T) {
 	}
 }
 
-func TestRRWebNDJSONErrors(t *testing.T) {
-	for name, rec := range map[string]string{
-		"not json":  "{\"segment_id\":0}\nnope",
-		"no events": "{\"segment_id\":0}\n[]",
-		"bad gzip":  "\x1f\x8b\x00",
+func TestRRWebNDJSON(t *testing.T) {
+	for name, events := range map[string]string{
+		"not json":  "nope",
+		"no events": "[]",
+		"object":    `{"type":2}`,
 	} {
-		if _, _, _, _, err := rrwebNDJSON([]byte(rec)); err == nil {
-			t.Errorf("%s: want error", name)
+		if _, _, _, _, err := rrwebNDJSON([]byte(events)); err == nil {
+			t.Errorf("%s: want an error", name)
 		}
 	}
-	// Seconds instead of milliseconds are scaled.
-	_, s, e, kf, err := rrwebNDJSON([]byte("{\"segment_id\":0}\n[{\"type\":3,\"timestamp\":1791972000.5,\"data\":{}}]"))
-	if err != nil || s != 1791972000500 || e != s || kf {
-		t.Errorf("seconds: %d %d %v %v", s, e, kf, err)
+	if _, err := recordingEvents([]byte("\x1f\x8b\x00")); err == nil {
+		t.Error("bad gzip: want an error")
+	}
+	// Sentry writes performanceSpan (and ui.focus, ui.blur, replay.mutations)
+	// with the timestamp in seconds: the line is rewritten in ms, the rest kept.
+	nd, s, e, kf, err := rrwebNDJSON([]byte(`[{"type":3,"timestamp":1791972000250,"data":{"source":2}},` +
+		`{"type":5,"timestamp":1791972000.5,"data":{"tag":"performanceSpan","payload":{"op":"resource.fetch","startTimestamp":1791972000.5}}}]`))
+	if err != nil || s != 1791972000250 || e != 1791972000500 || kf {
+		t.Fatalf("range: %d %d %v %v", s, e, kf, err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(nd), "\n"), "\n")
+	if len(lines) != 2 || lines[0] != `{"type":3,"timestamp":1791972000250,"data":{"source":2}}` {
+		t.Fatalf("lines: %q", lines)
+	}
+	var span struct {
+		Type      int
+		Timestamp json.Number
+		Data      struct {
+			Tag     string
+			Payload map[string]any
+		}
+	}
+	d := json.NewDecoder(strings.NewReader(lines[1]))
+	d.UseNumber()
+	if err := d.Decode(&span); err != nil || span.Type != 5 || span.Timestamp.String() != "1791972000500" ||
+		span.Data.Tag != "performanceSpan" || span.Data.Payload["op"] != "resource.fetch" {
+		t.Errorf("seconds event: %s (%v)", lines[1], err)
+	}
+}
+
+// A browser app that turns masking off says so in the first segment only; the
+// later segments of the replay keep it, with or without a known session.
+func TestMuninnWireWebMaskingOff(t *testing.T) {
+	x := newMuninnTx(t)
+	x.send(t, hdr("sentry.javascript.react"), webReplayItems(t, 0, 1791972000000,
+		`[{"type":2,"timestamp":1791972000000,"data":{}},{"type":5,"timestamp":1791972000001,"data":{"tag":"options","payload":{"maskAllText":false,"maskAllInputs":false,"blockAllMedia":false}}}]`)...)
+	x.send(t, hdr("sentry.javascript.react"), webReplayItems(t, 1, 1791972005000, `[{"type":3,"timestamp":1791972005000,"data":{}}]`)...)
+	cs := x.muninnChunks(t)
+	if len(cs) != 2 || cs[0].attrs["ouo.replay.masked"] != false || cs[1].attrs["ouo.replay.masked"] != false {
+		t.Fatalf("masked: %+v", cs)
+	}
+	// Any of the three on is masked.
+	seg := &replaySegment{}
+	if err := seg.parseEvents([]byte(`[{"type":5,"timestamp":1,"data":{"tag":"options","payload":{"maskAllText":false,"maskAllInputs":true,"blockAllMedia":false}}}]`)); err != nil || seg.masked == nil || !*seg.masked {
+		t.Errorf("maskAllInputs on: %v %v", seg.masked, err)
+	}
+}
+
+// A browser replay outlives Sentry's sessions: its segments stay under the
+// session.id the first one got, even when a later one resolves to a session.
+func TestMuninnWireWebSessionPinned(t *testing.T) {
+	x := newMuninnTx(t)
+	const r2 = "d1d2d3d4d5d6d7d8d9e0e1e2e3e4e5e6"
+	// Segment 0 before the user is known: no session matches.
+	x.send(t, hdr("sentry.javascript.react"), webReplayItemsFor(r2, 0, 1791972000000, `[{"type":2,"timestamp":1791972000000,"data":{}}]`, nil)...)
+	// Then a session of this device starts, and segment 1 carries the user.
+	x.send(t, hdr("sentry.javascript.react"), item("session", session(sid1, true, "ok", 0, "2026-10-14T10:00:00Z")))
+	x.send(t, hdr("sentry.javascript.react"), webReplayItemsFor(r2, 1, 1791972005000, `[{"type":3,"timestamp":1791972005000,"data":{}}]`, device)...)
+	cs := x.muninnChunks(t)
+	if len(cs) != 2 || cs[0].attrs["session.id"] != r2 || cs[1].attrs["session.id"] != r2 {
+		t.Fatalf("one replay, one session.id: %+v", cs)
+	}
+}
+
+// Envelope items are paired in order; one without its pair is dropped.
+func TestMuninnWireWebPairing(t *testing.T) {
+	x := newMuninnTx(t)
+	a := webReplayItemsFor(webReplay, 0, 1791972000000, `[{"type":2,"timestamp":1791972000000,"data":{}}]`, 1)
+	const r2 = "d1d2d3d4d5d6d7d8d9e0e1e2e3e4e5e6"
+	b := webReplayItemsFor(r2, 0, 1791972000000, `[{"type":2,"timestamp":1791972000000,"data":{}}]`, 1)
+	x.send(t, hdr("sentry.javascript.react"), a[0], a[1], b[0], b[1])
+	x.send(t, hdr("sentry.javascript.react"), a[0]) // replay_event alone
+	cs := x.muninnChunks(t)
+	if len(cs) != 2 || cs[0].attrs["ouo.replay.id"] != webReplay || cs[1].attrs["ouo.replay.id"] != r2 {
+		t.Fatalf("pairs: %+v", cs)
 	}
 }
 

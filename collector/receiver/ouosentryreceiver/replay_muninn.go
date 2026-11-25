@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -33,48 +34,49 @@ const (
 	formatVideo       = "ouo-video/1"
 	maxReplayChunk    = 1 << 20 // Muninn's hard limit per chunk body
 	maxRecordingBytes = 64 << 20
-	maxWebSegIndex    = 50000
+	maxWebReplays     = 50000
 )
 
 func (r *sentryReceiver) muninnWire() bool { return r.cfg.ReplayWire == ReplayWireMuninn }
 
-// decodeWebReplay pairs a browser envelope's `replay_event` and `replay_recording`
-// items into one segment (spec section 9d). The recording keeps its raw bytes:
-// on the Muninn wire they become the rrweb/2 chunk.
+// decodeWebReplay pairs a browser envelope's `replay_event` and
+// `replay_recording` items into one segment (spec section 9d) and converts the
+// recording to rrweb/2.
 func decodeWebReplay(event, recording []byte) (*replaySegment, error) {
-	seg := &replaySegment{web: true, recording: recording}
+	seg := &replaySegment{web: true}
 	if err := json.Unmarshal(event, &seg.event); err != nil {
 		return nil, err
 	}
 	if seg.event.ReplayID == "" {
 		return nil, errors.New("replay_event without replay_id")
 	}
-	if err := seg.parseRecording(recording); err != nil {
+	events, err := recordingEvents(recording)
+	if err != nil {
+		return nil, err
+	}
+	if err := seg.parseEvents(events); err != nil {
+		return nil, err
+	}
+	if seg.rrweb, seg.start, seg.end, seg.keyframe, err = rrwebNDJSON(events); err != nil {
 		return nil, err
 	}
 	return seg, nil
 }
 
-// rrwebNDJSON turns a Sentry recording (`{"segment_id":n}\n[events]`, either
-// part optionally gzip) into rrweb/2: one compact rrweb event per line. It
-// returns the time range of the events and whether they hold a full snapshot
-// (rrweb type 2), which makes the chunk a keyframe.
-func rrwebNDJSON(rec []byte) (out []byte, start, end int64, keyframe bool, err error) {
-	if rec, err = gunzipIf(rec); err != nil {
-		return nil, 0, 0, false, err
-	}
-	if _, body, found := bytes.Cut(rec, []byte("\n")); found {
-		rec = body
-	}
-	if rec, err = gunzipIf(bytes.TrimSpace(rec)); err != nil {
-		return nil, 0, 0, false, err
-	}
-	var events []json.RawMessage
-	if err = json.Unmarshal(rec, &events); err != nil {
+// rrwebNDJSON turns the event array of a Sentry browser recording into rrweb/2:
+// one compact rrweb event per line. Sentry writes some of its custom events
+// (performanceSpan, ui.focus, ui.blur, replay.mutations, replay.throttled) with
+// the timestamp in seconds; rrweb players sort by timestamp, so these are
+// rewritten in milliseconds. It returns the time range of the events and
+// whether they hold a full snapshot (rrweb type 2), which makes the chunk a
+// keyframe.
+func rrwebNDJSON(events []byte) (out []byte, start, end int64, keyframe bool, err error) {
+	var raws []json.RawMessage
+	if err = json.Unmarshal(events, &raws); err != nil {
 		return nil, 0, 0, false, err
 	}
 	var buf bytes.Buffer
-	for _, raw := range events {
+	for _, raw := range raws {
 		var e struct {
 			Type      int     `json:"type"`
 			Timestamp float64 `json:"timestamp"`
@@ -82,14 +84,22 @@ func rrwebNDJSON(rec []byte) (out []byte, start, end int64, keyframe bool, err e
 		if json.Unmarshal(raw, &e) != nil {
 			continue
 		}
-		if err := json.Compact(&buf, raw); err != nil {
-			continue
-		}
-		buf.WriteByte('\n')
 		ts := int64(e.Timestamp)
 		if e.Timestamp > 0 && e.Timestamp < 1e11 { // seconds, not milliseconds
 			ts = int64(e.Timestamp * 1000)
+			var m map[string]json.RawMessage
+			if json.Unmarshal(raw, &m) != nil {
+				continue
+			}
+			m["timestamp"] = json.RawMessage(strconv.FormatInt(ts, 10))
+			if raw, err = json.Marshal(m); err != nil {
+				return nil, 0, 0, false, err
+			}
 		}
+		if json.Compact(&buf, raw) != nil {
+			continue
+		}
+		buf.WriteByte('\n')
 		if ts > 0 && (start == 0 || ts < start) {
 			start = ts
 		}
@@ -152,27 +162,48 @@ type videoTouch struct {
 	Phase string  `json:"phase"`
 }
 
-// webSegIndex remembers the last keyframe of each browser replay, so a chunk
-// after it carries that segment's index. A video chunk is its own segment.
-type webSegIndex struct {
+// webReplays remembers, per browser replay, what later segments need: the
+// session.id its first segment got, the sequence of its last keyframe, and its
+// masking (only the first segment carries the options event).
+type webReplays struct {
 	mu sync.Mutex
-	m  map[string]int
+	m  map[string]*webReplayState
 }
 
-func (x *webSegIndex) index(key string, seq int, keyframe bool) int {
+type webReplayState struct {
+	sid      string
+	keyframe int // sequence of the last keyframe, -1 before the first
+	masked   *bool
+}
+
+// note records a browser segment and returns the session.id to send it under.
+// It sets the segment's keyframe index and masking.
+func (x *webReplays) note(project string, seg *replaySegment, sid string) string {
 	x.mu.Lock()
 	defer x.mu.Unlock()
-	if x.m == nil || len(x.m) >= maxWebSegIndex {
-		x.m = map[string]int{}
+	if x.m == nil || len(x.m) >= maxWebReplays {
+		x.m = map[string]*webReplayState{}
 	}
-	if keyframe {
-		x.m[key] = seq
-		return seq
+	k := project + "/" + seg.event.ReplayID
+	w := x.m[k]
+	if w == nil {
+		w = &webReplayState{sid: sid, keyframe: -1}
+		x.m[k] = w
 	}
-	if v, ok := x.m[key]; ok && v <= seq {
-		return v
+	seq := seg.event.SegmentID
+	switch {
+	case seg.keyframe:
+		w.keyframe = seq
+		seg.segIndex = seq
+	case w.keyframe >= 0 && w.keyframe <= seq:
+		seg.segIndex = w.keyframe
 	}
-	return 0
+	if seg.masked != nil {
+		w.masked = seg.masked
+	} else {
+		seg.masked = w.masked
+	}
+	return w.sid
 }
 
 // hex32 writes an id the way Muninn checks it: 32 lowercase hex characters.
@@ -199,18 +230,12 @@ func (r *sentryReceiver) emitReplayMuninn(ctx context.Context, j job, seg *repla
 		masked      = seg.masked == nil || *seg.masked // unknown options: the SDK default
 	)
 	if seg.web {
-		nd, s, e, kf, err := rrwebNDJSON(seg.recording)
-		if err != nil {
-			r.drop(ctx, project, "replay_incomplete")
-			r.set.Logger.Debug("replay_recording not converted", zap.Error(err))
-			return false
-		}
 		var gz bytes.Buffer
 		zw := gzip.NewWriter(&gz)
-		_, _ = zw.Write(nd)
+		_, _ = zw.Write(seg.rrweb)
 		_ = zw.Close()
-		body, format, enc, keyframe, start, end = gz.Bytes(), formatRRWeb, "gzip", kf, s, e
-		segIndex = r.webSeg.index(project+"/"+replayID, seq, keyframe)
+		body, format, enc, keyframe, start, end = gz.Bytes(), formatRRWeb, "gzip", seg.keyframe, seg.start, seg.end
+		segIndex = seg.segIndex
 		if start == 0 {
 			start = seg.event.Timestamp.Time.UnixMilli()
 		}

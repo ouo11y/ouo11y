@@ -211,7 +211,7 @@ func (r *sentryReceiver) translate(ctx context.Context, j job, env *Envelope) {
 // decode parses the items the translator understands and counts all of them.
 func (t *translation) decode(ctx context.Context) []decodedItem {
 	var out []decodedItem
-	var webEvent, webRecording []byte
+	var webEvents, webRecordings [][]byte
 	for _, it := range t.env.Items {
 		translated := true
 		var d decodedItem
@@ -249,9 +249,9 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			// Browser replays: only the Muninn wire has a format for them (rrweb/2).
 			translated = t.r.muninnWire()
 			if translated && it.Type == "replay_event" {
-				webEvent = it.Payload
+				webEvents = append(webEvents, it.Payload)
 			} else if translated {
-				webRecording = it.Payload
+				webRecordings = append(webRecordings, it.Payload)
 			}
 		case "replay_video":
 			seg, err := decodeReplayVideo(it.Payload)
@@ -272,8 +272,14 @@ func (t *translation) decode(ctx context.Context) []decodedItem {
 			out = append(out, d)
 		}
 	}
-	if webEvent != nil && webRecording != nil {
-		if seg, err := decodeWebReplay(webEvent, webRecording); err == nil {
+	// The SDK sends one replay_event and its replay_recording per envelope; an
+	// item without its pair cannot be placed and is dropped.
+	for i := range max(len(webEvents), len(webRecordings)) {
+		if i >= len(webEvents) || i >= len(webRecordings) {
+			t.r.drop(ctx, t.j.project.OuoProjectID, "replay_incomplete")
+			continue
+		}
+		if seg, err := decodeWebReplay(webEvents[i], webRecordings[i]); err == nil {
 			out = append(out, decodedItem{typ: "replay_recording", replay: seg})
 		} else {
 			t.r.drop(ctx, t.j.project.OuoProjectID, "replay_incomplete")

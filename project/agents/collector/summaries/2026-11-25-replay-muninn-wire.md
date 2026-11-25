@@ -22,3 +22,17 @@ The Sentry bridge emitted replays only as the legacy video chunk that the `ouore
 - Not yet run against a live browser SDK; the first real check is a mirror-fed deployment.
 - No `ouo.replay.ended` (Sentry never says a recording ended); Muninn shows such streams `open`, then `partial`.
 - `ouo-video/1` playback in `@ouo11y/kit` is separate work.
+
+## Review (second session): end-to-end run and fixes
+
+Ran against real SDKs: a 7.58.1 browser app (no release, numeric user id, session and buffer mode, a reload, a 7.6 min page view), the 11.11.0 `examples/sentry-web` (session and buffer mode), the seven sentry-cocoa captures in `testdata/golden` (118 segments) and the sentry-java fixtures in the kb (3 segments). Path: browser → bridge (`replay_wire: muninn`, `upstream: none`) → collector on `config.muninn.yaml` → Muninn (filesystem). Every segment the bridge emitted was stored, none rejected. Web chunks play in `@ouo11y/kit`'s `ReplayPlayer`; video chunks pass `avmediainfo` and play in the PR 222 video player.
+
+Fixed:
+
+- Sentry writes `performanceSpan` (and `ui.focus`, `ui.blur`, `replay.mutations`, `replay.throttled`) with `timestamp` in seconds. Passed through unchanged, rrweb sorts them first and the player showed a 20 s replay as 498 281 hours. They are now rewritten in ms.
+- Browser `options` carry `blockAllMedia` and `maskAllInputs`, not `maskAllImages`: a browser replay with masking off was reported masked. Read now, and kept for the later segments of the replay when no session holds it.
+- A browser replay outlives Sentry's sessions (one per page load or route). A segment that resolved to a session after earlier ones fell back to the replay id split one replay across two `session.id`s (two Muninn replays, the second without its keyframe). Each browser replay now keeps the `session.id` its first segment got; a session that already holds another replay no longer drops the segment.
+- A `replay_event` without its `replay_recording` (or the reverse) was dropped silently; it is counted `replay_incomplete`, and several pairs in one envelope are paired in order.
+- The recording is inflated once per segment, not twice.
+
+Left: errors of a browser app that sends no session carry no `session.id`, so they are not joined to the replay (whose `session.id` is the replay id); a full snapshot over 1 MiB gzip is dropped, and in session mode the SDK makes no new full snapshot until a reload, so the rest of that page is unplayable.
