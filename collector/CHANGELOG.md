@@ -5,6 +5,13 @@
 
 ## Unreleased
 
+## [0.7.0](https://github.com/ouo11y/ouo11y/compare/collector-v0.6.1...collector-v0.7.0) (2026-11-25)
+
+
+### Added
+
+* **collector:** Sentry replays on the Muninn wire (rrweb/2 for browsers, ouo-video/1 for mobile) ([#221](https://github.com/ouo11y/ouo11y/issues/221)) ([d010231](https://github.com/ouo11y/ouo11y/commit/d01023124c8cb9e7a1c7c2004a9e40092b44515b))
+
 ## [0.6.1](https://github.com/ouo11y/ouo11y/compare/collector-v0.6.0...collector-v0.6.1) (2026-11-25)
 
 
