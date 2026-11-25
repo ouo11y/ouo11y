@@ -3,6 +3,7 @@ import type { ChunkEntry, ChunkFetcher, Manifest } from '../manifest';
 import { parseNdjson, playableRuns, primaryStream } from './assemble';
 import { formatInfo } from './formats';
 import { RrwebPlayer } from './RrwebPlayer';
+import { VideoPlayer } from './VideoPlayer';
 
 export interface ReplayPlayerProps {
   manifest: Manifest;
@@ -16,11 +17,13 @@ type Loaded =
   | { state: 'loading' }
   | { state: 'error'; message: string }
   | { state: 'unplayable'; message: string }
-  | { state: 'ready'; events: unknown[] };
+  | { state: 'ready'; events: unknown[] }
+  | { state: 'video'; streamId: string; chunks: ChunkEntry[] };
 
 /**
- * Plays one replay from its manifest: picks a stream, assembles its playable runs, fetches the
- * chunks and hands them to the renderer chosen by the chunks' format id. Several streams (two
+ * Plays one replay from its manifest: picks a stream, assembles its playable runs, and hands them
+ * to the renderer chosen by the chunks' format id: `rrweb/2` chunks are fetched and parsed here,
+ * `ouo-video/1` segments are fetched by the video player as it plays. Several streams (two
  * tabs) get a stream picker. Key it by replay id when one instance shows several replays.
  */
 export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: ReplayPlayerProps) {
@@ -47,6 +50,11 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
     const info = formatInfo(format);
     if (!info.renderer) {
       set({ state: 'unplayable', message: `Stored, not playable here: ${info.reason}.` });
+      return;
+    }
+    if (info.renderer === 'video') {
+      // One chunk is one segment (RPL-25): the video player fetches them as it plays.
+      set({ state: 'video', streamId, chunks: runs.flat().filter((c) => c.format === format) });
       return;
     }
     set({ state: 'loading' });
@@ -76,6 +84,14 @@ export function ReplayPlayer({ manifest, fetchChunk, onTime, className }: Replay
       {loaded.state === 'error' && <div role="alert">Replay failed to load: {loaded.message}</div>}
       {loaded.state === 'unplayable' && <div>{loaded.message}</div>}
       {loaded.state === 'ready' && <RrwebPlayer events={loaded.events} onTime={onTime} />}
+      {loaded.state === 'video' && (
+        <VideoPlayer
+          key={loaded.streamId}
+          chunks={loaded.chunks}
+          fetchChunk={(seq) => fetchRef.current(loaded.streamId, seq)}
+          onTime={onTime}
+        />
+      )}
     </div>
   );
 }

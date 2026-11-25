@@ -6,4 +6,5 @@ What a client's own Grafana plugin (backend and frontend) meets when it reads ou
 |---|---|
 | [backend/](backend/index.md) | Building and running a plugin's Go backend in our stacks, what Grafana passes it, and reading Loki's answers from it |
 | [idp-tokens/](idp-tokens/index.md) | How a plugin backend gets the user's identity-provider tokens on open-source Grafana (only a datasource with `oauthPassThru`), the settings, captured headers, and what token verification must hold against |
+| [ouo-kit/](ouo-kit/index.md) | Using `@ouo11y/kit` in a browser: why the `ouo-video/1` player seeks a paused `<video>` on its own clock |
 | [ouo-go/](ouo-go/index.md) | Using `libs/ouo-go` itself: the two RUM wires its readers must accept, and fetching it (public since 2026-11-15) |
