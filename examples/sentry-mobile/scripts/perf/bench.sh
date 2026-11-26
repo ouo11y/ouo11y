@@ -67,3 +67,10 @@ python3 -I "$HERE/bench_report.py" --result "$DEST/result.json" --out "$DEST/rep
 python3 -I "$HERE/bench_trend.py" --dir "$PUBLISH"
 log "published $DEST (raw runs in $WORK)"
 echo "$DEST"
+# A cell with no usable run would pass as free (a replay that never uploaded, an SDK that sent
+# nothing): published for the record above, then the benchmark fails.
+empty=$(python3 -I -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["empty_cells"]))' "$DEST/result.json")
+if [[ -n $empty ]]; then
+  log "FAILED: no usable run in cell(s) $empty (PROBLEM lines above, $DEST/report.html)"
+  exit 1
+fi

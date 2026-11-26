@@ -77,7 +77,8 @@ before the first run (2026-10-23) and change only through a dated entry in secti
     before its 19th tap, would show that SDK cheaper than it is: it stays out of the
     cell's statistics. The report gives "runs in the statistics, X of N" per cell and lists every
     excluded run. A tap that missed (the run's backend requests differ from the usual run) is
-    listed, not excluded.
+    listed, not excluded. A cell left with no run in its statistics fails the benchmark
+    (`bench.sh` exits 1 after publishing the result), so an empty cell never passes for a free one.
 
 ## 2. Metrics
 
@@ -86,7 +87,7 @@ All metrics are from the app process, measured on the end device unless marked o
 | Group | Metric | How |
 |---|---|---|
 | Network | bytes up on the wire (compressed as sent) and decoded (uncompressed), bytes down, request count, per destination | `proxy.py`, HTTP level (request line + headers + body); `Content-Encoding` decoded to get the uncompressed size |
-| | replay bytes per minute | replay uploads only (ouo `/v1/replay/*`, Sentry envelopes with a `replay_video` item) over the run's minutes |
+| | replay bytes per minute | replay uploads only (ouo `ouo.replay.chunk` and `ouo.replay.ended` OTLP log records to `/v1/logs`, ADR-0021, which `proxy.py` counts apart from the JS telemetry; Sentry envelopes with a `replay_video` item) over the run's minutes |
 | CPU | average over the journey, p95 of 1 s windows, idle overhead (the 15 s idle tail after the last tap) | simulator: `proc_pid_rusage` from the host (`sample.py`); device: xctrace Activity Monitor (`device.py`) |
 | Memory | peak, steady (median of the idle tail), growth over a 30 min soak (slope of a linear fit, MB/h) | phys_footprint, same sources |
 | Disk | app binary added, JS bundle added | linker map of the Release build attributed per library; Metro bundle with source map attributed per package (`size.py`) |
@@ -149,7 +150,9 @@ A major (or opted-in minor) release of `@ouo11y/react-native` runs the benchmark
 previous released ouo version on the same machine in the same run. **The release is blocked**
 when, in any tier, the new version's paired median delta against `none` is worse than the
 previous version's by more than the threshold **and** the new median lies outside the previous
-version's IQR (so noise alone cannot block):
+version's IQR (so noise alone cannot block). The previous version must be 0.4.0 or later: the
+harness counts ouo replay over OTLP only (ADR-0021), so an older base would have no replay data and
+its replay cells would fail:
 
 | Metric | Threshold (worse by more than) |
 |---|---|

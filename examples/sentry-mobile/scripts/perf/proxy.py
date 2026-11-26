@@ -2,7 +2,7 @@
 """Counting HTTP forwarder: every request the app makes goes through it, one JSON line per request.
 
     python3 -I proxy.py --log requests.jsonl \
-        --route sentry:4720:4520 --route otlp:4718:4518 --route replay:4719:4519 --route backend:4781:8581 \
+        --route sentry:4720:4520 --route otlp:4718:4518 --route backend:4781:8581 \
         [--lan] [--offline-flag <file>] [--sink]
 
 Each --route is label:listen_port:upstream_port (upstream on 127.0.0.1). Bytes are counted at the
@@ -12,6 +12,10 @@ body (no TLS, no TCP/IP overhead: plain HTTP). The run harness cuts the log by t
 Per request it also records the body decoded from its Content-Encoding (`req_body_decoded`: the
 uncompressed size) and, for Sentry envelopes, the item types (`items`), so replay uploads
 (`replay_video`, `replay_recording`) can be counted apart from errors, transactions and logs.
+
+ouo replay goes over OTLP (ADR-0021): one `ouo.replay.chunk` or `ouo.replay.ended` log record per
+request to `/v1/logs` on the otlp route, sent by the native layer. Such a request is logged with
+label `replay` (route `otlp`), so replay bytes are counted apart from the JS telemetry.
 
 --lan listens on every interface instead of the loopbacks only (a phone reaches the Mac by its LAN
 IP). --offline-flag: while that file exists, requests on every route except `backend` get no
@@ -35,7 +39,10 @@ lock = threading.Lock()
 logf = None
 offline_flag = None
 sink = False
-SINK_BODY = {"sentry": b'{"id":"00000000000000000000000000000000"}', "otlp": b"{}", "replay": b"{}"}
+SINK_BODY = {"sentry": b'{"id":"00000000000000000000000000000000"}', "otlp": b"{}"}
+# The event names of ouo's replay records (sdk/ios OuoReplayCore/OTLP/ReplayEnvelope.swift), as they
+# appear in the uncompressed protobuf body (strings are written as raw bytes).
+REPLAY_EVENTS = (b"ouo.replay.chunk", b"ouo.replay.ended")
 
 
 def decode(body, encoding):
@@ -135,6 +142,9 @@ def make_handler(label, upstream_port):
                    "encoding": self.headers.get("Content-Encoding") or ""}
             if "/envelope" in self.path and decoded is not None:
                 rec["items"] = envelope_items(decoded)
+            if label == "otlp" and self.path.split("?")[0].endswith("/v1/logs") and decoded is not None \
+                    and any(e in decoded for e in REPLAY_EVENTS):
+                rec.update(label="replay", route="otlp")
             if offline_flag and label != "backend" and os.path.exists(offline_flag):
                 rec.update(status=0, resp_bytes=0, ms=0, offline=True)
                 with lock:
