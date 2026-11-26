@@ -266,7 +266,7 @@ import Testing
 
     /// Set OUO_REPLAY_STUB_URL=http://localhost:4319 (the collector's replay receiver, or a stub),
     /// OUO_PROJECT_ID (default demo) and OUO_PROJECT_TOKEN (default: the development token) to
-    /// push real gzip chunks through URLSession. The session id is unique per run so rum-api's
+    /// push real gzip chunks through URLSession. The session id is unique per run so the receiver's
     /// seq ordering never conflicts with an earlier run.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["OUO_REPLAY_STUB_URL"] != nil))
     func RealHTTPAgainstStubWhenConfigured() async throws {

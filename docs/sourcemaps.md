@@ -8,7 +8,7 @@ A production bundle turns `RenderBomb` in `src/components/ChaosPanel.tsx:18` int
 2. `ouo-sourcemaps inject` gives every bundle a **debug id** (`//# debugId=<uuid>`) and a one-line snippet that tells `@ouo11y/browser` the id at runtime. The same id goes into the map.
 3. `ouo-sourcemaps upload` sends the maps to Muninn's public upload route with the project's **upload token**. Then you deploy the bundles, without the maps.
 4. When an error happens, the SDK adds `ouo.exception.debug_ids` (script URL to debug id) to the exception record. The raw stack goes to Loki unchanged.
-5. When the session is read, the plugin backend resolves the stack with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/resolver.go): each frame's map is found by its debug id, or, when the frame has none, by `service.version` + the script's URL path if exactly one map was uploaded for them. The result sits next to the raw stack.
+5. When the session is read, a client's plugin backend resolves the stack with [`ouo-go/symbolicate`](../libs/ouo-go/symbolicate/resolver.go): each frame's map is found by its debug id, or, when the frame has none, by `service.version` + the script's URL path if exactly one map was uploaded for them. The result sits next to the raw stack.
 
 Maps uploaded after an error still apply: symbolication happens on read.
 
@@ -244,7 +244,7 @@ npx eas-cli update --skip-bundler --input-dir dist --branch production --message
 
 ## What you see
 
-- **The plugin** shows what its backend gets from `ouo-go/symbolicate`: per exception a `status` (`ok`, `partial`, `no_maps`), the stack text rewritten with original positions, and each frame with its `generated` and `original` positions, source context and a frame status (`mapped`, `no_map`, `ambiguous`, `unmapped`, `unavailable`).
+- **A client's plugin** shows what its backend gets from `ouo-go/symbolicate`: per exception a `status` (`ok`, `partial`, `no_maps`), the stack text rewritten with original positions, and each frame with its `generated` and `original` positions, source context and a frame status (`mapped`, `no_map`, `ambiguous`, `unmapped`, `unavailable`).
 - **Loki** keeps `exception.stacktrace` as the browser sent it, plus `ouo.exception.debug_ids`.
 
 ## Checking an upload

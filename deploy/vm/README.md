@@ -4,19 +4,18 @@ One Docker host, Caddy for TLS, the compose stack from `deploy/compose` plus the
 override in this folder. Suitable for a pilot; the Kubernetes path is `deploy/helm`.
 
 ```
-internet ──443──> caddy ──> grafana:3000              https://OUO_DOMAIN        (UI + ouo plugin)
-                        ├─> otel-collector:4319       https://OUO_OTEL_DOMAIN/v1/replay/*   (replay chunks)
+internet ──443──> caddy ──> grafana:3000              https://OUO_DOMAIN        (UI)
                         ├─> otel-collector:4320       https://OUO_OTEL_DOMAIN/api/*         (Sentry SDK envelopes, ADR-0008)
                         └─> otel-collector:4318       https://OUO_OTEL_DOMAIN/*             (OTLP: /v1/traces, /v1/logs, /v1/metrics)
                                   │ Basic <project id>:<project token> checked against projects.htpasswd,
                                   │ ouo.project.id stamped, rate limited
                                   ├──OTLP──> tempo / loki / mimir
-                                  └──replay chunks + Bearer <ingest token>──> rum-api:8080 (internal) ──> disk
-loopback only: 3000 3100 3200 9009 4317 4318 4319 4320 13133 8080 8081 (operator, scripts)
+                                  └──replay chunks (scope ouo.replay) + Bearer <Muninn ingest token>──> muninn:3400 (internal) ──> minio
+loopback only: 3000 3100 3200 9009 3400 9000 9001 4317 4318 4320 13133 8081 (operator, scripts)
 ```
 
-The collector is the only thing an SDK talks to. rum-api has no hostname and no
-public port; Grafana reaches it in-network with the read token.
+The collector is the only thing an SDK talks to. Muninn and MinIO have no hostname and no
+public port.
 
 ## One-command install
 
@@ -52,15 +51,12 @@ The script
    release carries a different installer the script hands over to it, so files and installer
    always match,
 3. writes `/opt/ouo/deploy/compose/.env` (mode 600) with a random project token
-   (`pt_` + `openssl rand -hex 16`), ingest token (`it_` + 32 hex), read token (`rt_` +
-   32 hex) and Grafana admin password, and `/opt/ouo/deploy/compose/projects.htpasswd`
+   (`pt_` + `openssl rand -hex 16`), Muninn ingest, read and admin tokens (`mit_`, `mrt_`,
+   `mat_` + 32 hex), MinIO root password, Muninn's S3 secret and Grafana admin password, and `/opt/ouo/deploy/compose/projects.htpasswd`
    with the project's `{SHA}` line; existing values are kept on re-runs,
-4. builds the Grafana plugin inside a `node:24` container (no Node on the host), the ouo
-   collector distribution (`collector/Dockerfile`, ocb; the slow step), `rum-api` and the
-   demo backend, or with `--images` pulls the released images and builds only the demo backend,
-5. gives `deploy/data/rum-api` to uid 65532 (rum-api runs as distroless `nonroot`; a
-   root-owned bind mount makes it exit with `mkdir /data/replays: permission denied`), starts
-   `compose.yaml` [+ `compose.images.yaml`] + `compose.tls.yaml`, installs, enables and starts
+4. builds the ouo collector distribution (`collector/Dockerfile`, ocb; the slow step), Muninn
+   and the demo backend, or with `--images` pulls the released images and builds only the demo backend,
+5. starts `compose.yaml` [+ `compose.images.yaml`] + `compose.tls.yaml`, installs, enables and starts
    `ouo.service` with the same compose files,
 6. waits for readiness and prints the Grafana login, the **public** project credential with
    ready-to-paste SDK configuration (`projectId`, `projectToken`, the Basic header) and the
@@ -83,15 +79,15 @@ no spaces; written to `OUO_ALLOWED_ORIGINS`). Without it only `http://localhost:
 sudo /opt/ouo/deploy/vm/install.sh --images --domain ouo.example.com --email you@example.com
 ```
 
-Runs `ghcr.io/ouo11y/{collector,rum-api,grafana}` at the version `compose.images.yaml` pins
+Runs `ghcr.io/ouo11y/{collector,muninn}` at the version `compose.images.yaml` pins
 for the checked-out ref (`--image-version <v>` pins one in `.env`, `--registry` changes the
-prefix), so no Node, Go or ocb build happens; only the demo backend is built. The mode is
+prefix), so no Go or ocb build happens; only the demo backend is built. The mode is
 remembered in `.env` (`OUO_INSTALL_MODE`); `--build` switches back.
 
 - The images are public: no `docker login`. The installer and `ouo.service` pull as root,
   so an old, expired ghcr.io login of root makes the pull fail with `denied`; the installer
   then stops with `ghcr.io refused the pull` and the fix, `sudo docker logout ghcr.io`.
-- No internet on the VM: `docker save` the three images on a machine that has
+- No internet on the VM: `docker save` the two images on a machine that has
   them (pick the VM's platform, e.g. `--platform linux/arm64`), `sudo docker load` them on the
   VM, run the installer with `--images`; it pulls only what is missing.
 
@@ -115,7 +111,7 @@ printf '%s:{SHA}%s\n' web-store "$(printf '%s' pt_live_9f3c... | openssl dgst -b
   ship the new token to the apps. The collector's `basicauth` keeps only one line per
   project id, so the old token stops working at the restart (ADR-0007 section 2).
 - **Revoke**: delete the line, restart.
-- Which project an operator script (`smoke.sh`, `e2e.sh`) sends as comes from
+- Which project an operator script (`smoke.sh`) sends as comes from
   `OUO_PROJECT_ID` / `OUO_PROJECT_TOKEN` in `.env`; compose itself never reads them.
 
 Browser origins allowed to post are `OUO_ALLOWED_ORIGINS` in `.env` (global for all projects
@@ -138,8 +134,8 @@ the install's project.
 | File | Purpose |
 |---|---|
 | `install.sh` | idempotent installer and upgrader (see above) |
-| `compose.tls.yaml` | override: Caddy on 80/443, every other published port (collector 4318/4319 included) re-bound to `127.0.0.1`, server-side `projects.htpasswd` mounted into the collector, `restart: unless-stopped`, Grafana public URL and admin password |
-| `Caddyfile` | two sites, `tls {$OUO_TLS:internal}` (ACME email or `internal`); `OUO_DOMAIN` -> `grafana:3000`; `OUO_OTEL_DOMAIN` -> `/v1/replay/*` to `otel-collector:4319`, everything else to `otel-collector:4318` |
+| `compose.tls.yaml` | override: Caddy on 80/443, every other published port (collector 4318/4320 included) re-bound to `127.0.0.1`, server-side `projects.htpasswd` mounted into the collector, `restart: unless-stopped`, Grafana public URL and admin password |
+| `Caddyfile` | two sites, `tls {$OUO_TLS:internal}` (ACME email or `internal`); `OUO_DOMAIN` -> `grafana:3000`; `OUO_OTEL_DOMAIN` -> `/api/*` to `otel-collector:4320`, everything else to `otel-collector:4318` |
 | `ouo.service` | systemd oneshot that runs `compose up -d` on boot and `compose down` on stop; the installer replaces `__OUO_DIR__` and writes the ExecStart / ExecStop compose files of the install mode |
 
 Everything is driven by `/opt/ouo/deploy/compose/.env` and `/opt/ouo/deploy/compose/projects.htpasswd`:
@@ -150,16 +146,17 @@ Everything is driven by `/opt/ouo/deploy/compose/.env` and `/opt/ouo/deploy/comp
 | `OUO_TLS` | `--email` or `--tls-internal` | ACME account email, or `internal` |
 | `OUO_PROJECT_ID` | `--project` (default `default`) | first project; the Basic username; value of `ouo.project.id` |
 | `OUO_PROJECT_TOKEN` | installer, random | **public**; the Basic password; hashed into `projects.htpasswd`; ships in browser bundles |
-| `OUO_INGEST_TOKEN` | installer, random | **secret**; bearer the collector's replay exporter presents to rum-api |
-| `OUO_READ_TOKEN` | installer, random | **secret**; unlocks `GET/DELETE /v1/*` on rum-api; provisioned into the Grafana plugin's `secureJsonData` |
-| `OUO_ADMIN_TOKEN` | installer, random | **secret**; unlocks rum-api's `/v1/admin/*` (delete by user / project, audit log, retention sweep); operators only |
-| `OUO_RETENTION_LOGS`, `_TRACES`, `_METRICS`, `_REPLAYS` | `--retention logs=720h,...` (defaults 720h, 336h, 2160h, 720h) | retention per signal: Loki, Tempo, Mimir, rum-api replays ([data lifecycle](../../docs/operations/data-lifecycle.md)) |
-| `OUO_BACKEND_OTLP_HEADERS` | installer, from the project credential | `Authorization=Basic%20<base64>`: what the demo backend and rum-api use for their own OTLP |
+| `OUO_MUNINN_INGEST_TOKEN` | installer, random | **secret**; bearer the collector's `otlp_http/muninn` exporter presents to Muninn |
+| `OUO_MUNINN_READ_TOKEN` | installer, random | **secret**; unlocks Muninn's read API (replay manifests and chunks) |
+| `OUO_MUNINN_ADMIN_TOKEN` | installer, random | **secret**; Muninn's erasure and audit routes (`ouo-erase`, `libs/ouo-go`); operators only |
+| `OUO_MINIO_ROOT_PASSWORD`, `OUO_MUNINN_S3_SECRET_KEY` | installer, random | **secret**; MinIO root password and the key of Muninn's bucket-scoped MinIO user |
+| `OUO_RETENTION_LOGS`, `_TRACES`, `_METRICS`, `_REPLAYS` | `--retention logs=720h,...` (defaults 720h, 336h, 2160h, 720h) | retention per signal: Loki, Tempo, Mimir, Muninn replays ([data lifecycle](../../docs/operations/data-lifecycle.md)) |
+| `OUO_BACKEND_OTLP_HEADERS` | installer, from the project credential | `Authorization=Basic%20<base64>`: what the demo backend and Muninn use for their own OTLP |
 | `OUO_GRAFANA_ADMIN_PASSWORD` | installer, random | Grafana `admin` password |
 | `OUO_INSTALL_MODE` | `--images` / `--build` (default `build`) | which compose files the installer and `ouo.service` use |
 | `OUO_ALLOWED_ORIGINS` | `--allowed-origins` | browser origins allowed by the collector's CORS |
 | `OUO_SENTRY_PUBLIC_KEY` | installer, random (new installs) | Sentry DSN key of the bridge; public |
-| `OUO_RUM_API_VERSION`, `OUO_COLLECTOR_VERSION`, `OUO_GRAFANA_VERSION`, `OUO_IMAGE_REGISTRY` | `--image-version`, `--registry` (optional) | pin the released images; unset means the pins of the checked-out `compose.images.yaml` |
+| `OUO_COLLECTOR_VERSION`, `OUO_MUNINN_VERSION`, `OUO_IMAGE_REGISTRY` | `--image-version`, `--registry` (optional) | pin the released images; unset means the pins of the checked-out `compose.images.yaml` |
 | `OUO_*_PORT` | optional | loopback ports for the operator (defaults as on a laptop) |
 
 Change a value, then `sudo systemctl restart ouo` (re-runs `compose up -d`, which recreates
@@ -175,7 +172,7 @@ that is not published on `0.0.0.0` cannot leak. With ufw:
 sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 443/udp && sudo ufw enable
 ```
 
-Check from outside: `nmap -p 3000,4318,4319,4320,8080 <vm>` must show them closed/filtered;
+Check from outside: `nmap -p 3000,3400,4318,4320,9000 <vm>` must show them closed/filtered;
 `curl -si -X POST https://otel.ouo.example.com/v1/traces` must answer `401` (the collector
 is reachable and asks for the credential).
 
@@ -185,17 +182,16 @@ is reachable and asks for the credential).
 |---|---|---|
 | traces, logs, metrics | named volumes `ouo_tempo-data`, `ouo_loki-data`, `ouo_mimir-data` | `docker volume inspect` for the host path (under `/var/lib/docker/volumes`) |
 | Grafana state (users, settings) | `ouo_grafana-data` | dashboards and datasources are provisioned from the repo |
-| replay chunks | bind mount `/opt/ouo/deploy/data/rum-api/replays/<session_id>/` | gitignored; one `meta.json` per session records `project_id` |
+| replay chunks, debug files | named volume `ouo_minio-data` (bucket `ouo-muninn`) | written by Muninn ([spec](../../docs/specs/muninn.md)) |
 | certificates, ACME account, internal CA | `ouo_caddy-data` | losing it only means re-issuing certificates |
 | configuration and secrets | `/opt/ouo/deploy/compose/.env`, `/opt/ouo/deploy/compose/projects.htpasswd` | back these up with the data; neither is in git |
 
 Retention is set per signal in `.env` (`OUO_RETENTION_*`, `--retention` on install):
-Loki, Tempo and Mimir delete expired data in their compactors, rum-api's sweeper deletes
-expired replays hourly. Per-project log retention lives in `deploy/compose/loki/runtime.yaml`,
-per-project replay retention in `deploy/compose/rum-api/config.yaml` (`projects:`). Delete by
-user or project and the audit log: [data lifecycle](../../docs/operations/data-lifecycle.md).
-Disk still grows with ingest up to the retention: watch `df -h /var/lib/docker` and
-`du -sh /opt/ouo/deploy/data`.
+Loki, Tempo and Mimir delete expired data in their compactors, Muninn's sweeper deletes
+expired replays (`OUO_REPLAY_SWEEP_INTERVAL`, default hourly). Per-project log retention lives
+in `deploy/compose/loki/runtime.yaml`, Muninn's settings in `deploy/compose/muninn/config.yaml`.
+Delete by user or project and the audit log: [data lifecycle](../../docs/operations/data-lifecycle.md).
+Disk still grows with ingest up to the retention: watch `df -h /var/lib/docker`.
 
 ## Operate
 
@@ -203,10 +199,10 @@ Disk still grows with ingest up to the retention: watch `df -h /var/lib/docker` 
 sudo systemctl status ouo                                                             # active (exited) = up -d succeeded
 grep ExecStart /etc/systemd/system/ouo.service                                        # the compose files of this install (add compose.images.yaml after compose.yaml with --images)
 cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml ps
-cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml logs -f caddy otel-collector rum-api
-cd /opt/ouo && sudo deploy/scripts/wait-ready.sh                                     # loopback readiness: collector health + 4318/4319, rum-api /readyz
+cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml logs -f caddy otel-collector muninn
+cd /opt/ouo && sudo deploy/scripts/wait-ready.sh                                     # loopback readiness: collector health + 4318, Muninn /ready
 cd /opt/ouo && sudo deploy/scripts/smoke.sh                                          # round trip on the loopback ports
-cd /opt/ouo && sudo OUO_OTLP_URL=https://otel.ouo.example.com OUO_REPLAY_URL=https://otel.ouo.example.com deploy/scripts/smoke.sh   # through Caddy, as an SDK would
+cd /opt/ouo && sudo OUO_OTLP_URL=https://otel.ouo.example.com deploy/scripts/smoke.sh   # through Caddy, as an SDK would
 ```
 
 With `--tls-internal` the VM itself does not trust Caddy's CA, so the smoke test through
@@ -215,12 +211,11 @@ Caddy fails with `000` until curl gets a bundle that includes it:
 ```bash
 cd /opt/ouo && sudo docker compose -f deploy/compose/compose.yaml -f deploy/vm/compose.tls.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt /tmp/ouo-root.crt
 cat /etc/ssl/certs/ca-certificates.crt /tmp/ouo-root.crt > /tmp/ouo-bundle.pem
-sudo CURL_CA_BUNDLE=/tmp/ouo-bundle.pem OUO_OTLP_URL=https://otel.ouo.example.com OUO_REPLAY_URL=https://otel.ouo.example.com deploy/scripts/smoke.sh
+sudo CURL_CA_BUNDLE=/tmp/ouo-bundle.pem OUO_OTLP_URL=https://otel.ouo.example.com deploy/scripts/smoke.sh
 ```
 
 From another machine: `curl --cacert ouo-root.crt https://otel.<domain>/v1/traces ...`;
-Node (`deploy/scripts/e2e.sh`) takes `NODE_EXTRA_CA_CERTS=ouo-root.crt` and
-`OUO_GRAFANA_URL=https://<domain>` (rum-api builds its trace links on the public URL).
+Node tools take `NODE_EXTRA_CA_CERTS=ouo-root.crt`.
 Run `git` in `/opt/ouo` with `sudo`: the checkout is root's, and git refuses it to other
 users (`detected dubious ownership`).
 
@@ -229,9 +224,8 @@ longer allowed and the CORS check fails; pass one of your origins: `sudo
 OUO_SMOKE_ORIGIN=https://shop.example.com deploy/scripts/smoke.sh`.
 
 `smoke.sh` reads the project credential from `.env`, posts to the collector and checks
-Tempo, Loki, Mimir and the replay store (via rum-api on loopback). The negative checks
-(401 without or with a wrong credential, 401 on the internal replay sink without the
-ingest token) prove the edge rules; run it against the public hostname to prove them
+Tempo, Loki and Mimir; `wait-ready.sh` checks Muninn's `/ready` on loopback. The negative
+checks (401 without or with a wrong credential, unknown project) prove the edge rules; run it against the public hostname to prove them
 through Caddy.
 
 ## Upgrade
@@ -244,7 +238,7 @@ data are kept (`docs/operations/upgrade.md` has the full procedure, the one-time
 sudo /opt/ouo/deploy/vm/install.sh --ref <tag or main>            # add --images for the released images
 ```
 
-It fetches, checks out, rebuilds the plugin and images (the collector distribution
+It fetches, checks out, rebuilds the images (the collector distribution
 included) or pulls the released ones, and re-applies `up -d`, which recreates only changed
 containers. A re-run without `--ref` never moves the checkout. **From 0.2.0** run the new
 installer once (`sudo git -C /opt/ouo show origin/main:deploy/vm/install.sh > /tmp/install.sh
@@ -258,15 +252,13 @@ changes) are listed in `CHANGELOG.md` by the release process.
 
 ## Backup
 
-Minimum viable backup until the Phase 8c drill: stop writes, archive the volumes and the
-bind mount, keep `.env` and `projects.htpasswd`.
+Minimum viable backup until the Phase 8c drill: stop writes, archive the volumes, keep `.env` and `projects.htpasswd`.
 
 ```bash
 cd /opt/ouo && sudo systemctl stop ouo
-for v in grafana-data loki-data tempo-data mimir-data caddy-data; do
+for v in grafana-data loki-data tempo-data mimir-data minio-data caddy-data; do
   sudo docker run --rm -v ouo_$v:/v -v /backup:/b alpine tar czf /b/ouo_$v.tgz -C /v .
 done
-sudo tar czf /backup/ouo_replays.tgz -C /opt/ouo/deploy/data rum-api
 sudo cp /opt/ouo/deploy/compose/.env /backup/ouo.env
 sudo cp /opt/ouo/deploy/compose/projects.htpasswd /backup/ouo.projects.htpasswd
 sudo systemctl start ouo
@@ -291,21 +283,8 @@ Phase 8c replaces this with object storage, a rehearsed restore and a runbook.
   on the TCP peer; if it does not in your version, raise or disable the per-client limit in
   `deploy/compose/collector/config.yaml`.
 - Replays missing while traces arrive: `docker compose ... logs otel-collector | grep -i
-  replay` and `logs rum-api`. The exporter needs `OUO_INGEST_TOKEN` to be identical on the
-  collector and on rum-api (both come from `.env`); a mismatch is a `401` in rum-api's log.
-- Plugin missing in Grafana: `ls /opt/ouo/plugins/ouo11y-rum-app/dist` must contain
-  `module.js`; re-run the installer or `docker compose ... restart grafana` after a build.
-- Grafana restarts with `plugin not installed: "ouo11y-rum-app"` (images mode): the
-  `grafana-data` volume hides the image's plugin. `compose.images.yaml`'s `grafana-plugin`
-  service copies it before Grafana starts; check `docker logs ouo-grafana-plugin-1`
-  (`ouo11y-rum-app <version> installed`). A checkout older than that service needs the
-  installer from `main`.
-- rum-api restarts with `mkdir /data/replays: permission denied`: `deploy/data/rum-api` is
-  owned by root; `sudo chown -R 65532:65532 /opt/ouo/deploy/data/rum-api` (the installer does
-  this since 2026-10-23).
-- rum-api restarts with `replay store written by a newer replay schema`: a rum-api older than
-  the one that last opened the store; run that version or newer (`docs/operations/upgrade.md`
-  section 4). Do not delete `replays/schema.json` to force it.
+  muninn` and `logs muninn`. The exporter needs `OUO_MUNINN_INGEST_TOKEN` to be identical on
+  the collector and on Muninn (both come from `.env`); a mismatch is a `401` in the collector's log.
 - `install.sh: ghcr.io refused the pull`: `sudo docker logout ghcr.io` (an expired root login; see "Released images").
 
 ## Trying it on a laptop VM

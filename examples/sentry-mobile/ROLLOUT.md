@@ -165,8 +165,8 @@ The fair comparisons:
 - **`sentry` versus `ouo`** answers "what does it cost on the device?" (app start, memory,
   battery), because each device runs one SDK.
 - Give the bridge cohort its own `service_name` in the bridge's project table (the example uses
-  `sentry-demo` for the bridge and `sentry-demo-ouo` for the SDK), so ouo's session health
-  pages can tell them apart before rum-api filters by cohort.
+  `sentry-demo` for the bridge and `sentry-demo-ouo` for the SDK), so queries in Loki and Tempo
+  pages can tell them apart.
 
 ## Step 5: roll forward, or back
 

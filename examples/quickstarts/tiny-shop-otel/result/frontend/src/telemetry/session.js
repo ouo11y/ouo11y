@@ -55,7 +55,6 @@ export function getSession() {
     userId: previous?.userId ?? crypto.randomUUID(),
     startedAt: now,
     lastActivity: now,
-    replaySeq: 0,
   };
   write(SESSION_KEY, current);
   if (previous) for (const fn of listeners) fn("end", previous, endReason(previous, now));
@@ -71,12 +70,4 @@ export function touch() {
     lastWrite = session.lastActivity;
     write(SESSION_KEY, session);
   }
-}
-
-// Replay chunks are numbered per session, and a reload continues the numbering.
-export function nextReplaySeq() {
-  const session = getSession();
-  const seq = session.replaySeq++;
-  write(SESSION_KEY, session);
-  return seq;
 }

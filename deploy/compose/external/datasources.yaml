@@ -1,5 +1,5 @@
 # Grafana datasources for compose.external.yaml: the same three datasources as
-# ../grafana/provisioning/datasources/datasources.yaml (uids loki, tempo, mimir; rum-api's deep
+# ../grafana/provisioning/datasources/datasources.yaml (uids loki, tempo, mimir; deep
 # links use these uids) pointed at an existing Loki / Tempo / Mimir. Keep the two files in step.
 # X-Scope-OrgID is OUO_LGTM_TENANT_ID; unset it goes out empty, which a single-tenant backend
 # ignores. `$$` escapes Grafana's own ${ENV} expansion.

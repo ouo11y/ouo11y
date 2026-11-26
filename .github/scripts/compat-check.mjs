@@ -51,7 +51,7 @@ function tableAt(name) {
 
 // 1. Every component's current line has a row; bounds point at existing versions.
 const lines = tableAt("lines");
-const needCols = { "Needs collector": "collector", "Needs rum-api": "rum-api", "Needs plugin": "plugin" };
+const needCols = { "Needs collector": "collector" };
 for (const [component, version] of Object.entries(versions)) {
   const row = lines.find((r) => r.Component === component && r.Line === line(version));
   if (!row) {
@@ -79,9 +79,6 @@ const extract = (file, re) => {
   return Number(m[1]);
 };
 const code = {
-  // parse.go accepts 1..SchemaVersion; the constant lives next to the start-up schema guard (#46).
-  "services/rum-api/internal/replay/schema.go": extract("services/rum-api/internal/replay/schema.go", /const SchemaVersion = (\d+)/),
-  "collector/receiver/ouoreplayreceiver/chunk.go": extract("collector/receiver/ouoreplayreceiver/chunk.go", /const maxSchemaVersion = (\d+)/),
   "collector/receiver/ouosentryreceiver/replay.go": extract("collector/receiver/ouosentryreceiver/replay.go", /SchemaVersion:\s*(\d+)/),
   "sdk/ios/Sources/OuoReplayCore/Models.swift": extract("sdk/ios/Sources/OuoReplayCore/Models.swift", /static let schemaVersion = (\d+)/),
 };
@@ -96,7 +93,7 @@ for (const src of Object.keys(code)) {
   if (!schemaRows.some((r) => r.Source.replace(/`/g, "") === src)) fail(`docs/compatibility.md schema table: no row for ${src}`);
 }
 
-// 3. Helm chart defaults point at tagged images.
+// 3. Helm chart defaults point at tagged images: every ghcr.io/ouo11y/<image> the chart names.
 const values = read("deploy/helm/ouo/values.yaml");
 let tags = [];
 try {
@@ -104,16 +101,12 @@ try {
 } catch {
   fail("git tag --list failed (run from a clone with tags: actions/checkout fetch-depth 0)");
 }
-for (const image of ["rum-api", "collector", "grafana"]) {
-  const m = new RegExp(`repository: ghcr\\.io/ouo11y/${image}\\s*\\n\\s*tag: "?([^"\\s]+)"?`).exec(values);
-  if (!m) { fail(`deploy/helm/ouo/values.yaml: no ghcr.io/ouo11y/${image} tag found`); continue; }
-  if (tags.length && !tags.includes(`${image}-v${m[1]}`)) {
-    fail(`deploy/helm/ouo/values.yaml defaults ${image} to ${m[1]} but tag ${image}-v${m[1]} does not exist`);
+for (const m of values.matchAll(/repository: ghcr\.io\/ouo11y\/([\w-]+)\s*\n\s*tag: "?([^"\s]+)"?/g)) {
+  const [, image, tag] = m;
+  if (tags.length && !tags.includes(`${image}-v${tag}`)) {
+    fail(`deploy/helm/ouo/values.yaml defaults ${image} to ${tag} but tag ${image}-v${tag} does not exist`);
   }
 }
-const appVersion = /^appVersion:\s*"?([^"\s]+)"?/m.exec(read("deploy/helm/ouo/Chart.yaml"))?.[1];
-const rumApiDefault = /repository: ghcr\.io\/ouo11y\/rum-api\s*\n\s*tag: "?([^"\s]+)"?/.exec(values)?.[1];
-if (appVersion !== rumApiDefault) fail(`Chart.yaml appVersion ${appVersion} != rum-api default tag ${rumApiDefault}`);
 
 // Report.
 console.log("component versions (manifest):");

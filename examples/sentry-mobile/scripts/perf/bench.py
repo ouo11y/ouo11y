@@ -37,9 +37,9 @@ BUNDLE = "dev.ouo.sentrydemo"
 DEFAULT_SIM = "A99B6BF8-6975-4407-9B59-D38066523B15"
 
 # Proxy listen ports (baked into the app by build.sh) and the env's published ingest ports
-# (deploy/envs/README.md: block n -> 20000 + 10 n + offset; main 4318/4319/4320/8082).
-LISTEN = {"otlp": 4718, "replay": 4719, "sentry": 4720, "backend": 4781}
-OFFSET = {"otlp": 0, "replay": 1, "sentry": 2, "backend": 3}
+# (deploy/envs/README.md: block n -> 20000 + 10 n + offset; main 4318/4320/8082).
+LISTEN = {"otlp": 4718, "sentry": 4720, "backend": 4781}
+OFFSET = {"otlp": 0, "sentry": 2, "backend": 3}
 
 # Cell -> Documents/perf-mode.json (src/rollout.ts perfOverride). `tier` sets the SDK options of
 # docs/benchmarks.md section 1 (src/sentry.ts, src/ouo.ts). ouo has no T1 (fetch tracing cannot be
@@ -77,7 +77,7 @@ def sh(cmd, check=True, capture=True, **kw):
 
 def env_ports(env):
     if env == "main":
-        return {"otlp": 4318, "replay": 4319, "sentry": 4320, "backend": 8082}
+        return {"otlp": 4318, "sentry": 4320, "backend": 8082}
     state = os.path.expanduser(os.environ.get("OUO_ENV_STATE", "~/.local/state/ouo-env"))
     block = json.load(open(os.path.join(state, f"{env}.json")))["block"]
     return {k: 20000 + 10 * block + o for k, o in OFFSET.items()}
@@ -464,7 +464,7 @@ def main():
     if a.env == "none":
         if not (a.sink and a.backend_port):
             raise SystemExit("--env none needs --sink and --backend-port")
-        up = {"otlp": 9, "replay": 9, "sentry": 9, "backend": a.backend_port}
+        up = {"otlp": 9, "sentry": 9, "backend": a.backend_port}
     else:
         up = env_ports(a.env)
     routes = [f"{k}:{LISTEN[k]}:{up[k]}" for k in LISTEN]

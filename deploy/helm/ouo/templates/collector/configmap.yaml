@@ -11,14 +11,21 @@ data:
     {{- .Values.collector.configOverride | nindent 4 }}
     {{- else }}
     # Mirrors deploy/compose/collector/config.yaml (reference config of the ouo collector
-    # distribution, collector/) with the backend URLs, limits and the rum-api sink taken
-    # from values (ADR-0007). Ports:
+    # distribution, collector/) with the backend URLs, limits and Muninn taken from values
+    # (ADR-0007: the collector is the edge; ADR-0019: replay goes to Muninn).
+    #
+    #   otlp :4318 -> memory_limiter -> ouoratelimit -> resource/project -> routing/replay
+    #     scope != ouo.replay -> logs              (transform/events, batch)  -> Loki
+    #     scope == ouo.replay -> logs/replay       (no batch: COL-3)          -> otlp_http/muninn [disk queue, fsync]
+    #                         -> logs/replay-index (body dropped, ref set)    -> Loki
+    #
+    # Ports:
     #   4318 OTLP/HTTP  public  Basic auth (project id : project token), CORS
-    #   4319 replay     public  Basic auth, CORS, POST /v1/replay/chunks
+    #   4320 Sentry     public  Sentry DSN key auth (ADR-0008)
     #   4317 OTLP/gRPC  cluster-internal Service only, same Basic auth
     #   13133 health, 8888 self-metrics: cluster-internal Service only
     # Environment (set by the Deployment):
-    #   OUO_INGEST_TOKEN          bearer the ouoreplay exporter sends to rum-api
+    #   MUNINN_INGEST_TOKEN       bearer for Muninn's POST /otlp/v1/logs
     #   OUO_ALLOWED_ORIGINS       comma-separated CORS origins (collector.allowedOrigins)
     #   OUO_RATELIMIT_CLIENT_KEY  address, or x_forwarded_for behind the Ingress
     extensions:
@@ -28,6 +35,17 @@ data:
       basicauth/server:
         htpasswd:
           file: /etc/otelcol/projects.htpasswd
+      ouoauth:
+        authenticator: basicauth/server
+      ouoratelimit:
+        processor: ouoratelimit
+      # The Muninn exporter's persistent queue (COL-4): every enqueue is written with fsync
+      # before the pipeline call returns, so the SDK's 2xx means "on disk" (SDK spec TRN-12).
+      file_storage/replay:
+        directory: /var/lib/otelcol/replay-queue
+        create_directory: true
+        fsync: true
+        timeout: 5s
 
     receivers:
       otlp:
@@ -36,29 +54,46 @@ data:
             endpoint: 0.0.0.0:4317
             include_metadata: true
             auth:
-              authenticator: basicauth/server
+              authenticator: ouoauth
+            middlewares:
+              - id: ouoratelimit
           http:
             endpoint: 0.0.0.0:4318
             include_metadata: true
             max_request_body_size: {{ .Values.collector.limits.otlpMaxBodyBytes | int64 }}
             auth:
-              authenticator: basicauth/server
+              authenticator: ouoauth
+            middlewares:
+              - id: ouoratelimit
             cors:
               allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
               allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
               exposed_headers: [Retry-After]
               max_age: 7200
-      ouoreplay:
-        endpoint: 0.0.0.0:4319
-        include_metadata: true
-        max_request_body_size: {{ .Values.collector.limits.replayMaxBodyBytes | int64 }}
-        auth:
-          authenticator: basicauth/server
-        cors:
-          allowed_origins: ${env:OUO_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
-          allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
-          exposed_headers: [Retry-After]
-          max_age: 7200
+      # Sentry SDK bridge (ADR-0008, docs/specs/sentry-bridge.md).
+      {{- $sentry := .Values.collector.sentry }}
+      ouosentry:
+        endpoint: 0.0.0.0:4320
+        upstream_timeout: 30s
+        projects:
+          - sentry_project_id: {{ $sentry.projectId | toString | quote }}
+            public_keys: [{{ $sentry.publicKey | quote }}]
+            upstream: {{ $sentry.upstream | quote }}
+            ouo_project_id: {{ $sentry.ouoProjectId | quote }}
+            service_name: {{ $sentry.serviceName | quote }}
+        replay_wire: muninn
+
+    connectors:
+      # COL-2: route by instrumentation scope, after the project is stamped, before any batch.
+      # error_mode propagate: the default would send a record whose condition failed to the
+      # default pipeline, body included.
+      routing/replay:
+        error_mode: propagate
+        default_pipelines: [logs]
+        table:
+          - context: log
+            condition: instrumentation_scope.name == "ouo.replay"
+            pipelines: [logs/replay, logs/replay-index]
 
     processors:
       memory_limiter:
@@ -76,7 +111,7 @@ data:
           burst: {{ .Values.collector.rateLimit.client.burst | int64 }}
           key_from: ${env:OUO_RATELIMIT_CLIENT_KEY:-address}
         idle_timeout: 10m
-      # ouo.project.id = authenticated username, overwriting whatever the client sent.
+      # COL-9: ouo.project.id = authenticated username, overwriting whatever the client sent.
       resource/project:
         attributes:
           - key: ouo.project.id
@@ -95,6 +130,16 @@ data:
             statements:
               - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
               - set(log.attributes["ouo.platform"], resource.attributes["ouo.platform"]) where log.attributes["ouo.platform"] == nil and resource.attributes["ouo.platform"] != nil
+      # COL-6, COL-7 (one reference record per chunk): Loki's copy keeps the attributes,
+      # gets ouo.replay.ref and loses the chunk bytes. An empty string, not nil: set(body, nil)
+      # is a no-op without the ottl.set.allowNil gate and would send the chunk to Loki.
+      transform/replay-ref:
+        error_mode: ignore
+        log_statements:
+          - context: log
+            statements:
+              - set(log.body, "") where log.event_name == "ouo.replay.chunk"
+              - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
 
     exporters:
       otlp_grpc/tempo:
@@ -112,28 +157,37 @@ data:
         tls:
           insecure: true
         {{- include "ouo.tenantHeaders" . | nindent 8 }}
-      # Replay chunks -> rum-api's internal sink (X-Ouo-Project-Id, X-Ouo-Session-Id,
-      # X-Ouo-Seq and the ingest bearer).
-      ouoreplay:
-        endpoint: {{ include "ouo.rumApiInternalUrl" . }}
-        ingest_token: ${env:OUO_INGEST_TOKEN}
+      # Muninn's OTLP/HTTP logs endpoint with the stock exporter.
+      otlp_http/muninn:
+        logs_endpoint: {{ .Values.muninn.endpoint | trimSuffix "/" }}/otlp/v1/logs
+        compression: none   # COL-10: chunk bodies are already compressed
         timeout: 30s
+        tls:
+          insecure: true
+        headers:
+          Authorization: Bearer ${env:MUNINN_INGEST_TOKEN}
+          X-Scope-OrgID: {{ .Values.muninn.tenant | quote }}
         sending_queue:
           enabled: true
-          queue_size: 1000
+          storage: file_storage/replay
+          sizer: bytes
+          queue_size: {{ .Values.collector.replayQueue.sizeBytes | int64 }}
+          block_on_overflow: false   # COL-5: full queue -> 503 to the SDK, never block
+          num_consumers: 4
+        # COL-8: retry 429/502/503/504 and network failures without a time limit.
         retry_on_failure:
           enabled: true
-          max_elapsed_time: 5m
-      debug:
-        verbosity: basic
+          initial_interval: 1s
+          max_interval: 60s
+          max_elapsed_time: 0
 
     service:
-      extensions: [health_check, basicauth/server]
+      extensions: [health_check, basicauth/server, ouoauth, ouoratelimit, file_storage/replay]
       telemetry:
         logs:
           level: info
-        # Self-metrics (otelcol_*, ouo_ratelimit_rejected_total, ouo_replay_chunks_total):
-        # pushed to Mimir every 15 s and pullable on :8888 through the internal Service.
+        # Self-metrics (otelcol_*, ouo_ratelimit_rejected_total): pushed to Mimir every
+        # 15 s and pullable on :8888 through the internal Service.
         metrics:
           level: normal
           readers:
@@ -155,20 +209,33 @@ data:
                     port: 8888
       pipelines:
         traces:
-          receivers: [otlp]
+          receivers: [otlp, ouosentry]
           processors: [memory_limiter, ouoratelimit, resource/project, batch]
           exporters: [otlp_grpc/tempo]
-        logs:
-          receivers: [otlp]
-          processors: [memory_limiter, ouoratelimit, resource/project, transform/events, batch]
-          exporters: [otlp_http/loki]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, ouoratelimit, resource/project, batch]
           exporters: [otlp_http/mimir]
+        logs/in:
+          receivers: [otlp]
+          processors: [memory_limiter, ouoratelimit, resource/project]
+          exporters: [routing/replay]
+        logs:
+          receivers: [routing/replay]
+          processors: [transform/events, batch]
+          exporters: [otlp_http/loki]
+        # COL-3: no batch processor, so the receiver waits for the queue write.
         logs/replay:
-          receivers: [ouoreplay]
-          processors: [memory_limiter, ouoratelimit]
-          exporters: [ouoreplay]
+          receivers: [routing/replay]
+          exporters: [otlp_http/muninn]
+        logs/replay-index:
+          receivers: [routing/replay]
+          processors: [transform/replay-ref, transform/events, batch]
+          exporters: [otlp_http/loki]
+        # Sentry bridge output; the project is in the client context (auth.username).
+        logs/sentry:
+          receivers: [ouosentry]
+          processors: [memory_limiter, ouoratelimit, resource/project]
+          exporters: [routing/replay]
     {{- end }}
 {{- end }}

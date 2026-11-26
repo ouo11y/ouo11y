@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify an ouo-web journey (scripts/journey.mjs) end to end.
 
-  python3 -I scripts/verify.py [--journey journey.json] [--tempo URL] [--rum-api URL] [--read-token T]
+  python3 -I scripts/verify.py [--journey journey.json] [--tempo URL] [--loki URL] [--muninn URL]
 
 Checks:
   - Loki, the wire of the client SDK spec 0.1.0-draft: one `session.start`; `ouo.view.id`, a 32-hex
@@ -16,9 +16,8 @@ Checks:
     trace id, session.id from baggage on backend spans, one backend span per request the journey sent,
     every request in the backend's own log a sampled trace in Tempo, CORS for traceparent / tracestate /
     baggage, no Sentry bridge;
-  - rum-api (the MVP read path): the journey's session with its timeline and traces, and the render
-    error's debug id; with --muninn, the bundle's map stored in Muninn under it. rum-api folds the MVP event names, so
-    these checks describe what the MVP read path still has to learn about the spec wire.
+  - source maps: the render error's debug id and raw minified stack in Loki; with --muninn, the
+    bundle's map stored in Muninn under that debug id (ADR-0026).
 Defaults are the plain compose stack's ports; `scripts/run.sh --env <name>` passes an ouo-env's URLs.
 """
 
@@ -34,12 +33,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import tracecheck  # noqa: E402
 
 CLIENT = "web-store"
-
-
-def rum_get(base, path, token):
-    req = urllib.request.Request(base + path, headers={"Authorization": f"Bearer {token}"} if token else {})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read())
 
 
 def loki_events(loki, sid, start, end):
@@ -113,18 +106,16 @@ def check_browser_signals(a, j, sid, res):
             all(c.get("ouo_replay_id") and c.get("ouo_replay_sha256") and c.get("ouo_replay_masked") == "true" and c.get("ouo_replay_mode") for c in chunks))
     res.add("replay: one ouo.replay.ended per stream", len(by("ouo.replay.ended")) == len(streams) >= 1, f"{len(by('ouo.replay.ended'))} ended")
     print(f"  events: {', '.join(sorted(set(names)))}", flush=True)
+    return boundary[0] if boundary else {}
 
 
 # Where ChaosPanel's RenderBomb throws (src/components/ChaosPanel.tsx).
 BOMB_FILE, BOMB_LINE = "src/components/ChaosPanel.tsx", 18
 
 
-def check_symbolication(a, detail, res):
+def check_symbolication(a, attrs, res):
+    """attrs: the render error's Loki labels and structured metadata (check_browser_signals)."""
     print("source maps (debug ids; maps in Muninn when it runs)", flush=True)
-    boundary = [e for e in (detail or {}).get("timeline", [])
-                if e.get("name") == "exception" and e.get("attrs", {}).get("ouo_react_component_stack")]
-    ev = boundary[0] if boundary else {}
-    attrs = ev.get("attrs", {})
     try:
         debug_ids = json.loads(attrs.get("ouo_exception_debug_ids") or "{}")
     except ValueError:
@@ -173,36 +164,19 @@ def main():
     ap.add_argument("--journey", default="journey.json")
     ap.add_argument("--tempo", default=os.environ.get("OUO_TEMPO_URL", "http://localhost:3200"))
     ap.add_argument("--loki", default=os.environ.get("OUO_LOKI_URL", "http://localhost:3100"))
-    ap.add_argument("--rum-api", default=os.environ.get("OUO_RUM_API_URL", "http://localhost:8080"))
     ap.add_argument("--muninn", default=os.environ.get("OUO_MUNINN_URL", ""), help="check the uploaded maps there (ADR-0026)")
     ap.add_argument("--muninn-token", default=os.environ.get("OUO_MUNINN_READ_TOKEN", "mrt_dev_0000000000000000"))
     ap.add_argument("--project", default=os.environ.get("VITE_OUO_PROJECT_ID", "demo"))
-    ap.add_argument("--read-token", default=os.environ.get("OUO_READ_TOKEN", "rt_dev_0000000000000000"))
     ap.add_argument("--origin", default=None, help="Origin for the CORS preflight (default: the journey's page origin)")
     a = ap.parse_args()
     j = json.load(open(a.journey))
     origin = a.origin or "/".join(j["url"].split("/")[:3])
     res = tracecheck.Result()
 
-    print(f"rum-api ({a.rum_api})", flush=True)
     sid = (j.get("sessions") or [None])[0]
     res.add("journey recorded its session id", bool(sid))
     if sid:
-        detail, deadline = None, time.time() + 90
-        while time.time() < deadline:
-            try:
-                detail = rum_get(a.rum_api, f"/v1/sessions/{sid}", a.read_token)
-                if detail.get("trace_count", 0) > 0 and len(detail.get("timeline", [])) > 1:
-                    break
-            except Exception:
-                pass
-            time.sleep(5)
-        res.add("session in rum-api with service web-store", bool(detail) and detail.get("service_name") == CLIENT,
-                f"{(detail or {}).get('service_name')}")
-        res.add("session has a timeline and traces", bool(detail) and detail.get("trace_count", 0) > 0 and len(detail.get("timeline", [])) > 1,
-                f"trace_count {(detail or {}).get('trace_count')}, timeline {len((detail or {}).get('timeline', []))}")
-        check_browser_signals(a, j, sid, res)
-        check_symbolication(a, rum_get(a.rum_api, f"/v1/sessions/{sid}", a.read_token), res)
+        check_symbolication(a, check_browser_signals(a, j, sid, res), res)
         check_interactions(a, j, sid, res)
 
     tracecheck.run(tempo=a.tempo.rstrip("/"), backend_url=j["backend"], clients=[CLIENT], path="ouo",

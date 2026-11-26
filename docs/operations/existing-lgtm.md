@@ -7,6 +7,8 @@ and, if you want it, its Grafana. The page covers what the existing backends nee
 for the data already in them, and how each deployment path points at them. If you add the Loki
 settings the way shown below, nothing changes for your existing data.
 
+> **rum-api and the ouo Grafana plugin/image removed (2026-11-15).** ouo now deploys its collector and Muninn (replay and debug files, [ADR-0019](../adr/0019-collector-to-muninn.md)); Grafana is stock and a client's own plugin reads through `ouo-go` ([ADR-0025](../adr/0025-generic-libs-clients-own-plugin-and-access.md)). Where this page names rum-api as the reader or deleter of Loki/Tempo data, read `ouo-go` (reads) and `ouo-erase` (deletes); the Loki and Tempo settings themselves are unchanged.
+
 | Deployment | How |
 |---|---|
 | Helm | `lgtm.mode: external`, `-f deploy/helm/ouo/values-external-lgtm.yaml` (`deploy/helm/ouo/README.md`, Install A) |

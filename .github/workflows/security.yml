@@ -4,7 +4,7 @@
 #   govulncheck  every Go module, with the newest Go 1.26 patch release (the standard library
 #                is part of the scan). Reports only vulnerabilities reachable from our code,
 #                which govulncheck lists with the version that fixes them: any finding fails.
-#   npm audit    runtime dependencies of the workspaces (what ships in the SDKs and the plugin)
+#   npm audit    runtime dependencies of the workspaces (what ships in the SDKs and libs)
 #                fail at high and above, except the advisories without a patched release listed
 #                in .github/scripts/npm-audit-gate.mjs; dev tooling is listed in the summary,
 #                not gating.

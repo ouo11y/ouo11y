@@ -9,7 +9,7 @@
 // (`ouo.user_action.frustration` type dead), four fast clicks on it (type rage), a 300 ms long
 // task, a render error (OuoErrorBoundary). Every request the page sends to the backend is counted (preflights
 // excluded) with the trace id of its traceparent; the summary written to --out is what
-// scripts/verify.py checks Tempo, Loki and rum-api against:
+// scripts/verify.py checks Tempo, Loki and Muninn against:
 //   {start, end, requests, traces, sessions: [session ids], url, backend, browser, vitals, loaf}
 // `traces` is the number of distinct trace ids: every request is its own trace (a click never
 // starts one), so it equals `requests`. `vitals` lists the Web Vitals this engine

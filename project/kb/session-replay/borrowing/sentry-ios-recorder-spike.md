@@ -1,5 +1,7 @@
 # Borrowing Sentry's iOS recorder core: the spike
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 Can ouo use sentry-cocoa's session-replay recorder core instead of maintaining its own, and ship its output as an ouo replay chunk? Spike of 2026-11-11, branch `claude/sentry-recorder-ios`, for the proposed ADR-0018, "Borrow the recorder core" (`docs/adr/0018-borrow-the-replay-recorder.md`, in PR #178, not decided). Demo report: [sentry-recorder-spike.html](../../../agents/session-replay/reports/sentry-recorder-spike.html).
 
 Follow-up (2026-11-12): the recorder now ships as `replay.mode: "pixel/video"` over OTLP with ouo's masking, and the transition leak of finding 1 is traced and fixed: [sentry-ios-video-over-otlp.md](sentry-ios-video-over-otlp.md).

@@ -2,29 +2,25 @@
 #
 #   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.images.yaml up -d
 #
-# rum-api, the ouo collector and Grafana (with the ouo11y-rum-app plugin baked in) are pulled
-# from ghcr.io at the versions pinned in deploy/compose/.env (see .env.example), so no Go
-# toolchain, ocb or Node build is needed and services/, collector/ and plugins/ can be
-# absent. The demo backend is still built from examples/backend (it is example code, not a
-# released image); delete that service when you do not need it.
+# The ouo collector and Muninn are pulled from ghcr.io at the versions pinned in
+# deploy/compose/.env (see .env.example), so no Go toolchain or ocb is needed and
+# services/ and collector/ can be absent. Grafana, Loki, Tempo, Mimir and MinIO are stock
+# upstream images either way. The demo backend is still built from examples/backend (it is
+# example code, not a released image); delete that service when you do not need it.
 #
 # The ghcr.io/ouo11y images are public: no `docker login`. A pull that fails with `denied`
-# means an old, expired ghcr.io login: `docker logout ghcr.io` (examples/fast-tracked/00-stack.md,
-# Step 3, "Pull access").
+# means an old, expired ghcr.io login: `docker logout ghcr.io`.
 #
 # Build from source instead: leave this file out (compose.yaml alone builds the collector
-# and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
-# the one to use when changing services/rum-api, collector/ or the plugin.
+# and Muninn). That is the contributor path and the one to use when changing collector/ or
+# services/muninn.
 #
-# Pinned to the exact newest release of each image (collector 0.7.0, rum-api 0.6.0, grafana 0.6.0
-# with plugin 0.10.0); `deploy/scripts/gen-quickstart.sh --check` (CI job `quickstart`) fails when
-# a newer release is tagged and these, .env.example and quickstart.yaml are not bumped. Nothing
-# older than 0.3.0, the first release under ghcr.io/ouo11y (ADR-0009): the 0.2.0 images exist
-# only under the old path ghcr.io/ziadmansourm/ouo/* and carry the plugin as ouo-rum-app, which
-# ./grafana/provisioning no longer enables.
+# Pinned to the exact newest release of each image (collector 0.7.0, muninn 0.2.0);
+# `deploy/scripts/gen-quickstart.sh --check` (CI job `quickstart`) fails when a newer release
+# is tagged and these, .env.example and quickstart.yaml are not bumped. Collector >= 0.6.0 has
+# the stock otlp_http, file_storage and routing components ./collector/config.yaml uses.
 #
-# Needs Docker Compose >= 2.24 (`!reset` / `!override`). Versions and the release process:
-# docs/releasing.md.
+# Needs Docker Compose >= 2.24 (`!reset`). Versions and the release process: docs/releasing.md.
 
 services:
   otel-collector:
@@ -32,47 +28,7 @@ services:
     image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.7.0}
     pull_policy: missing
 
-  rum-api:
+  muninn:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/rum-api:${OUO_RUM_API_VERSION:-0.6.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/muninn:${OUO_MUNINN_VERSION:-0.2.0}
     pull_policy: missing
-    # rum-api 0.2.0 is the first release and includes the YAML config file + S3 / MinIO
-    # replay storage (PR #19). Nothing rum-api specific is needed here: once #19 is merged,
-    # compose.yaml itself starts rum-api with `-config.file=/etc/rum-api/config.yaml
-    # -config.expand-env=true` and mounts ./rum-api/config.yaml, and that command and
-    # mount apply to this image too (an image older than 0.2.0 exits with "flag provided
-    # but not defined"). S3 / MinIO instead of the local disk: add
-    # `-f deploy/compose/compose.s3.yaml` after this file (keys: STORAGE_BACKEND=s3, S3_*,
-    # services/rum-api/config.example.yaml). The image ships no config.yaml of its own and
-    # no baked ENV, so a mounted file is never overridden by image defaults.
-
-  grafana:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.6.0}
-    pull_policy: missing
-    # The plugin is inside the image; drop compose.yaml's bind mount of plugins/ouo11y-rum-app/dist.
-    volumes: !override
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      grafana-plugin:
-        condition: service_completed_successfully
-
-  # The grafana-data volume is mounted over /var/lib/grafana and hides the plugin the image
-  # ships in /var/lib/grafana/plugins. Docker seeds an empty volume from the image once, so
-  # without this a Grafana image upgrade keeps running the plugin of the first install (and
-  # 0.2.0 -> 0.3.0, where the plugin id changed, fails with `plugin not installed:
-  # "ouo11y-rum-app"`). Copy it onto the volume before every start, like the Helm chart's
-  # install-plugin init container.
-  grafana-plugin:
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/grafana:${OUO_GRAFANA_VERSION:-0.6.0}
-    pull_policy: missing
-    entrypoint: ["sh", "-ec"]
-    command:
-      - |
-        mkdir -p /pvc/plugins
-        rm -rf /pvc/plugins/ouo11y-rum-app
-        cp -a /var/lib/grafana/plugins/ouo11y-rum-app /pvc/plugins/ouo11y-rum-app
-        echo "ouo11y-rum-app $$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' /pvc/plugins/ouo11y-rum-app/plugin.json | head -1) installed"
-    volumes:
-      - grafana-data:/pvc
-    restart: "no"

@@ -137,6 +137,8 @@ From each `transaction` item's `measurements` (observed names and units in @sent
 
 ## 7. rum-api
 
+> Removed: rum-api, the MVP Grafana plugin and the `ouoreplay` receiver/exporter were removed on 2026-11-15. Vitals are read with `ouo-go` (`vitals.go`); the endpoint below is the MVP record.
+
 - `GET /v1/sessions/{id}/vitals`:
 
   ```json

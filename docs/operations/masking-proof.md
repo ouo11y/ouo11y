@@ -7,6 +7,8 @@ screen, then the same moment as stored by rum-api and played in the Grafana app.
 by hand. Masking happens on the device, before anything is sent: what is masked never leaves
 the browser or the phone, so neither the collector, rum-api nor Grafana ever holds it.
 
+> A dated capture from the MVP stack: rum-api and the Grafana app it mentions were removed on 2026-11-15. The masking itself happens in the SDKs and is unchanged.
+
 ## Web (`@ouo11y/browser`, rrweb)
 
 **Since 0.4.0 (ADR-0003, revision 2026-11-03) all text is masked by default.** Every input value

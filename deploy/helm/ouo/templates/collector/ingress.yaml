@@ -1,6 +1,6 @@
 {{- if and .Values.collector.enabled .Values.collector.ingress.enabled }}
-# One host for both public receivers: /v1/replay/* goes to the replay port 4319,
-# everything else (/v1/traces, /v1/logs, /v1/metrics) to OTLP/HTTP 4318. Ingress
+# One host for both public receivers: /api/* (Sentry envelopes and store) goes to the
+# Sentry bridge 4320, everything else (/v1/traces, /v1/logs, /v1/metrics) to OTLP/HTTP 4318. Ingress
 # controllers match the longest path first (networking.k8s.io/v1 semantics).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -26,13 +26,13 @@ spec:
     - host: {{ .Values.collector.ingress.host | quote }}
       http:
         paths:
-          - path: /v1/replay
+          - path: /api
             pathType: {{ .Values.collector.ingress.pathType }}
             backend:
               service:
                 name: {{ include "ouo.collector.fullname" . }}
                 port:
-                  name: replay
+                  name: sentry
           - path: /
             pathType: {{ .Values.collector.ingress.pathType }}
             backend:

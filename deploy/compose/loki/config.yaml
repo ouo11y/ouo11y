@@ -37,7 +37,7 @@ storage_config:
 
 # Retention and deletion (roadmap 8b): the compactor applies limits_config.retention_period
 # (and per-project retention_stream entries from runtime.yaml) and processes delete
-# requests (POST /loki/api/v1/delete, sent by rum-api's delete-by-user / -project).
+# requests (POST /loki/api/v1/delete, sent by `ouo-erase` in libs/ouo-go).
 compactor:
   working_directory: /loki/compactor
   compaction_interval: ${OUO_LOKI_COMPACTION_INTERVAL:-10m}

@@ -7,7 +7,7 @@ Chart name.
 
 {{/*
 Fully qualified release name. With release `ouo` and chart `ouo` this is `ouo`,
-so the Services are ouo-rum-api, ouo-collector, ouo-grafana, ouo-loki, ouo-tempo, ouo-mimir.
+so the Services are ouo-collector, ouo-grafana, ouo-loki, ouo-tempo, ouo-mimir.
 */}}
 {{- define "ouo.fullname" -}}
 {{- if .Values.fullnameOverride -}}
@@ -27,7 +27,7 @@ so the Services are ouo-rum-api, ouo-collector, ouo-grafana, ouo-loki, ouo-tempo
 {{- end -}}
 
 {{/*
-Common labels. Call with (dict "root" $ "component" "rum-api").
+Common labels. Call with (dict "root" $ "component" "collector").
 */}}
 {{- define "ouo.labels" -}}
 helm.sh/chart: {{ include "ouo.chart" .root }}
@@ -45,7 +45,7 @@ app.kubernetes.io/version: {{ .root.Chart.AppVersion | quote }}
 {{- end -}}
 
 {{/*
-Selector labels. Call with (dict "root" $ "component" "rum-api").
+Selector labels. Call with (dict "root" $ "component" "collector").
 */}}
 {{- define "ouo.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "ouo.name" .root }}
@@ -54,7 +54,6 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/* Component resource names */}}
-{{- define "ouo.rumApi.fullname" -}}{{ include "ouo.fullname" . }}-rum-api{{- end -}}
 {{- define "ouo.collector.fullname" -}}{{ include "ouo.fullname" . }}-collector{{- end -}}
 {{- define "ouo.grafana.fullname" -}}{{ include "ouo.fullname" . }}-grafana{{- end -}}
 {{- define "ouo.loki.fullname" -}}{{ include "ouo.fullname" . }}-loki{{- end -}}
@@ -62,8 +61,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- define "ouo.mimir.fullname" -}}{{ include "ouo.fullname" . }}-mimir{{- end -}}
 
 {{/* Secret names (own or existing) */}}
-{{- define "ouo.rumApi.secretName" -}}
-{{- if .Values.rumApi.existingSecret -}}{{ .Values.rumApi.existingSecret }}{{- else -}}{{ include "ouo.rumApi.fullname" . }}{{- end -}}
+{{- define "ouo.muninn.secretName" -}}
+{{- if .Values.muninn.existingSecret -}}{{ .Values.muninn.existingSecret }}{{- else -}}{{ include "ouo.collector.fullname" . }}-muninn{{- end -}}
 {{- end -}}
 {{- define "ouo.grafana.secretName" -}}
 {{- if .Values.grafana.existingSecret -}}{{ .Values.grafana.existingSecret }}{{- else -}}{{ include "ouo.grafana.fullname" . }}{{- end -}}
@@ -113,25 +112,6 @@ LGTM endpoints. Bundled mode points at the chart's own Services; external mode a
 {{- define "ouo.collector.projectsSecretName" -}}
 {{- if .Values.collector.existingProjectsSecret -}}{{ .Values.collector.existingProjectsSecret }}{{- else -}}{{ include "ouo.collector.fullname" . }}-projects{{- end -}}
 {{- end -}}
-{{/* OTLP/HTTP endpoint for rum-api's own telemetry: the collector's 4318 in-cluster, with a project credential. */}}
-{{- define "ouo.rumApiOtlpEndpoint" -}}
-{{- if .Values.rumApi.otel.endpoint -}}{{ .Values.rumApi.otel.endpoint | trimSuffix "/" }}{{- else -}}http://{{ include "ouo.collector.fullname" . }}:4318{{- end -}}
-{{- end -}}
-{{/*
-OTEL_EXPORTER_OTLP_HEADERS value for rum-api's own telemetry: the Basic credential of
-rumApi.otel.project (default: the first entry of `projects`). Empty when not resolvable
-(collector.existingProjectsSecret without `projects`): bring it via rumApi.existingSecret.
-*/}}
-{{- define "ouo.rumApiOtlpHeaders" -}}
-{{- $want := .Values.rumApi.otel.project -}}
-{{- $found := "" -}}
-{{- range .Values.projects -}}
-{{- if and (not $found) (or (not $want) (eq .id $want)) -}}
-{{- $found = printf "Authorization=Basic%%20%s" (printf "%s:%s" .id .token | b64enc) -}}
-{{- end -}}
-{{- end -}}
-{{- $found -}}
-{{- end -}}
 {{/* X-Scope-OrgID on the collector exporters in external multi-tenant mode */}}
 {{- define "ouo.tenantHeaders" -}}
 {{- if and (eq .Values.lgtm.mode "external") .Values.lgtm.external.tenantId }}
@@ -143,79 +123,9 @@ headers:
 {{- define "ouo.rateLimitClientKey" -}}
 {{- if .Values.collector.rateLimit.client.keyFrom -}}{{ .Values.collector.rateLimit.client.keyFrom }}{{- else if .Values.collector.ingress.enabled -}}x_forwarded_for{{- else -}}address{{- end -}}
 {{- end -}}
-{{/* rum-api URL the collector's replay exporter posts to */}}
-{{- define "ouo.rumApiInternalUrl" -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
 {{/* Public collector base URL (Ingress) or the port-forward default */}}
 {{- define "ouo.collectorPublicUrl" -}}
 {{- if .Values.collector.ingress.enabled -}}{{ ternary "https" "http" .Values.collector.ingress.tls.enabled }}://{{ .Values.collector.ingress.host }}{{- else -}}http://localhost:4318{{- end -}}
-{{- end -}}
-
-{{/* In-cluster rum-api URL (what the Grafana plugin proxies to) */}}
-{{- define "ouo.rumApiUrl" -}}
-{{- if .Values.grafana.plugin.rumApiUrl -}}{{ trimSuffix "/" .Values.grafana.plugin.rumApiUrl }}{{- else -}}http://{{ include "ouo.rumApi.fullname" . }}:{{ .Values.rumApi.service.port }}{{- end -}}
-{{- end -}}
-
-{{/* rum-api replay store on the filesystem (PVC at /data) */}}
-{{- define "ouo.rumApi.fsStore" -}}{{- if eq .Values.rumApi.storage.backend "filesystem" -}}true{{- end -}}{{- end -}}
-
-{{/*
-rum-api config.yaml (services/rum-api/config.example.yaml) from rumApi.config and
-rumApi.storage, with rumApi.structuredConfig merged over it. No secrets: tokens and
-S3 keys are environment variables from Secrets.
-*/}}
-{{- define "ouo.rumApi.config" -}}
-{{- $s3 := .Values.rumApi.storage.s3 -}}
-{{- $cfg := dict
-  "server" (dict "http_listen_address" ":8080")
-  "loki" (dict "url" (include "ouo.lokiUrl" .) "datasource_uid" .Values.rumApi.config.lokiDatasourceUid)
-  "tempo" (dict "url" (include "ouo.tempoUrl" .) "datasource_uid" .Values.rumApi.config.tempoDatasourceUid)
-  "grafana" (dict "url" (include "ouo.grafanaPublicUrl" .))
-  "session" (dict "inactivity" (toString .Values.rumApi.config.sessionInactivity) "max_duration" (toString .Values.rumApi.config.sessionMaxDuration))
-  "storage" (dict
-    "backend" .Values.rumApi.storage.backend
-    "filesystem" (dict "dir" "/data")
-    "s3" (dict "endpoint" $s3.endpoint "bucket" $s3.bucket "region" $s3.region "prefix" $s3.prefix
-               "insecure" $s3.insecure "insecure_skip_verify" $s3.insecureSkipVerify "force_path_style" $s3.forcePathStyle
-               "lifecycle_rules" ($s3.lifecycleRules | default false)))
-  "retention" (dict "replays" (toString .Values.retention.replays) "logs" (toString .Values.retention.logs)
-                    "sweep_interval" (toString .Values.retention.sweepInterval))
--}}
-{{- if eq .Values.lgtm.mode "external" -}}
-{{- /* An existing stack: rum-api sends the tenant like the collector and Grafana, and posts deletes to lokiDeleteUrl when set. */ -}}
-{{- with .Values.lgtm.external.tenantId -}}
-{{- $_ := set $cfg.loki "tenant_id" . -}}
-{{- $_ := set $cfg.tempo "tenant_id" . -}}
-{{- end -}}
-{{- with .Values.lgtm.external.lokiDeleteUrl -}}
-{{- $_ := set $cfg.loki "delete_url" (. | trimSuffix "/") -}}
-{{- end -}}
-{{- end -}}
-{{- $projects := dict -}}
-{{- range $id, $p := .Values.retention.projects -}}
-{{- if $p.replays -}}
-{{- $_ := set $projects $id (dict "retention" (dict "replays" (toString $p.replays))) -}}
-{{- end -}}
-{{- end -}}
-{{- range $id, $p := .Values.rumApi.sampling -}}
-{{- $s := dict -}}
-{{- if hasKey $p "sessionRate" -}}{{- $_ := set $s "session_rate" ($p.sessionRate | float64) -}}{{- end -}}
-{{- if hasKey $p "replayRate" -}}{{- $_ := set $s "replay_rate" ($p.replayRate | float64) -}}{{- end -}}
-{{- if hasKey $p "replayOnErrorRate" -}}{{- $_ := set $s "replay_on_error_rate" ($p.replayOnErrorRate | float64) -}}{{- end -}}
-{{- $_ := set $projects $id (merge (dict "sampling" $s) (get $projects $id | default dict)) -}}
-{{- end -}}
-{{- if $projects -}}
-{{- $_ := set $cfg "projects" $projects -}}
-{{- end -}}
-{{- toYaml (mergeOverwrite $cfg (deepCopy .Values.rumApi.structuredConfig)) -}}
-{{- end -}}
-
-{{/* Browser-facing Grafana URL for rum-api deep links */}}
-{{- define "ouo.grafanaPublicUrl" -}}
-{{- if .Values.rumApi.config.grafanaUrl -}}{{ .Values.rumApi.config.grafanaUrl | trimSuffix "/" }}
-{{- else if .Values.grafana.rootUrl -}}{{ .Values.grafana.rootUrl | trimSuffix "/" }}
-{{- else if .Values.grafana.ingress.enabled -}}{{ ternary "https" "http" .Values.grafana.ingress.tls.enabled }}://{{ .Values.grafana.ingress.host }}
-{{- else -}}http://localhost:3000
-{{- end -}}
 {{- end -}}
 
 {{/*
@@ -235,29 +145,17 @@ Validation: a project must be configured (ADR-0007: there is no auth-off mode).
 {{- fail "ouo: every entry of projects needs a non-empty id and token" -}}
 {{- end -}}
 {{- if not (regexMatch "^[a-z0-9][a-z0-9._-]{0,63}$" (toString .id)) -}}
-{{- fail (printf "ouo: project id %q must match ^[a-z0-9][a-z0-9._-]{0,63}$ (rum-api and the replay receiver reject other ids; ':' would break htpasswd)" (toString .id)) -}}
+{{- fail (printf "ouo: project id %q must match ^[a-z0-9][a-z0-9._-]{0,63}$ (Muninn and Loki labels use it; ':' would break htpasswd)" (toString .id)) -}}
 {{- end -}}
 {{- end -}}
 {{- if and .Values.grafana.enabled (not .Values.grafana.adminPassword) (not .Values.grafana.existingSecret) -}}
 {{- fail "ouo: set grafana.adminPassword or grafana.existingSecret" -}}
 {{- end -}}
-{{- if not (has .Values.rumApi.storage.backend (list "filesystem" "s3")) -}}
-{{- fail (printf "ouo: rumApi.storage.backend must be filesystem or s3, got %q" .Values.rumApi.storage.backend) -}}
+{{- if and .Values.collector.enabled (not .Values.muninn.endpoint) -}}
+{{- fail "ouo: set muninn.endpoint (the Muninn base URL the collector sends replay chunks to, ADR-0019); this chart does not deploy Muninn" -}}
 {{- end -}}
-{{- if and (eq .Values.rumApi.storage.backend "s3") (not .Values.rumApi.storage.s3.bucket) -}}
-{{- fail "ouo: rumApi.storage.s3.bucket is required with rumApi.storage.backend s3 (rum-api never creates the bucket)" -}}
-{{- end -}}
-{{- /* lgtm.external.tenantId / lokiDeleteUrl render loki.tenant_id, tempo.tenant_id and loki.delete_url into
-rum-api's config; rum-api 0.6.0 and older reject unknown keys and would crashloop (and with it the replay sink).
-Only a plain release tag is compared: digests, main / sha builds pass. */ -}}
-{{- if and (eq .Values.lgtm.mode "external") (or .Values.lgtm.external.tenantId .Values.lgtm.external.lokiDeleteUrl) -}}
-{{- $tag := toString .Values.rumApi.image.tag -}}
-{{- if and (regexMatch "^v?[0-9]+\\.[0-9]+\\.[0-9]+$" $tag) (semverCompare "<=0.6.0" $tag) -}}
-{{- fail (printf "ouo: lgtm.external.tenantId and lgtm.external.lokiDeleteUrl need rum-api newer than 0.6.0 (rumApi.image.tag is %q; 0.6.0 rejects the loki.tenant_id / tempo.tenant_id / loki.delete_url config keys and would not start). Use a newer rum-api image or leave both empty (docs/operations/existing-lgtm.md, section 6)" $tag) -}}
-{{- end -}}
-{{- end -}}
-{{- if and .Values.rumApi.storage.s3.existingSecret (or .Values.rumApi.storage.s3.accessKeyId .Values.rumApi.storage.s3.secretAccessKey) -}}
-{{- fail "ouo: set rumApi.storage.s3.existingSecret or accessKeyId/secretAccessKey, not both" -}}
+{{- if and .Values.collector.enabled (not .Values.muninn.ingestToken) (not .Values.muninn.existingSecret) -}}
+{{- fail "ouo: set muninn.ingestToken (Muninn's auth.ingest_token) or muninn.existingSecret" -}}
 {{- end -}}
 {{- range $id, $p := .Values.retention.projects -}}
 {{- if not (regexMatch "^[a-z0-9][a-z0-9._-]{0,63}$" (toString $id)) -}}

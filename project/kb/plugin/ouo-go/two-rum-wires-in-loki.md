@@ -1,5 +1,7 @@
 # Two RUM wires in one Loki
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 Learned 2026-11-14 porting rum-api's funnels to `libs/ouo-go` (agent [plugin-bff](../../../agents/plugin-bff/index.md)) and checking both against `examples/ouo-web` on a live env.
 
 Since `@ouo11y/browser` 0.4.0 (ADR-0020, the client SDK spec) the web SDK writes a different wire from the mobile SDKs and from the MVP web SDK. Both arrive in the same Loki, often for the same project, so a reader of ours must accept both. rum-api was written for the old one only and nobody noticed, because its tests use MVP-shaped fixtures.

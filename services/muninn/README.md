@@ -29,7 +29,7 @@ Storage layout under `[<prefix>/]muninn/`: `<tenant>/<project>/<session>/<replay
 go run . -config.file=config.example.yaml -config.expand-env=true
 ```
 
-Every key and its default is in [config.example.yaml](config.example.yaml). In the local stack it runs from `deploy/compose/compose.muninn.yaml` on MinIO, next to a Collector on `deploy/compose/collector/config.muninn.yaml`:
+Every key and its default is in [config.example.yaml](config.example.yaml). In the local stack it runs from `deploy/compose/compose.yaml` on MinIO, next to a Collector on `deploy/compose/collector/config.muninn.yaml`:
 
 ```bash
 deploy/envs/ouo-env up <env> --muninn

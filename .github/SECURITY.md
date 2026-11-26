@@ -22,10 +22,9 @@ ship as a patch release of that line.
 | Browser SDK | `@ouo11y/browser` | newest 0.x minor |
 | React Native SDK | `@ouo11y/react-native` | newest 0.x minor |
 | iOS SDK | `ouo11y/ouo11y-ios` (SwiftPM) | newest 0.x minor |
-| Grafana app plugin | `ouo11y-rum-app` | newest 0.x minor |
 | Collector image | `ghcr.io/ouo11y/collector` | newest 0.x minor |
-| rum-api image | `ghcr.io/ouo11y/rum-api` | newest 0.x minor |
-| Grafana image | `ghcr.io/ouo11y/grafana` | newest 0.x minor |
+| Muninn image | `ghcr.io/ouo11y/muninn` | newest 0.x minor |
+| Kit library | `@ouo11y/kit` | newest 0.x minor |
 | Helm chart | `oci://ghcr.io/ouo11y/charts/ouo` | newest 0.x minor |
 
 Which versions work together: [`docs/compatibility.md`](../docs/compatibility.md).

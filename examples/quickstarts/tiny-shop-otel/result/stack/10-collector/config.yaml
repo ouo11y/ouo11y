@@ -1,6 +1,6 @@
 # ouo-collector pipelines, a trimmed copy of the full stack's config (no Sentry bridge, no
-# rate limits). Receivers: OTLP/HTTP on 4318 and replay chunks on 4319, both behind the
-# project credential in projects.htpasswd. Exporters: Tempo, Loki, Mimir and rum-api.
+# rate limits, no replay store). Receiver: OTLP/HTTP on 4318, behind the project credential in
+# projects.htpasswd. Exporters: Tempo, Loki and Mimir.
 
 extensions:
   health_check:
@@ -20,15 +20,6 @@ receivers:
         cors:                        # the browser app runs on another origin
           allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
           allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
-  ouoreplay:
-    endpoint: 0.0.0.0:4319
-    include_metadata: true
-    max_request_body_size: 8388608
-    auth:
-      authenticator: basicauth/server
-    cors:
-      allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
-      allowed_headers: [Authorization, Content-Type, Content-Encoding, X-Ouo-Session-Id, X-Ouo-Seq]
 
 processors:
   # Stamp the authenticated project id on every resource (and drop any value the client sent).
@@ -59,9 +50,6 @@ exporters:
   otlp_http/mimir:
     endpoint: http://mimir:9009/otlp
     tls: { insecure: true }
-  ouoreplay:
-    endpoint: http://rum-api:8080
-    ingest_token: ${env:OUO_INGEST_TOKEN}
 
 service:
   extensions: [health_check, basicauth/server]
@@ -78,6 +66,3 @@ service:
       receivers: [otlp]
       processors: [resource/project, batch]
       exporters: [otlp_http/mimir]
-    logs/replay:
-      receivers: [ouoreplay]
-      exporters: [ouoreplay]

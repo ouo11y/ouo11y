@@ -1,5 +1,7 @@
 # Roadmap tracker (post-MVP)
 
+> rum-api, the MVP Grafana plugin (`ouo11y-rum-app`) and the MVP replay path (`ouoreplay` receiver/exporter, :4319) were removed on 2026-11-15 (refactor!: remove rum-api, the MVP plugin and the MVP replay path). Text below that names them is the record of that time.
+
 Phases from the post-MVP roadmap of 2026-10-10 (moved with the rest of the business material to the private `ouo11y/company` repo on 2026-10-18, ADR-0009); this tracker is the engineering copy of the phase scope. One stacked pull request per phase, as for the MVP. Week numbers assume one full-time engineer with agents, counted from the start of Phase 8. Sequencing decisions were taken in the 2026-10-10 founder interview recorded in the roadmap document; do not reorder without a new decision there.
 
 | Phase | Proposed branch | PR | Weeks | Status | Owner agents (proposed) |

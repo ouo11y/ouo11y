@@ -9,28 +9,22 @@ export const GRAFANA_PASSWORD = "testing567"; // every env, founder 2026-10-17
 // Services reachable through the proxy: <name>.<env host> -> container:port.
 export const ROUTES = [
   { name: "grafana", service: "grafana", port: 3000 },
-  { name: "rum-api", service: "rum-api", port: 8080 },
   { name: "otlp", service: "otel-collector", port: 4318 },
-  { name: "replay", service: "otel-collector", port: 4319 },
   { name: "sentry-bridge", service: "otel-collector", port: 4320 }, // the ouosentry receiver
   { name: "collector", service: "otel-collector", port: 13133 },
   { name: "backend", service: "backend", port: 8081 },
   { name: "loki", service: "loki", port: 3100 },
   { name: "tempo", service: "tempo", port: 3200 },
   { name: "mimir", service: "mimir", port: 9009 },
+  // Muninn (ADR-0019): the replay store, internal, routed for the laptop only.
+  { name: "muninn", service: "muninn", port: 3400 },
 ];
 
-// With --muninn (deploy/compose/compose.muninn.yaml, ADR-0019): the replay store, internal
-// like rum-api, routed for the laptop only.
-export const MUNINN_ROUTES = [{ name: "muninn", service: "muninn", port: 3400 }];
-// Services of compose.muninn.yaml whose loopback host ports would collide between envs.
-export const MUNINN_UNPUBLISHED = ["muninn", "minio"];
-
 // Host ports published on every interface, for SDKs on a simulator or a phone (which
-// cannot use the proxy: a physical device does not resolve *.localhost).
+// cannot use the proxy: a physical device does not resolve *.localhost). Offset 1 was the
+// removed replay receiver (4319); it stays free so existing envs keep their ports.
 export const INGEST = [
   { name: "otlp", service: "otel-collector", port: 4318, offset: 0 },
-  { name: "replay", service: "otel-collector", port: 4319, offset: 1 },
   { name: "sentry", service: "otel-collector", port: 4320, offset: 2 },
   { name: "backend", service: "backend", port: 8081, offset: 3 },
 ];
@@ -103,7 +97,8 @@ export function renderProxyDynamic(external = EXTERNAL, certNames = TLS_NAMES) {
 }
 
 // Services whose base-file host ports are dropped (UIs and APIs go through the proxy).
-export const UNPUBLISHED = ["grafana", "loki", "tempo", "mimir", "rum-api"];
+// MinIO's and Muninn's loopback host ports would collide between envs.
+export const UNPUBLISHED = ["grafana", "loki", "tempo", "mimir", "muninn", "minio"];
 
 const NAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
@@ -140,7 +135,7 @@ export function urlOf(env, name) {
 // work; its backend is 8082 because 8081 is Metro's default (the Expo dev server).
 // Every other env gets block n >= 1: 20000 + 10n + offset (sbx is always block 1).
 export function portsOf(block) {
-  if (block === 0) return { otlp: 4318, replay: 4319, sentry: 4320, backend: 8082 };
+  if (block === 0) return { otlp: 4318, sentry: 4320, backend: 8082 };
   const base = 20000 + 10 * block;
   return Object.fromEntries(INGEST.map((p) => [p.name, base + p.offset]));
 }
@@ -231,17 +226,15 @@ export function renderOverlay(s) {
   ];
   const services = {};
   const add = (svc, lines) => (services[svc] ??= []).push(...lines);
-  const muninn = Boolean(s.muninn);
-  const extraSvcs = muninn ? ["muninn", "minio", "muninn-init"] : [];
-  for (const svc of ["grafana", "loki", "tempo", "mimir", "rum-api", "otel-collector", "backend", ...extraSvcs]) {
+  for (const svc of ["grafana", "loki", "tempo", "mimir", "otel-collector", "backend", "muninn", "minio", "muninn-init"]) {
     add(svc, ["    labels:", ...labels.map((l) => `      - ${q(l)}`)]);
   }
   const bySvc = {};
-  for (const r of muninn ? [...ROUTES, ...MUNINN_ROUTES] : ROUTES) (bySvc[r.service] ??= []).push(r);
+  for (const r of ROUTES) (bySvc[r.service] ??= []).push(r);
   for (const [svc, routes] of Object.entries(bySvc)) {
     // Traefik joins each env's own default network (ouo-env connects it); env services never
     // join a shared network, where compose would alias them by their bare service name
-    // (`loki`, `tempo`, ...) and two envs' collectors and rum-apis would resolve each other.
+    // (`loki`, `tempo`, ...) and two envs' collectors and Muninns would resolve each other.
     const tl = ["traefik.enable=true", `traefik.docker.network=${proj}_default`];
     for (const r of routes) {
       const id = `${proj}-${r.name}`;
@@ -256,7 +249,7 @@ export function renderOverlay(s) {
     }
     add(svc, tl.map((l) => `      - ${q(l)}`));
   }
-  for (const svc of [...UNPUBLISHED, ...(muninn ? MUNINN_UNPUBLISHED : [])]) add(svc, ["    ports: !reset []"]);
+  for (const svc of UNPUBLISHED) add(svc, ["    ports: !reset []"]);
   for (const svc of ["otel-collector", "backend"]) {
     const pub = INGEST.filter((p) => p.service === svc).map((p) => `      - ${q(`${ports[p.name]}:${p.port}`)}`);
     add(svc, ["    ports: !override", ...pub]);
@@ -265,13 +258,6 @@ export function renderOverlay(s) {
     "    environment:",
     `      GF_SERVER_ROOT_URL: ${q(`${urlOf(s.env, "grafana")}/`)}`,
     `      GF_SECURITY_ADMIN_PASSWORD: ${q(GRAFANA_PASSWORD)}`,
-  ]);
-  add("rum-api", [
-    "    environment:",
-    `      GRAFANA_URL: ${q(urlOf(s.env, "grafana"))}`,
-    "    volumes: !override",
-    `      - ${q(`${s.src}/deploy/compose/rum-api/config.yaml:/etc/rum-api/config.yaml:ro`)}`,
-    "      - rum-api-data:/data",
   ]);
   add("otel-collector", [
     "    environment:",
@@ -282,7 +268,7 @@ export function renderOverlay(s) {
     "services:",
   ];
   for (const [svc, lines] of Object.entries(services)) out.push(`  ${svc}:`, ...lines);
-  out.push("volumes:", "  rum-api-data: {}", "");
+  out.push("");
   return out.join("\n");
 }
 
@@ -290,15 +276,14 @@ export function renderOverlay(s) {
 export const envNetwork = (env) => `${project(env)}_default`;
 
 // Shell exports that point deploy/scripts/{wait-ready,smoke,e2e}.sh at an env.
-export function exportsOf(env, block, muninn = false) {
+export function exportsOf(env, block) {
   const p = portsOf(block);
   const u = (n) => urlOf(env, n);
   return [
-    ...(muninn ? [["OUO_MUNINN_URL", u("muninn")], ["OUO_COMPOSE_PROJECT", project(env)]] : []),
+    ["OUO_MUNINN_URL", u("muninn")],
+    ["OUO_COMPOSE_PROJECT", project(env)],
     ["OUO_GRAFANA_URL", u("grafana")],
-    ["OUO_RUM_API_URL", u("rum-api")],
     ["OUO_OTLP_URL", `http://localhost:${p.otlp}`],
-    ["OUO_REPLAY_URL", `http://localhost:${p.replay}`],
     ["OUO_LOKI_URL", u("loki")],
     ["OUO_TEMPO_URL", u("tempo")],
     ["OUO_MIMIR_URL", u("mimir")],
@@ -314,7 +299,7 @@ export function parseArgs(argv) {
     if (a.startsWith("--")) {
       const [k, v] = a.slice(2).split("=", 2);
       if (v !== undefined) out.flags[k] = v;
-      else if (["ref", "src", "branch", "session", "copy-from", "copy-rum-api-data"].includes(k)) out.flags[k] = argv[++i];
+      else if (["ref", "src", "branch", "session", "copy-from"].includes(k)) out.flags[k] = argv[++i];
       else out.flags[k] = true;
     } else out._.push(a);
   }

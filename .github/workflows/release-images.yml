@@ -2,15 +2,12 @@
 # creates a GitHub release for the tag. Policy: docs/releasing.md;
 # mechanics and quirks: project/kb-archive/release-packaging.md.
 #
-#   rum-api-v0.2.0         -> ghcr.io/ouo11y/rum-api:0.2.0 (+ 0.2, latest)
 #   collector-v0.2.0       -> ghcr.io/ouo11y/collector:0.2.0 (+ 0.2, latest)
-#                             ouo-collector, the ocb distribution in collector/ (otlp,
-#                             ouoreplay and ouosentry receivers); the tag must equal
+#                             ouo-collector, the ocb distribution in collector/ (otlp
+#                             and ouosentry receivers); the tag must equal
 #                             dist.version in collector/builder.yaml
 #   muninn-v0.1.0          -> ghcr.io/ouo11y/muninn:0.1.0 (+ 0.1, latest)
 #                             the replay store (ADR-0019), services/muninn
-#   grafana-v0.2.0         -> ghcr.io/ouo11y/grafana:0.2.0 (+ 0.2, latest)
-#                             Grafana with plugins/ouo11y-rum-app baked in
 #   <image>-v0.2.0-rc.1    -> :0.2.0-rc.1 only, GitHub release marked pre-release
 #   :latest moves only to the newest final version of the image (a patch to an older line
 #   gets :X.Y.Z and :X.Y only)
@@ -24,7 +21,7 @@
 # release notes into the run summary, and pushes / releases nothing.
 #
 # No extra secret: GITHUB_TOKEN with packages: write is enough. The first push creates the
-# package as private (muninn's included: the founder makes it public); collector, rum-api and grafana are public since 2026-10-31 (docs/releasing.md,
+# package as private (muninn's included: the founder makes it public); collector is public since 2026-10-31 (docs/releasing.md,
 # "Pull access"), and a new image package stays private until the founder makes it public.
 # The ci.yml `images` job builds the same Dockerfiles on every PR that touches them and fails
 # on fixable critical CVEs (Trivy).
@@ -33,14 +30,12 @@ name: release-images
 on:
   push:
     tags:
-      - 'rum-api-v*'
-      - 'grafana-v*'
       - 'collector-v*'
       - 'muninn-v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to rehearse, e.g. rum-api-v0.2.0-rc.1 (dry run: builds, pushes nothing)'
+        description: 'Tag to rehearse, e.g. muninn-v0.3.0-rc.1 (dry run: builds, pushes nothing)'
         required: true
         type: string
 
@@ -74,13 +69,6 @@ jobs:
         id: target
         run: |
           case "$TAG" in
-            rum-api-v*)
-              image=rum-api
-              context=services/rum-api
-              dockerfile=services/rum-api/Dockerfile
-              changelog=services/rum-api/CHANGELOG.md
-              paths="services/rum-api"
-              ;;
             muninn-v*)
               image=muninn
               context=services/muninn
@@ -94,13 +82,6 @@ jobs:
               dockerfile=collector/Dockerfile
               changelog=collector/CHANGELOG.md
               paths="collector"
-              ;;
-            grafana-v*)
-              image=grafana
-              context=.
-              dockerfile=deploy/images/grafana/Dockerfile
-              changelog=deploy/images/grafana/CHANGELOG.md
-              paths="deploy/images/grafana plugins/ouo11y-rum-app"
               ;;
             *) echo "::error::unexpected tag $TAG"; exit 1 ;;
           esac
@@ -122,17 +103,9 @@ jobs:
               exit 1
             fi
           fi
-          if [ "$image" = grafana ]; then
-            # release-please bumps version.txt in the grafana release PR; rcs are cut by hand from it.
-            built=$(cat deploy/images/grafana/version.txt)
-            if [ "$built" != "${version%%-*}" ]; then
-              echo "::error::$TAG says $version but deploy/images/grafana/version.txt is $built"
-              exit 1
-            fi
-          fi
           prerelease=false
           case "$version" in *-*) prerelease=true ;; esac
-          # :latest is the newest final release, never a patch to an older line (rum-api 0.4.1
+          # :latest is the newest final release, never a patch to an older line (0.4.1
           # after 0.5.0 keeps :latest on 0.5.0). deploy/compose/quickstart.yaml defaults to it.
           newest=$({ git tag -l "$prefix*"; echo "$TAG"; } | sed -n "s/^$prefix\([0-9]*\.[0-9]*\.[0-9]*\)\$/\1/p" \
             | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
@@ -149,23 +122,6 @@ jobs:
             echo "prerelease=$prerelease"
             echo "latest=$latest"
           } >> "$GITHUB_OUTPUT"
-
-      # The grafana image copies the built plugin; build and test it first.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        if: steps.target.outputs.image == 'grafana'
-        with:
-          node-version: 24
-          cache: npm
-      - name: Build the Grafana plugin
-        id: plugin
-        if: steps.target.outputs.image == 'grafana'
-        run: |
-          npm ci
-          npm run build -w plugins/ouo11y-rum-app
-          npm run test -w plugins/ouo11y-rum-app
-          test -f plugins/ouo11y-rum-app/dist/plugin.json
-          echo "version=$(node -p "require('./plugins/ouo11y-rum-app/dist/plugin.json').info.version")" >> "$GITHUB_OUTPUT"
-          echo "base=$(awk '/^FROM /{print $2; exit}' deploy/images/grafana/Dockerfile)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
         if: runner.os == 'Linux'
@@ -190,12 +146,11 @@ jobs:
           labels: |
             org.opencontainers.image.title=ouo ${{ steps.target.outputs.image }}
             org.opencontainers.image.version=${{ steps.target.outputs.version }}
-            org.opencontainers.image.licenses=${{ (steps.target.outputs.image == 'rum-api' || steps.target.outputs.image == 'muninn') && 'AGPL-3.0-only' || 'Apache-2.0' }}
-            ${{ steps.plugin.outputs.version && format('io.ouo.plugin.version={0}', steps.plugin.outputs.version) || '' }}
+            org.opencontainers.image.licenses=${{ steps.target.outputs.image == 'muninn' && 'AGPL-3.0-only' || 'Apache-2.0' }}
           annotations: |
             org.opencontainers.image.title=ouo ${{ steps.target.outputs.image }}
             org.opencontainers.image.version=${{ steps.target.outputs.version }}
-            org.opencontainers.image.licenses=${{ (steps.target.outputs.image == 'rum-api' || steps.target.outputs.image == 'muninn') && 'AGPL-3.0-only' || 'Apache-2.0' }}
+            org.opencontainers.image.licenses=${{ steps.target.outputs.image == 'muninn' && 'AGPL-3.0-only' || 'Apache-2.0' }}
 
       - name: Build and push (linux/amd64, linux/arm64)
         id: build
@@ -225,8 +180,6 @@ jobs:
           CHANGELOG: ${{ steps.target.outputs.changelog }}
           PATHS: ${{ steps.target.outputs.paths }}
           DIGEST: ${{ steps.build.outputs.digest }}
-          PLUGIN_VERSION: ${{ steps.plugin.outputs.version }}
-          GRAFANA_BASE: ${{ steps.plugin.outputs.base }}
         run: |
           ref="$REGISTRY_IMAGE_PREFIX/$IMAGE"
           # Previous tag of the same image (rc sorts before its final: versionsort.suffix).
@@ -248,10 +201,6 @@ jobs:
             echo '```'
             echo
             if [ -n "$DIGEST" ]; then echo "Digest: \`$DIGEST\`"; echo; fi
-            if [ "$IMAGE" = grafana ]; then
-              echo "Base \`$GRAFANA_BASE\` with the \`ouo11y-rum-app\` plugin $PLUGIN_VERSION (unsigned, loaded via \`GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS\`)."
-              echo
-            fi
             echo "SBOM and provenance attestations: \`docker buildx imagetools inspect $ref:$VERSION --format '{{ json .Provenance }}'\`."
             echo
             echo "## Changes"

@@ -1,14 +1,13 @@
 # Caddy reverse proxy for the ouo VM install (deploy/vm/compose.tls.yaml).
 #
 # Two hostnames, both pointing at this VM (ADR-0007 section 7):
-#   OUO_DOMAIN       -> grafana:3000          UI and the ouo plugin; the read token stays server side
-#   OUO_OTEL_DOMAIN  -> otel-collector:4319   /v1/replay/*  (replay chunks)
-#                    -> otel-collector:4320   /api/*        (Sentry SDK envelopes, the bridge, ADR-0008:
+#   OUO_DOMAIN       -> grafana:3000          UI
+#   OUO_OTEL_DOMAIN  -> otel-collector:4320   /api/*        (Sentry SDK envelopes, the bridge, ADR-0008:
 #                                                            DSN https://<key>@OUO_OTEL_DOMAIN/<project>)
-#                    -> otel-collector:4318   everything else (OTLP/HTTP: /v1/traces, /v1/logs, /v1/metrics)
+#                    -> otel-collector:4318   everything else (OTLP/HTTP: /v1/traces, /v1/logs incl. replay, /v1/metrics)
 # The collector checks `Authorization: Basic <project id>:<project token>` itself, answers
 # the browser preflights (CORS) itself and stamps ouo.project.id; Caddy only terminates
-# TLS. rum-api, Loki, Tempo and Mimir have no hostname: they are internal.
+# TLS. Muninn, MinIO, Loki, Tempo and Mimir have no hostname: they are internal.
 #
 # OUO_TLS selects the certificate source for both sites:
 #   OUO_TLS=you@example.com   ACME (Let's Encrypt / ZeroSSL) with that account email.
@@ -33,13 +32,9 @@
 
 {$OUO_OTEL_DOMAIN} {
 	tls {$OUO_TLS:internal}
-	# OTLP bodies are protobuf and replay chunks arrive gzip'ed already. No encode.
+	# OTLP bodies are protobuf, often gzip'ed already. No encode.
 	# reverse_proxy appends the client IP to X-Forwarded-For; the collector's TCP peer is
 	# Caddy, so a per-client-address rate limit must read that header (collector concern).
-	@replay path /v1/replay/*
-	handle @replay {
-		reverse_proxy otel-collector:4319
-	}
 	# Sentry SDKs post to /api/<project>/envelope/ (and /api/<project>/store/ on old SDKs).
 	@sentry path /api/*
 	handle @sentry {

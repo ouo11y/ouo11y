@@ -12,13 +12,12 @@
 # What it does, in order:
 #   1. checks Docker + the compose plugin (installs them with apt on Ubuntu/Debian unless --no-install-docker)
 #   2. clones the repo into --dir (default /opt/ouo) or fetches and checks out --ref in an existing clone
-#   3. writes deploy/compose/.env with random tokens (openssl rand -hex 16, prefixed pt_ / it_ / rt_)
-#      and a random Grafana admin password, and deploy/compose/projects.htpasswd with the
+#   3. writes deploy/compose/.env with random tokens (openssl rand -hex 16, prefixed pt_ / mit_ /
+#      mrt_ / mat_), random MinIO and Grafana admin passwords, and deploy/compose/projects.htpasswd with the
 #      project's `{SHA}` line (ADR-0007: the collector authenticates SDKs with HTTP Basic);
 #      existing values are never overwritten
-#   4. builds the Grafana plugin inside a node:24 container (no Node on the host), the ouo
-#      collector distribution (ocb, from collector/), rum-api and the demo backend; with
-#      --images it pulls the released ghcr.io/ouo11y/{collector,rum-api,grafana} images
+#   4. builds the ouo collector distribution (ocb, from collector/), Muninn and the demo
+#      backend; with --images it pulls the released ghcr.io/ouo11y/{collector,muninn} images
 #      instead and builds only the demo backend
 #   5. starts the stack with the TLS override, installs and enables the systemd unit
 #   6. waits for readiness and prints the URLs, the Grafana login and the PUBLIC project credential
@@ -46,7 +45,6 @@
 #   --repo <url>           git remote (default https://github.com/ouo11y/ouo11y.git)
 #   --dir <path>           install directory (default /opt/ouo)
 #   --no-install-docker    fail instead of apt-installing Docker when it is missing
-#   --skip-plugin          do not (re)build the Grafana plugin
 #   --no-systemd           do not install the systemd unit
 #   --no-wait              do not wait for readiness
 set -euo pipefail
@@ -55,7 +53,7 @@ REPO="https://github.com/ouo11y/ouo11y.git"
 REF=""
 DIR="/opt/ouo"
 DOMAIN="" OTEL_DOMAIN="" EMAIL="" PROJECT=""
-TLS_INTERNAL=0 INSTALL_DOCKER=1 BUILD_PLUGIN=1 SYSTEMD=1 WAIT=1
+TLS_INTERNAL=0 INSTALL_DOCKER=1 SYSTEMD=1 WAIT=1
 MODE="" IMAGE_VERSION="" REGISTRY="" ORIGINS="" RETENTION=""
 ARGS=("$@")
 
@@ -70,7 +68,6 @@ while [[ $# -gt 0 ]]; do
     --repo) REPO="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --no-install-docker) INSTALL_DOCKER=0; shift ;;
-    --skip-plugin) BUILD_PLUGIN=0; shift ;;
     --no-systemd) SYSTEMD=0; shift ;;
     --no-wait) WAIT=0; shift ;;
     --images) MODE=images; shift ;;
@@ -195,8 +192,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
   cat > "$ENV_FILE" <<'HDR'
 # Written by deploy/vm/install.sh. Read by docker compose (deploy/compose/compose.yaml +
 # deploy/vm/compose.tls.yaml) and by deploy/scripts/*.sh. Keep this file private:
-# OUO_INGEST_TOKEN, OUO_READ_TOKEN, OUO_ADMIN_TOKEN and OUO_GRAFANA_ADMIN_PASSWORD are
-# secrets. OUO_RETENTION_* is the retention per signal (docs/operations/data-lifecycle.md).
+# OUO_MUNINN_*_TOKEN, OUO_MINIO_ROOT_PASSWORD, OUO_MUNINN_S3_SECRET_KEY and
+# OUO_GRAFANA_ADMIN_PASSWORD are secrets. OUO_RETENTION_* is the retention per signal (docs/operations/data-lifecycle.md).
 # OUO_PROJECT_ID / OUO_PROJECT_TOKEN are the PUBLIC credential SDKs send (HTTP Basic);
 # the collector checks them against deploy/compose/projects.htpasswd. To rotate (cut-over,
 # one line per project id is honoured): replace the project's line, `systemctl restart ouo`,
@@ -216,10 +213,13 @@ else set_env OUO_TLS internal keep; fi
 [[ -n "$PROJECT" ]] && set_env OUO_PROJECT_ID "$PROJECT"
 set_env OUO_PROJECT_ID "default" keep
 set_env OUO_PROJECT_TOKEN "pt_$(openssl rand -hex 16)" keep
-set_env OUO_INGEST_TOKEN "it_$(openssl rand -hex 16)" keep
-set_env OUO_READ_TOKEN "rt_$(openssl rand -hex 16)" keep
-# Operator bearer of rum-api's /v1/admin/* (delete by user / project, audit log).
-set_env OUO_ADMIN_TOKEN "at_$(openssl rand -hex 16)" keep
+# Muninn's bearers: ingest (the collector's exporter), read, and admin (`ouo-erase`).
+set_env OUO_MUNINN_INGEST_TOKEN "mit_$(openssl rand -hex 16)" keep
+set_env OUO_MUNINN_READ_TOKEN "mrt_$(openssl rand -hex 16)" keep
+set_env OUO_MUNINN_ADMIN_TOKEN "mat_$(openssl rand -hex 16)" keep
+# MinIO (Muninn's object store): root password and the bucket-scoped key of Muninn's user.
+set_env OUO_MINIO_ROOT_PASSWORD "$(openssl rand -hex 16)" keep
+set_env OUO_MUNINN_S3_SECRET_KEY "$(openssl rand -hex 16)" keep
 # Retention per signal (roadmap 8b): --retention overrides, otherwise kept or defaulted.
 if [[ -n "$RETENTION" ]]; then
   for p in "${pairs[@]}"; do
@@ -240,13 +240,13 @@ if [[ "$FIRST_RUN" == "1" ]]; then set_env OUO_SENTRY_PUBLIC_KEY "$(openssl rand
 set_env OUO_INSTALL_MODE build keep
 MODE="$(get_env OUO_INSTALL_MODE)"
 if [[ "$MODE" == "images" ]]; then
-  [[ -n "$IMAGE_VERSION" ]] && for c in RUM_API COLLECTOR GRAFANA; do set_env "OUO_${c}_VERSION" "$IMAGE_VERSION"; done
+  [[ -n "$IMAGE_VERSION" ]] && for c in COLLECTOR MUNINN; do set_env "OUO_${c}_VERSION" "$IMAGE_VERSION"; done
   [[ -n "$REGISTRY" ]] && set_env OUO_IMAGE_REGISTRY "$REGISTRY"
 fi
 PROJECT_ID="$(get_env OUO_PROJECT_ID)"
 PT="$(get_env OUO_PROJECT_TOKEN)"
 BASIC="$(basic_b64 "$PROJECT_ID" "$PT")"
-# The demo backend and rum-api send their own telemetry through the collector with this
+# The demo backend and Muninn send their own telemetry through the collector with this
 # project's credential (`%20` is the OTLP env-var encoding of the space).
 set_env OUO_BACKEND_OTLP_HEADERS "Authorization=Basic%20$BASIC"
 echo "tls: $(get_env OUO_TLS)   grafana: https://$DOMAIN   collector: https://$OTEL_DOMAIN   project: $PROJECT_ID"
@@ -276,7 +276,7 @@ if [[ "$MODE" == "images" ]]; then
   # Pull only what is not on the host yet (compose.images.yaml has pull_policy: missing), so
   # images loaded with `docker load` (air-gapped hosts) need no registry login.
   missing=()
-  for img in $("${COMPOSE[@]}" config --images 2>/dev/null | grep -E '/(collector|rum-api|grafana):'); do
+  for img in $("${COMPOSE[@]}" config --images 2>/dev/null | grep -E '/(collector|muninn):'); do
     docker image inspect "$img" >/dev/null 2>&1 || missing+=("$img")
   done
   log "released images: ${#missing[@]} to pull ${missing[*]:-(all present)}"
@@ -295,23 +295,13 @@ No route to ghcr.io (offline VM): docker save the images on a machine that has t
   rm -f "$DIR/.pull.err"
   log "building the demo backend (the only service not released as an image)"
   "${COMPOSE[@]}" build --quiet backend
-elif [[ "$BUILD_PLUGIN" == "1" ]]; then
-  log "building the Grafana plugin in a node:24 container (plugins/ouo11y-rum-app/dist)"
-  docker run --rm -v "$DIR:/src" -w /src node:24 \
-    sh -c 'npm ci --no-audit --no-fund --loglevel=error && npm run -w plugins/ouo11y-rum-app build'
-  chmod -R a+rX plugins/ouo11y-rum-app/dist
 fi
 if [[ "$MODE" != "images" ]]; then
-  log "building the ouo collector distribution (ocb), rum-api and the demo backend"
+  log "building the ouo collector distribution (ocb), Muninn and the demo backend"
   "${COMPOSE[@]}" build --quiet
 fi
 
 # --- 5. start + systemd ------------------------------------------------------------------
-# rum-api runs as distroless `nonroot` (65532) and writes replays to this bind mount. Docker
-# creates a missing bind-mount source as root:root 755, so rum-api would exit with
-# `mkdir /data/replays: permission denied` (Docker Desktop on a Mac hides this).
-mkdir -p deploy/data/rum-api
-chown -R 65532:65532 deploy/data/rum-api
 log "starting the stack"
 "${COMPOSE[@]}" up -d --remove-orphans
 if [[ "$SYSTEMD" == "1" ]] && need systemctl; then
@@ -344,8 +334,7 @@ cat <<SUMMARY
 ouo is up.
 
   Grafana        https://$DOMAIN            login admin / $(get_env OUO_GRAFANA_ADMIN_PASSWORD)
-  Plugin         https://$DOMAIN/a/ouo11y-rum-app/overview
-  Collector      https://$OTEL_DOMAIN       OTLP/HTTP (/v1/traces, /v1/logs, /v1/metrics) and replay (/v1/replay/chunks)
+  Collector      https://$OTEL_DOMAIN       OTLP/HTTP (/v1/traces, /v1/logs incl. replay, /v1/metrics)
   Sentry DSN     https://$(get_env OUO_SENTRY_PUBLIC_KEY || echo publickey0000000000000000000000)@$OTEL_DOMAIN/$SENTRY_PROJECT   (Sentry SDK bridge, ADR-0008; upstream: ${SENTRY_UPSTREAM})
   Project id     $PROJECT_ID
   Project token  $PT        (public: it goes into your SDK config)
@@ -354,7 +343,7 @@ ouo is up.
   Browser SDK:  initRUM({ endpoint: "https://$OTEL_DOMAIN", projectId: "$PROJECT_ID", projectToken: "$PT", service: { name: "my-app", version: "1.0.0", environment: "production" } })
   Any OTel SDK: OTEL_EXPORTER_OTLP_ENDPOINT=https://$OTEL_DOMAIN OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20$BASIC
 
-  Secrets stay in $ENV_FILE (ingest token, read token, Grafana password). Firewall: allow 22, 80, 443 only.
+  Secrets stay in $ENV_FILE (Muninn tokens, MinIO and Grafana passwords). Firewall: allow 22, 80, 443 only.
   Another project:  echo "<id>:{SHA}\$(printf '%s' '<token>' | openssl dgst -binary -sha1 | openssl base64)" >> $HTPASSWD_FILE && systemctl restart ouo
   Upgrade:  re-run this script with --ref <tag>.   Logs: cd $DIR && ${COMPOSE[*]} logs -f
 SUMMARY

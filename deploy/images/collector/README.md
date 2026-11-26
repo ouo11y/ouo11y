@@ -4,8 +4,8 @@ There is no separate Dockerfile here on purpose: the ouo collector image **is**
 [`collector/Dockerfile`](../../../collector/Dockerfile), the custom OpenTelemetry Collector
 distribution built with ocb from `collector/builder.yaml` (upstream OTLP receiver,
 `basicauth`, `resource`, `transform`, `batch`, `memory_limiter`, the OTLP exporters,
-`health_check`, plus ouo's `ouoreplay` receiver and exporter and the `ouoratelimit`
-processor; ADR-0007 section 1). Build it from the repository root:
+`health_check`, `file_storage`, `routing`, plus ouo's `ouosentry` receiver, `ouoauth` extension and the
+`ouoratelimit` processor; ADR-0007 section 1). Build it from the repository root:
 
 ```bash
 docker build -t ouo/collector:dev collector

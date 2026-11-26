@@ -5,8 +5,7 @@ import { createLogger } from "../src/logger";
 import { createReplayController, type NativeReplayModule } from "../src/replay";
 import { SAMPLING_SALT, SampledLogProcessor, SampledSpanProcessor, sampled, sampleRate, samplingHash } from "../src/sampling";
 
-// Shared with services/rum-api/internal/sampling/sampling_test.go: the server-side cap and the
-// SDK must agree on every session id.
+// Shared with the Swift SDK and any server-side cap: they must agree on every session id.
 const VECTORS: Array<[string, number]> = [
   ["", 0xab3e7c0b],
   ["a", 0x1a80b1b3],
@@ -106,7 +105,7 @@ function fakeNative() {
 
 describe("replay sampling", () => {
   const logger = createLogger(false);
-  const base = { endpoint: "http://otel.test:4319", projectId: "demo", projectToken: "pt_x", logger };
+  const base = { endpoint: "http://otel.test:4318", projectId: "demo", projectToken: "pt_x", logger };
   const rec = (id: string): boolean => sampled(id, 0.5, SAMPLING_SALT.replay);
   const recorded = findId("rec", rec);
   const skipped = findId("skip", (id) => !rec(id));

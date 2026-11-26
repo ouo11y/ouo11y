@@ -1,11 +1,11 @@
-# 30. Add ouo11y RUM and screenshot replay to your React Native (Expo) app, iOS
+# 30. Add RUM and screenshot replay to your React Native (Expo) app, iOS
 
 This guide is for an engineer who has their own Expo app and wants sessions, errors, crashes,
 fetch traces and screenshot replay from it in the ouo stack, running on a Mac with the latest
 macOS (27.x) and Xcode 27. It assumes the local stack from `00-stack.md` is up: the ouo collector
 (`ouo-collector`, the only endpoint the app talks to since ADR-0007) with OTLP/HTTP on
-`http://localhost:4318` and its replay receiver on `http://localhost:4319`, and Grafana on
-`http://localhost:3000`. rum-api, Loki, Tempo and Mimir are internal.
+`http://localhost:4318` (replay chunks included), and Grafana on `http://localhost:3000`.
+Muninn (the replay store), Loki, Tempo and Mimir are internal.
 
 Everything below was checked against this repository on 2026-10-10 (macOS 27.0.1, Xcode 27.0,
 iOS 27.0 simulator runtime, CocoaPods 1.17, Node 24.15, Expo SDK 57, React Native 0.86,
@@ -29,14 +29,14 @@ Reference app: `examples/ouo-mobile` ("mobile-store"). You copy four files from 
 | `http.request.failed` on 5xx / network failure | SDK, automatic | Loki |
 | `navigation` events | you call `rum.trackNavigation` or wire `navigationStateListener` | Loki |
 | custom events, handled errors, user id | you call `rum.addEvent`, `rum.captureError`, `rum.setUser` | Loki |
-| screenshot frames at 1 Hz plus one per touch, redacted on the device, gzip JSON chunks | native `OuoReplay` module, automatic once `replay.enabled: true` | the collector's replay receiver (`:4319/v1/replay/chunks`), then rum-api's replay store |
+| screenshot frames at 1 Hz plus one per touch, redacted on the device, gzip JSON chunks | native `OuoReplay` module, automatic once `replay.enabled: true` | the collector's `/v1/logs` as OTLP log records on scope `ouo.replay`, then Muninn (the replay store) |
 
 Every request above carries `Authorization: Basic base64("<project id>:<project token>")`
 (ADR-0007). The collector's `basicauth` extension checks the credential, its rate limiter and body
 limits apply, a `resource` processor stamps `ouo.project.id` from the authenticated user name, and
-the pipelines export to Tempo and Loki; replay chunks take the `ouoreplay` receiver and exporter to
-rum-api's internal chunk sink. rum-api folds the Loki events into session records (`healthy` /
-`errored` / `crashed`), and the Grafana app plugin (`ouo11y-rum-app`) lists them and plays the frames.
+the pipelines export to Tempo and Loki; replay records are routed to Muninn
+([`docs/specs/muninn.md`](../../docs/specs/muninn.md)), with a reference copy without the chunk
+bytes in Loki. You find a session in Grafana Explore by its `session_id` (section 7.2).
 
 ---
 
@@ -140,9 +140,9 @@ curl -s -o /dev/null -w '%{http_code}\n' -u demo:pt_dev_demo_0000000000000000 -X
 ```
 
 Port and project note. The ports in `deploy/compose/.env.example` are the defaults (`4318` the
-collector's OTLP/HTTP, `4319` its replay receiver, both published on all interfaces because they
-are the public ingest; `8081` demo backend, `3000` Grafana; rum-api's `8080` is on loopback for
-the `curl` checks in section 7.1 and never for apps) and the stack ships a development project:
+collector's OTLP/HTTP, published on all interfaces because it is the public ingest; `8081`
+demo backend, `3000` Grafana; Muninn's `3400` is on loopback for the `curl` check in section 7.1
+and never for apps) and the stack ships a development project:
 id `demo`, token `pt_dev_demo_0000000000000000` (a line in the collector's htpasswd).
 `examples/ouo-mobile/app.config.ts` falls back to the same values, so with a stock stack you do not
 need to pass anything. If you moved ports or changed the project in a gitignored
@@ -331,7 +331,7 @@ import type { ExpoConfig } from "expo/config";
  * APP_VERSION switches `service.version` so the health split by version has data:
  *   APP_VERSION=2.4.0 npx expo start --ios
  * EXPO_PUBLIC_OTLP_ENDPOINT is the collector's OTLP/HTTP base URL (ADR-0007: the collector is the
- * only edge; the SDK derives the replay receiver on port 4319 from port 4318), EXPO_PUBLIC_OUO_PROJECT_ID
+ * only edge; replay chunks go to its logs route as OTLP log records), EXPO_PUBLIC_OUO_PROJECT_ID
  * and EXPO_PUBLIC_OUO_PROJECT_TOKEN the project credential (sent as HTTP Basic); all three default to
  * the stock compose stack and its development project. BACKEND_URL is the demo backend.
  * From the iOS Simulator `localhost` reaches the Mac; a physical device needs the Mac's LAN IP.
@@ -357,14 +357,22 @@ const config: ExpoConfig = {
     },
   },
   web: { favicon: "./assets/favicon.png" },
-  // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet.
-  plugins: ["./plugins/withUIScene.js"],
+  // iOS 27 requires the UIScene life cycle; Expo 57's template does not add it yet. The Android
+  // Release build talks plain http to the local stack (10.0.2.2 from the emulator).
+  plugins: ["./plugins/withUIScene.js", "./plugins/withAndroidCleartext.js"],
   extra: {
     backendUrl: process.env.BACKEND_URL ?? "http://localhost:8081",
     otlpEndpoint: process.env.EXPO_PUBLIC_OTLP_ENDPOINT ?? "http://localhost:4318",
     projectId: process.env.EXPO_PUBLIC_OUO_PROJECT_ID ?? "demo",
     projectToken: process.env.EXPO_PUBLIC_OUO_PROJECT_TOKEN ?? "pt_dev_demo_0000000000000000",
     environment: process.env.OUO_ENV ?? "local",
+    // EXPO_PUBLIC_OUO_REPLAY_MODE: what replay records (`pixel/frames`, the default, or `pixel/video`, iOS).
+    replayMode: process.env.EXPO_PUBLIC_OUO_REPLAY_MODE ?? "pixel/frames",
+    // OUO_CONFORMANCE=1: the golden app of the Android conformance suite (tests/e2e/mobile-android):
+    // replay with the default masking, a 5 s background timeout and notes for the checks in logcat.
+    conformance: process.env.OUO_CONFORMANCE === "1",
+    // OUO_DEBUG=1: the SDK's debug log in a Release build (the native replay log goes to NSLog / logcat).
+    debug: process.env.OUO_DEBUG === "1",
   },
 };
 
@@ -481,18 +489,24 @@ module.exports = function withUIScene(config) {
 This is the file you edit. Full reference version:
 
 ```ts
-import { initRUM, type RUM } from "@ouo11y/react-native";
+import { initRUM, type ReplayMode, type RUM } from "@ouo11y/react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 
 interface Extra {
   backendUrl: string;
-  /** Collector OTLP/HTTP base URL (ADR-0007); replay chunks go to the same host on port 4319. */
+  /** Collector OTLP/HTTP base URL (ADR-0007); replay chunks go to `${otlpEndpoint}/v1/logs` as OTLP log records (ADR-0021). */
   otlpEndpoint: string;
   /** Project credential (HTTP Basic: id is the user name, token the password). Public by nature; the stock compose stack ships this development project. */
   projectId: string;
   projectToken: string;
   environment: string;
+  /** `replay.mode` (EXPO_PUBLIC_OUO_REPLAY_MODE): `pixel/frames` or, on iOS, `pixel/video`. */
+  replayMode: ReplayMode;
+  /** The golden app of the Android conformance suite (OUO_CONFORMANCE=1, app.config.ts). */
+  conformance?: boolean;
+  /** The SDK's debug log in a Release build (OUO_DEBUG=1, app.config.ts). */
+  debug?: boolean;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Partial<Extra>;
@@ -503,6 +517,9 @@ export const config: Extra = {
   projectId: extra.projectId ?? "demo",
   projectToken: extra.projectToken ?? "pt_dev_demo_0000000000000000",
   environment: extra.environment ?? "local",
+  replayMode: extra.replayMode ?? "pixel/frames",
+  conformance: extra.conformance === true,
+  debug: extra.debug === true,
 };
 
 /** `service.version` is the app version from app.config.ts (APP_VERSION env). */
@@ -514,11 +531,12 @@ function escapeRegExp(s: string): string {
 
 export const rum: RUM = initRUM({
   endpoint: config.otlpEndpoint,
-  // replayEndpoint is derived: http://localhost:4318 -> http://localhost:4319 (ADR-0007 section 6).
   projectId: config.projectId,
   projectToken: config.projectToken,
   service: { name: "mobile-store", version: appVersion, environment: config.environment },
   tracing: { propagateTo: [new RegExp(`^${escapeRegExp(config.backendUrl)}`)] },
+  // The demo backend puts the session id on its own spans and logs: it reads it from W3C baggage.
+  propagation: { sessionBaggage: true },
   device: {
     ...(Device.modelId ? { modelIdentifier: String(Device.modelId) } : {}),
     ...(Device.modelName ? { modelName: Device.modelName } : {}),
@@ -526,14 +544,28 @@ export const rum: RUM = initRUM({
     ...(Device.osName ? { osName: Device.osName } : {}),
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
   },
-  // Native session replay (ADR-0006): needs the development build (npx expo run:ios); a no-op
-  // in Expo Go and on web. Chunks go to `${replayEndpoint}/v1/replay/chunks` with the Basic credential.
+  // Native session replay (ADR-0021 decision 5): needs the development build (npx expo run:ios);
+  // a no-op in Expo Go and on web. `mode` is what is recorded (`pixel/frames`: masked frames and
+  // tile patches; `pixel/video`, iOS: masked H.264 segments; EXPO_PUBLIC_OUO_REPLAY_MODE). Each chunk is one OTLP log record (`ouo.replay.chunk`) the native module posts
+  // to `${endpoint}/v1/logs` with the Basic credential, from its own disk queue.
   // The demo opts out of label masking (maskText: false) so replays are readable; text inputs
   // stay masked (maskInputs defaults to true), as do images and web views. The promo field is
   // additionally marked testID="ouo-mask" and the product title testID="ouo-unmask".
-  replay: { enabled: true, maskText: false },
-  debug: __DEV__,
+  // The conformance build keeps every default (spec C8.2: text, inputs, images and web views
+  // masked) and ends a session after 5 s in the background (C1.1 without a 30 s wait).
+  replay: config.conformance ? { enabled: true, mode: config.replayMode } : { enabled: true, mode: config.replayMode, maskText: false },
+  ...(config.conformance ? { session: { backgroundTimeoutMs: 5000 } } : {}),
+  debug: __DEV__ || config.debug === true,
 });
+
+/**
+ * A line for the Android conformance suite (tests/e2e/mobile-android/check.mjs), which reads them from
+ * logcat: `OUO_NOTE {"kind": ..., "ts": ..., "session": ...}`. Nothing outside the conformance build.
+ */
+export function note(kind: string, fields: Record<string, unknown> = {}): void {
+  if (!config.conformance) return;
+  console.log(`OUO_NOTE ${JSON.stringify({ kind, ts: Date.now(), session: rum.session.id(), ...fields })}`);
+}
 
 export const shortId = (id: string): string => id.slice(0, 8);
 ```
@@ -571,11 +603,10 @@ instead of getting `401` on every export.
 
 | Option | What it does | Default |
 |---|---|---|
-| `endpoint` | Collector OTLP/HTTP base URL (ADR-0007). The SDK posts to `${endpoint}/v1/traces` and `${endpoint}/v1/logs`. Requests to the ingest URLs are never traced. | required |
-| `replayEndpoint` | Base URL of the collector's replay receiver; chunks go to `${replayEndpoint}/v1/replay/chunks`. | `endpoint` with port 4318 replaced by 4319, else `endpoint` itself |
+| `endpoint` | Collector OTLP/HTTP base URL (ADR-0007). The SDK posts to `${endpoint}/v1/traces` and `${endpoint}/v1/logs` (replay chunks too). Requests to the ingest URLs are never traced. | required |
 | `projectId` | User name of the HTTP Basic credential (`Authorization: Basic base64("<projectId>:<projectToken>")`) sent on every OTLP export and replay upload. `initRUM` throws without it. | required |
 | `projectToken` | Password of the Basic credential. Public by nature; `initRUM` throws without it. | required |
-| `service.name` | `service.name` resource attribute, the service filter in rum-api and Grafana. | required |
+| `service.name` | `service.name` resource attribute, the service filter in Grafana. | required |
 | `service.version` | `service.version`: the app version; the version dimension of the health percentages. Pass `Constants.expoConfig.version`. | required |
 | `service.environment` | `deployment.environment.name`. | required |
 | `tracing.propagateTo` | URL prefixes (RegExp or exact string) that receive `traceparent` and `baggage` (`session.id`, `user.id`, `ouo.platform=mobile`). Other hosts still get a client span, no headers. | `[]` |
@@ -696,9 +727,8 @@ await rum.flush();                              // spans, log records and replay
   present, frames at `frameInterval` plus one per touch `began` / `ended` (at most 4 per
   second) are captured from the key window with `drawHierarchy`, redaction rectangles are
   painted black on the device, unchanged frames are dropped (16x16 grayscale hash), and chunks
-  go out every 5 s or 10 frames or on pause / background / rotation / flush as gzip JSON to the
-  collector's replay receiver with headers `Authorization: Basic …`, `x-ouo-session-id` and
-  `x-ouo-seq`. Background stops the timer and flushes; foreground sends a `resume` frame.
+  go out every 5 s or 10 frames or on pause / background / rotation / flush, each as one OTLP
+  log record (`ouo.replay.chunk`) to `${endpoint}/v1/logs` with `Authorization: Basic …`. Background stops the timer and flushes; foreground sends a `resume` frame.
 
 ---
 
@@ -783,8 +813,8 @@ The simulator shares the Mac's network namespace, so `localhost` inside the app 
 ### 6.4 Read the logs
 
 JS side (`debug: __DEV__`): Metro's terminal prints `[ouo] ...` lines:
-`[ouo] shims {...}`, `[ouo] @ouo11y/react-native@0.2.0 initialised {endpoint, traces, logs,
-replayChunks, replayEndpointDerived, projectId, projectToken: "pt_dev_d…", ...}`, `[ouo] session
+`[ouo] shims {...}`, `[ouo] @ouo11y/react-native@... initialised {endpoint, traces, logs,
+projectId, projectToken: "pt_dev_d…", ...}`, `[ouo] session
 ready <id>`, `[ouo] replay: started {endpoint, ...}`, `[ouo] event navigation {...}`. A `401`
 from the collector shows up as `[ouo:otel] export response failure (status: 401)`: wrong project
 id or token. If replay is off you get one
@@ -820,27 +850,23 @@ Since ADR-0007 the collector (`ouo-collector`, a custom OpenTelemetry Collector 
 the only public ingest. Its `basicauth` extension checks the project credential on every request,
 `ouoratelimit` and the body limits apply, a `resource` processor stamps `ouo.project.id` from the
 authenticated user name, and the standard pipelines export to Tempo, Loki and Mimir. Replay
-chunks enter through the `ouoreplay` receiver on its own port (4319) and leave through the
-`ouoreplay` exporter to rum-api's internal chunk sink. rum-api, Loki, Tempo and Mimir are never
+chunks are log records on scope `ouo.replay` on the same `/v1/logs`; the collector routes them to
+Muninn (and a reference copy without the bytes to Loki). Muninn, Loki, Tempo and Mimir are never
 published for apps; Grafana is the only other public service.
 
 ```
  iOS Simulator (same network namespace as the Mac)              Docker (deploy/compose/compose.yaml)
  +-----------------------------------------------+     +------------------------------------------------------+
  |  your app                                     |     |  ouo-collector (public ingest, ADR-0007)             |
- |  @ouo11y/react-native (JS, Hermes)               |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
+ |  @ouo11y/react-native (JS, Hermes)            |     |   :4318 otlp receiver (basicauth, body limit, CORS)  |
  |    POST {endpoint}/v1/traces ---------------------->|     ouoratelimit -> resource: ouo.project.id=<user>  |
  |    POST {endpoint}/v1/logs   ---------------------->|       -> tempo :4317 (spans)                         |
- |    Authorization: Basic b64(projectId:token)  |     |       -> loki  :3100 (events)                        |
- |    endpoint = http://localhost:4318           |     |       -> mimir :9009 (metrics, not from RN)          |
- |                                               |     |   :4319 ouoreplay receiver (same auth, 8 MiB limit)  |
- |  OuoReplay (Swift, Expo module)               |     |     -> ouoreplay exporter -> rum-api (internal)      |
- |    POST {replayEndpoint}/v1/replay/chunks --------->|          POST /v1/replay/chunks + X-Ouo-Project-Id   |
- |    Authorization: Basic b64(projectId:token)  |     |          replays/<session_id>/<seq>.json.gz          |
- |    replayEndpoint = http://localhost:4319     |     |                                                      |
- |                                               |     |  rum-api :8080 (loopback only on the host)           |
+ |  OuoReplay (Swift, Expo module)               |     |       -> loki  :3100 (events, replay refs)           |
+ |    POST {endpoint}/v1/logs (scope ouo.replay) ----->|       -> muninn :3400 (replay chunks, internal)      |
+ |    Authorization: Basic b64(projectId:token)  |     |                                                      |
+ |    endpoint = http://localhost:4318           |     |                                                      |
  |  fetch("http://localhost:8081/api/...") ----------->|  demo backend :8081 (traceparent, baggage)           |
- +-----------------------------------------------+     |  grafana :3000  ouo11y-rum-app --> rum-api (read token) |
+ +-----------------------------------------------+     |  grafana :3000 (Explore: Loki, Tempo, Mimir)         |
                                                        +------------------------------------------------------+
 ```
 
@@ -848,7 +874,7 @@ Where the values come from, in the reference app:
 
 | Value | Set by | Reaches the SDK as |
 |---|---|---|
-| `EXPO_PUBLIC_OTLP_ENDPOINT` (env, default `http://localhost:4318`) | `app.config.ts` -> `extra.otlpEndpoint` | `initRUM({ endpoint })`; `/v1/traces`, `/v1/logs` and the replay endpoint (port 4318 -> 4319) are derived from it (`resolveEndpoints`) |
+| `EXPO_PUBLIC_OTLP_ENDPOINT` (env, default `http://localhost:4318`) | `app.config.ts` -> `extra.otlpEndpoint` | `initRUM({ endpoint })`; `/v1/traces` and `/v1/logs` (replay chunks too) are derived from it (`resolveEndpoints`) |
 | `EXPO_PUBLIC_OUO_PROJECT_ID` (env, default `demo`) | `app.config.ts` -> `extra.projectId` | `initRUM({ projectId })`, user name of the Basic credential |
 | `EXPO_PUBLIC_OUO_PROJECT_TOKEN` (env, default `pt_dev_demo_0000000000000000`) | `app.config.ts` -> `extra.projectToken` | `initRUM({ projectToken })`, password of the Basic credential; `Authorization: Basic …` on OTLP exports and replay uploads |
 | `BACKEND_URL` (env, default `http://localhost:8081`) | `app.config.ts` -> `extra.backendUrl` | `tracing.propagateTo` prefix |
@@ -859,9 +885,8 @@ Where the values come from, in the reference app:
 The collector's CORS allow-list only matters for browsers; a native app sends no `Origin`
 header, so the Basic credential is the whole check. A missing or unknown credential is a `401` on
 every export (visible as `[ouo:otel] export response failure (status: 401)` in Metro with `debug`
-on); a wrong collector URL is a `404` or a network error. Behind a proxy that serves both receivers
-from one host (`https://otel.example.com`, the VM install), set `EXPO_PUBLIC_OTLP_ENDPOINT` to that
-host: with no port 4318 in it the SDK sends replay chunks to the same host.
+on); a wrong collector URL is a `404` or a network error. Behind a proxy
+(`https://otel.example.com`, the VM install), set `EXPO_PUBLIC_OTLP_ENDPOINT` to that host.
 
 Verified how: the 0.2.0 SDK was driven in Vitest against a Node stub of the collector with
 `basicauth` (`sdk/react-native/test/ingest-stub.test.ts`, port 18082): `POST /v1/traces` and
@@ -873,59 +898,35 @@ live run against the Phase 8a collector on the simulator is the QA pass
 
 ### 7.1 Verify from the terminal
 
-rum-api is internal; the local stack publishes its `8080` on loopback so these checks work from
-the Mac. When rum-api runs with `OUO_READ_TOKEN` set (the compose stack does, see
-`deploy/compose/.env`), every `GET /v1/*` below needs `-H "Authorization: Bearer $OUO_READ_TOKEN"`;
-add it to the `curl` commands. The app never uses these routes: its uploads go to the collector
-with the project credential.
-
-Session records (platform is `mobile`; `ouo.platform=mobile` is what the RN SDK sets):
-
-```bash
-curl -s 'localhost:8080/v1/sessions?from=now-1h&platform=mobile' | jq '.sessions[] | {session_id, service_version, status, end_reason, has_replay, replay_kind, replay_frame_count}'
-```
-
-Health split by version:
-
-```bash
-curl -s 'localhost:8080/v1/stats/health?from=now-1h&platform=mobile' | jq .buckets
-```
-
-One session with its timeline and traces (the id is in the reference app's header badge):
-
-```bash
-curl -s 'localhost:8080/v1/sessions/<session id>' | jq '.timeline[] | {ts, type, name}'
-```
-
-Replay meta (`kind: "frames"`, a growing `chunk_count`):
-
-```bash
-curl -s 'localhost:8080/v1/sessions/<session id>/replay' | jq
-```
+The session id is in the reference app's header badge.
 
 Raw events in Loki (stream labels are `service_name`, `event_name`, `ouo_platform`,
 `deployment_environment_name`; `session_id` is structured metadata):
 
 ```bash
-curl -s -G 'localhost:3100/loki/api/v1/query_range' --data-urlencode 'query={ouo_platform="mobile", event_name=~".+"}' --data-urlencode 'since=1h' --data-urlencode 'limit=50' | jq '.data.result[] | {stream: .stream.event_name, n: (.values | length)}'
+curl -s -G 'localhost:3100/loki/api/v1/query_range' --data-urlencode 'query={service_name="mobile-store"} | session_id="<session id>"' --data-urlencode 'since=1h' --data-urlencode 'limit=50' | jq '.data.result[] | {event: .stream.event_name, n: (.values | length)}'
 ```
 
 Traces in Tempo for a session:
 
 ```bash
-curl -s -G 'localhost:3200/api/search' --data-urlencode 'q={ span.session.id = "<session id>" }' | jq '.traces[] | {traceID, rootServiceName, rootTraceName}'
+curl -s -G 'localhost:3200/api/search' --data-urlencode 'q={ span.session.id = "<session id>" }' --data-urlencode "start=$(( $(date +%s) - 3600 ))" --data-urlencode "end=$(( $(date +%s) + 60 ))" | jq '.traces[] | {traceID, rootServiceName, rootTraceName}'
 ```
 
-rum-api caches Tempo results per session for 60 s, so `trace_count` can read 0 for a minute
-after the first spans arrive. Wait, then re-query.
+Replays of the session in Muninn (internal, loopback only; read token from
+`deploy/compose/.env`, development default shown):
+
+```bash
+curl -s -H 'Authorization: Bearer mrt_dev_0000000000000000' 'http://127.0.0.1:3400/api/v1/projects/demo/sessions/<session id>/replays' | jq
+```
 
 ### 7.2 Verify in Grafana
 
-Open `http://localhost:3000/a/ouo11y-rum-app/sessions` (admin / testing567), filter platform
-`mobile`, open your session: the timeline shows `session.start`, `navigation`, `exception`,
-`http.request.failed` and custom events, the traces panel links into Tempo, and the replay panel
-mounts the frame player (`replay_kind: "frames"`) with play / pause, a scrubber and touch
-markers that fade over 500 ms. Masked views are solid black.
+Open `http://localhost:3000` (admin / testing567) > Explore. Loki:
+`{service_name="mobile-store"} | session_id="<session id>"` lists `session.start`, `navigation`,
+`exception`, `http.request.failed`, custom events and the `ouo.replay.chunk` references; the
+`trace_id` field links into Tempo. Tempo: `{ span.session.id = "<session id>" }` lists the
+session's fetch traces.
 
 ---
 
@@ -954,8 +955,8 @@ Read in this order.
    `projectToken`), shims, session manager, OTLP log and trace exporters with the Basic
    `Authorization` header and batch processors, the session span/log processors, the propagator,
    fetch instrumentation, error capture, AppState listener, navigation tracker, the replay
-   controller. `endpoints.ts`: `resolveEndpoints` derives `/v1/traces`, `/v1/logs` and the replay
-   endpoint (4318 -> 4319) from `endpoint` / `replayEndpoint`; `basicAuthorization` builds the
+   controller. `endpoints.ts`: `resolveEndpoints` derives `/v1/traces` and `/v1/logs` from
+   `endpoint`; `basicAuthorization` builds the
    header with the SDK's own base64 encoder (no `btoa` on every RN runtime).
 7. `shims.ts`: installs `performance.timeOrigin` and a UTF-8 `TextEncoder` only when missing
    (without `timeOrigin` every OTel timestamp is `NaN`).
@@ -972,7 +973,7 @@ Read in this order.
     `device.*`), the per-signal session attributes, events as OTel log records with
     `event.name`, `traceparent` + `baggage` injection.
 13. `replay.ts`: loads the native module from `globalThis.expo.modules.OuoReplay`, passes the
-    replay endpoint, the project id and the token to native `start`, and exposes a controller
+    logs URL, the project id and the token to native `start`, and exposes a controller
     that is a no-op when replay is off or the module is absent.
 
 **The Expo module bridge (`sdk/react-native`)**
@@ -1051,9 +1052,8 @@ app again.
 Yes, as long as the phone and the Mac are on the same Wi-Fi / LAN and the app uses the Mac's
 LAN address instead of `localhost`. On the phone `localhost` is the phone itself; in the
 simulator it was the Mac. Nothing else in the pipeline changes: the SDK posts OTLP to
-`{endpoint}/v1/...` on port 4318 and replay chunks to the same host on port 4319 (derived; one
-variable covers both), and compose publishes exactly those two collector ports on all
-interfaces. rum-api stays on loopback and never needs to be reachable from the phone.
+`{endpoint}/v1/...` on port 4318, replay chunks included, and compose publishes that collector
+port on all interfaces. Muninn stays on loopback and never needs to be reachable from the phone.
 
 Get the Mac's LAN IP (`en0` is Wi-Fi on most Macs; use `en1` or the interface shown in System
 Settings > Network if empty):
@@ -1075,8 +1075,7 @@ Pass it to the app. The variables are the ones `app.config.ts` reads:
 EXPO_PUBLIC_OTLP_ENDPOINT=http://192.168.1.23:4318 BACKEND_URL=http://192.168.1.23:8081 npx expo start
 ```
 
-OTLP (`:4318/v1/traces`, `:4318/v1/logs`) and replay chunks (`:4319/v1/replay/chunks`) both go
-to that address; the project id and token stay the same.
+OTLP (`:4318/v1/traces`, `:4318/v1/logs`, replay chunks included) goes to that address; the project id and token stay the same.
 
 Things that can block it, and what to do:
 
@@ -1086,7 +1085,7 @@ Things that can block it, and what to do:
   Wi-Fi isolates clients from each other, `npx expo start --tunnel` gets Metro through ngrok,
   but that does nothing for OTLP and replay: those still need a direct route to the Mac.
 - **macOS firewall.** System Settings > Network > Firewall: if it is on, allow incoming
-  connections for Docker (the app that owns the published ports 4318, 4319 and 8081) or turn
+  connections for Docker (the app that owns the published ports 4318 and 8081) or turn
   "Block all incoming connections" off. Not verified in this repo.
 - **App Transport Security (ATS).** The generated `examples/ouo-mobile/ios/mobilestore/Info.plist`
   (verified) has `NSAppTransportSecurity` with `NSAllowsArbitraryLoads: false` and
@@ -1107,8 +1106,7 @@ Things that can block it, and what to do:
   ```
 
   Do not ship `NSAllowsArbitraryLoads` in a release build; put the collector behind HTTPS
-  instead (the VM and Kubernetes installs do: `otel.<domain>` routes `/v1/replay/*` to 4319 and
-  everything else to 4318, so one `EXPO_PUBLIC_OTLP_ENDPOINT=https://otel.<domain>` covers both).
+  instead (the VM and Kubernetes installs do: `EXPO_PUBLIC_OTLP_ENDPOINT=https://otel.<domain>`).
 - **Local Network privacy prompt.** iOS asks once whether the app may "find and connect to
   devices on your local network" the first time it talks to a LAN address; if the user taps
   "Don't Allow", nothing reaches the Mac (Settings > Privacy & Security > Local Network to fix).
@@ -1125,8 +1123,8 @@ Things that can block it, and what to do:
   network and gets an address (typically `172.20.10.x`) that the app can use in
   `EXPO_PUBLIC_OTLP_ENDPOINT` / `BACKEND_URL`.
 
-Verify from the Mac exactly as in section 7.1; the session record will show `os.name iOS`,
-the real `device.model.identifier` (for example `iPhone17,1`) and `replay_kind: "frames"`.
+Verify from the Mac exactly as in section 7.1; the events carry `os.name iOS` and the real
+`device.model.identifier` (for example `iPhone17,1`).
 
 ---
 
@@ -1145,14 +1143,11 @@ the real `device.model.identifier` (for example `iPhone17,1`) and `replay_kind: 
 - The back chevron in the navigation bar is a `UIImageView`, so it stays black with
   `maskImages: true` even when `maskText: false`. Not a bug.
 - After tapping, wait about 7 s (5 s chunk flush plus upload) before expecting the frame in
-  rum-api.
+  Muninn.
 - `401` on every export: `EXPO_PUBLIC_OUO_PROJECT_ID` / `EXPO_PUBLIC_OUO_PROJECT_TOKEN` do not
   match a line in the collector's htpasswd (`deploy/compose/collector/projects.htpasswd`; the
   user name is the project id). The SDK never retries a `401`; fix the values and restart Metro
   (they are baked into `extra` when the config is evaluated). Check the pair from the Mac with
   the `curl -u` line in section 2.4.
-- Replay chunks fail with a connection error while OTLP works: the replay receiver is a second
-  port. With `EXPO_PUBLIC_OTLP_ENDPOINT=http://<host>:4318` the SDK derives `http://<host>:4319`;
-  make sure 4319 is published (compose does) or pass `replayEndpoint` in `src/rum.ts`.
 - Scrolling must stay smooth while recording (10 to 30 ms per frame on a simulator); if it
   stutters, raise `frameInterval`.
