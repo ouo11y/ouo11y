@@ -1,0 +1,11 @@
+# The ouo stack, one folder per service. This file only lists them; each folder holds the
+# service's compose file and its config. Start everything from this folder: `docker compose up -d`.
+# Grafana http://localhost:3000 (admin / testing567), OTLP http://localhost:4318.
+# Ports taken? Put OUO_GRAFANA_PORT=... and OUO_OTLP_HTTP_PORT=... in stack/.env.
+name: ouo-from-scratch   # compose project name: containers and volumes use it
+include:
+  - 10-collector/compose.yaml   # ingest: the only thing your apps talk to, replay included
+  - 20-tempo/compose.yaml       # traces: page loads and fetch requests
+  - 30-loki/compose.yaml        # events: sessions, page views, clicks, errors, vitals
+  - 40-muninn/compose.yaml      # replay chunks, one file per chunk
+  - 50-grafana/compose.yaml     # the UI: Loki and Tempo, and your plugin (guide 03)

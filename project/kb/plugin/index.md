@@ -8,3 +8,4 @@ What a client's own Grafana plugin (backend and frontend) meets when it reads ou
 | [idp-tokens/](idp-tokens/index.md) | How a plugin backend gets the user's identity-provider tokens on open-source Grafana (only a datasource with `oauthPassThru`), the settings, captured headers, and what token verification must hold against |
 | [ouo-kit/](ouo-kit/index.md) | Using `@ouo11y/kit` in a browser: why the `ouo-video/1` player seeks a paused `<video>` on its own clock |
 | [ouo-go/](ouo-go/index.md) | Using `libs/ouo-go` itself: the two RUM wires its readers must accept, and fetching it (public since 2026-11-15) |
+| [scaffolding/](scaffolding/index.md) | Starting a client plugin with `@grafana/create-plugin` without prompts, what to remove, and the traps of its Go backend (tests in `node_modules`, the user in resource tests, building without Mage) |

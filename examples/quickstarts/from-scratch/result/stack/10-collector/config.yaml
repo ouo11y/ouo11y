@@ -1,0 +1,115 @@
+# Collector pipeline. Every request needs HTTP Basic `<project id>:<project token>` from
+# projects.htpasswd; the project id is stamped on every record as ouo.project.id.
+#
+#   OTLP :4318 -> traces              -> Tempo
+#              -> logs, scope ouo.rum    -> Loki
+#              -> logs, scope ouo.replay -> Muninn (disk queue)  + a reference record in Loki
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  basicauth/projects:
+    htpasswd:
+      file: /etc/otelcol/projects.htpasswd
+  # The replay queue is written to disk (fsync) before the SDK gets its 2xx.
+  file_storage/replay:
+    directory: /var/lib/otelcol/replay-queue
+    create_directory: true
+    fsync: true
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+        max_request_body_size: 4194304   # 4 MiB; a replay chunk is at most 1 MiB
+        auth:
+          authenticator: basicauth/projects
+        cors:
+          allowed_origins: ["http://localhost:*", "http://127.0.0.1:*"]
+          allowed_headers: [Authorization, Content-Type, Content-Encoding, traceparent, baggage]
+          exposed_headers: [Retry-After]
+
+connectors:
+  # Replay chunks go one way, everything else the other.
+  routing/replay:
+    error_mode: propagate
+    default_pipelines: [logs]
+    table:
+      - context: log
+        condition: instrumentation_scope.name == "ouo.replay"
+        pipelines: [logs/replay, logs/replay-index]
+
+processors:
+  # The authenticated project wins over anything the client sent.
+  resource/project:
+    attributes:
+      - key: ouo.project.id
+        action: delete
+      - key: ouo.project.id
+        from_context: auth.username
+        action: upsert
+  # Loki indexes event.name; OTLP carries it as the record's event name.
+  transform/events:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["event.name"], log.event_name) where log.event_name != "" and log.attributes["event.name"] == nil
+  # Loki's copy of a chunk: its attributes, no bytes, and where Muninn keeps it.
+  transform/replay-ref:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.body, "") where log.event_name == "ouo.replay.chunk"
+          - set(log.attributes["ouo.replay.ref"], Concat(["muninn:", resource.attributes["ouo.project.id"], log.attributes["session.id"], log.attributes["ouo.replay.id"], log.attributes["ouo.replay.stream.id"], String(log.attributes["ouo.replay.sequence"])], "/")) where log.event_name == "ouo.replay.chunk"
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+  otlp_http/muninn:
+    logs_endpoint: http://muninn:3400/otlp/v1/logs
+    compression: none   # chunk bodies are already gzipped
+    tls:
+      insecure: true
+    headers:
+      Authorization: Bearer ${env:MUNINN_INGEST_TOKEN}
+    sending_queue:
+      enabled: true
+      storage: file_storage/replay
+      block_on_overflow: false   # a full queue answers 503, and the SDK retries later
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0        # keep retrying while Muninn is down
+
+service:
+  extensions: [health_check, basicauth/projects, file_storage/replay]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource/project, batch]
+      exporters: [otlp_grpc/tempo]
+    logs/in:
+      receivers: [otlp]
+      processors: [resource/project]
+      exporters: [routing/replay]
+    logs:
+      receivers: [routing/replay]
+      processors: [transform/events, batch]
+      exporters: [otlp_http/loki]
+    logs/replay:   # no batch: the SDK's 2xx waits for the disk queue
+      receivers: [routing/replay]
+      exporters: [otlp_http/muninn]
+    logs/replay-index:
+      receivers: [routing/replay]
+      processors: [transform/replay-ref, transform/events, batch]
+      exporters: [otlp_http/loki]

@@ -9,6 +9,7 @@
 | `examples/quickstarts/tiny-shop/` | quickstarts | done (2026-10-23, [summary](summaries/2026-10-23-quickstart-tiny-shop.md)) | `deploy/compose/quickstart.yaml`, `sdk/browser/**` |
 | `examples/quickstarts/tiny-shop-otel/` | quickstarts | done (2026-10-25, [summary](summaries/2026-10-25-quickstart-tiny-shop-otel.md); review 2026-10-27, [summary](summaries/2026-10-27-quickstart-tiny-shop-otel-review.md)) | `services/rum-api/internal/session` (the contract) |
 | `examples/fast-tracked/30-mobile-ios.md` | fast-tracked-mobile | done | `sdk/react-native/**`, `sdk/ios/**`, `examples/ouo-mobile/**`, `project/kb-archive/xcode-setup.md`, `project/kb-archive/ios-replay.md` |
+| `examples/quickstarts/from-scratch/` | quickstarts | done (2026-11-15, [summary](summaries/2026-11-15-from-scratch-series.md)) | `libs/ouo-go`, `libs/ouo-kit`, `deploy/compose/collector/config.muninn.yaml`, `services/muninn` |
 
 Allowed paths: `examples/fast-tracked/`, `examples/quickstarts/`, `project/agents/fast-tracked/`, index files that list them.
 
