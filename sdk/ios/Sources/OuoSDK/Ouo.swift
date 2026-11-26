@@ -28,7 +28,7 @@ public enum OuoLogLevel: Int {
 public final class Ouo: NSObject {
     /// `ouo.sdk.name` and `ouo.sdk.version`.
     public static let sdkName = "ouo11y-ios"
-    public static let sdkVersion = "0.3.0" // x-release-please-version
+    public static let sdkVersion = "0.4.0" // x-release-please-version
 
     /// A namespace: the API is static.
     private override init() {}
