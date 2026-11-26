@@ -17,7 +17,7 @@ export interface Config {
   serviceName: string;
   serviceVersion: string | undefined;
   environment: string | undefined;
-  session: { inactivityTimeoutMs: number; maxDurationMs: number };
+  session: { inactivityTimeoutMs: number; maxDurationMs: number; anonymousId: boolean };
   sampling: { sessionRate: number; bypassCap: number };
   replay: {
     /** False when `replay.mode` is not a technique this platform has: replay stays off. */
@@ -238,6 +238,7 @@ export function resolveConfig(input: unknown, note: Note): Config | null {
     session: {
       inactivityTimeoutMs: num(session, "inactivityTimeoutMs", "session.inactivityTimeoutMs", 30 * MIN, MIN, 24 * HOUR, note),
       maxDurationMs: num(session, "maxDurationMs", "session.maxDurationMs", 4 * HOUR, MIN, 24 * HOUR, note),
+      anonymousId: bool(session, "anonymousId", "session.anonymousId", false, note),
     },
     sampling: {
       sessionRate: num(sampling, "sessionRate", "sampling.sessionRate", 1, 0, 1, note),

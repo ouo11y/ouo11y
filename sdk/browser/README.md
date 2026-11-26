@@ -63,6 +63,7 @@ App-supplied event and attribute names starting with `session.` or `ouo.` are re
 | `enabled` | `true` | `false`: `init` touches nothing at all |
 | `session.inactivityTimeoutMs` | 1 800 000 | At least 1 minute |
 | `session.maxDurationMs` | 14 400 000 | At most 24 hours |
+| `session.anonymousId` | false | Opt-in: a random visitor id as `enduser.pseudo.id` on every record, kept across visits where storage is allowed (after consent if consent is required), so a guest's visits can be linked and merged into the user on `setUser` |
 | `sampling.sessionRate` | `1` | Fraction of sessions that send telemetry |
 | `sampling.bypass.perSessionCap` | `10` | Unhandled errors sent from a session that is not sampled |
 | `replay.mode` | `structure/dom` | The replay technique. The web has one, and it is the only valid value: any other leaves replay off, with a warning |
