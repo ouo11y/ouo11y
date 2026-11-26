@@ -16,7 +16,7 @@
 # and rum-api and bind-mounts plugins/ouo11y-rum-app/dist). That is the contributor path and
 # the one to use when changing services/rum-api, collector/ or the plugin.
 #
-# Pinned to the exact newest release of each image (collector 0.5.0, rum-api 0.6.0, grafana 0.6.0
+# Pinned to the exact newest release of each image (collector 0.7.0, rum-api 0.6.0, grafana 0.6.0
 # with plugin 0.10.0); `deploy/scripts/gen-quickstart.sh --check` (CI job `quickstart`) fails when
 # a newer release is tagged and these, .env.example and quickstart.yaml are not bumped. Nothing
 # older than 0.3.0, the first release under ghcr.io/ouo11y (ADR-0009): the 0.2.0 images exist
@@ -29,7 +29,7 @@
 services:
   otel-collector:
     build: !reset null
-    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.5.0}
+    image: ${OUO_IMAGE_REGISTRY:-ghcr.io/ouo11y}/collector:${OUO_COLLECTOR_VERSION:-0.7.0}
     pull_policy: missing
 
   rum-api:
