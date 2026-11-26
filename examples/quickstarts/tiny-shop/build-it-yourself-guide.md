@@ -225,7 +225,7 @@ their configuration inline. Open the block below, copy all of it, and paste it i
 # The ouo images default to :latest, the newest release. This file was generated for these
 # releases (digest = the multi-arch image index at that version):
 #
-#   collector  0.5.0  sha256:64f2be4da3ee8f19633c8aa078f21a9ee192af48ae0d1ecb4659318e3bbddda5  OUO_COLLECTOR_VERSION
+#   collector  0.7.0  sha256:5351f3a72f4e0c20e23baa3736c216d3969a39abc46a1c9546d08981147f903d  OUO_COLLECTOR_VERSION
 #   muninn     0.2.0  sha256:b4a1e95d346572372712aa8f6cd901146b96b9386d403126fe9b39da95fc3172  OUO_MUNINN_VERSION
 #
 # To stay on exactly these, put e.g. OUO_MUNINN_VERSION=0.2.0 (or 0.2.0@sha256:...) in a .env
@@ -451,9 +451,9 @@ configs:
       #     scope == ouo.replay -> logs/replay       (no batch: COL-3)          -> otlp_http/muninn [disk queue, fsync]
       #                         -> logs/replay-index (body dropped, ref set)    -> Loki
       #
-      # The Sentry SDK bridge (ADR-0008) on :4320 sends traces to Tempo and logs to Loki. Its
-      # video replay chunks (ouo.replay.chunk=true) have no store yet:
-      # they are dropped (counted by the debug exporter) until Muninn takes them.
+      # The Sentry SDK bridge (ADR-0008) on :4320 sends traces to Tempo; with replay_wire: muninn
+      # (spec sentry-bridge.md 9d) its logs take the same routing/replay as OTLP logs, so Sentry
+      # replays land in Muninn and everything else in Loki.
       #
       # Ports: 4318 OTLP/HTTP public (Basic auth, CORS), 4320 Sentry public (DSN key auth), 4317 gRPC, 13133 health, 8888 metrics.
       #
@@ -520,16 +520,9 @@ configs:
               upstream: $${env:OUO_SENTRY_UPSTREAM:-none}
               ouo_project_id: demo
               service_name: $${env:OUO_SENTRY_SERVICE_NAME:-sentry-demo}
+          replay_wire: muninn
 
       connectors:
-        # The Sentry bridge's video replay chunks have no store (see the header): route them
-        # to the debug exporter and everything else to Loki.
-        routing/sentry:
-          default_pipelines: [logs/sentry-out]
-          table:
-            - context: log
-              condition: log.attributes["ouo.replay.chunk"] == true
-              pipelines: [logs/sentry-replay]
         # COL-2: route by instrumentation scope, after the project is stamped, before any batch.
         # error_mode propagate: the default would send a record whose condition failed to the
         # default pipeline, body included.
@@ -626,8 +619,6 @@ configs:
             initial_interval: 1s
             max_interval: 60s
             max_elapsed_time: 0
-        debug:
-          verbosity: basic
 
       service:
         extensions: [health_check, basicauth/server, ouoauth, ouoratelimit, file_storage/replay]
@@ -674,17 +665,11 @@ configs:
             processors: [transform/replay-ref, transform/events, batch]
             exporters: [otlp_http/loki]
           # Sentry bridge output; the project is in the client context (auth.username).
+          # Sentry bridge output; the project is in the client context (auth.username).
           logs/sentry:
             receivers: [ouosentry]
             processors: [memory_limiter, ouoratelimit, resource/project]
-            exporters: [routing/sentry]
-          logs/sentry-out:
-            receivers: [routing/sentry]
-            processors: [transform/events, batch]
-            exporters: [otlp_http/loki]
-          logs/sentry-replay:
-            receivers: [routing/sentry]
-            exporters: [debug]
+            exporters: [routing/replay]
   projects-htpasswd:
     # deploy/compose/collector/projects.htpasswd
     content: |
